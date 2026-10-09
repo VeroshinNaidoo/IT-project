@@ -7,6 +7,7 @@ export const authorizationMatrix = {
   'POST /api/v1/auth/login': { auth: 'public' },
   'POST /api/v1/auth/logout': { auth: 'student|lecturer' },
   'GET /api/v1/auth/me': { auth: 'student|lecturer' },
+  'PUT /api/v1/auth/me': { auth: 'student|lecturer' },
   'GET /api/v1/modules': { auth: 'student|lecturer' },
   'POST /api/v1/modules': { auth: 'lecturer' },
   'POST /api/v1/enrollments': { auth: 'student' },

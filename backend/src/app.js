@@ -263,6 +263,24 @@ app.post('/api/v1/auth/logout', requireAuth, async (req, res, next) => {
 app.get('/api/v1/auth/me', requireAuth, (req, res) =>
   res.json({ user: req.user }),
 );
+app.put('/api/v1/auth/me', requireAuth, async (req, res, next) => {
+  try {
+    const data = parse(
+      z.object({ fullName: nameSchema }).strict(),
+      req.body,
+      req,
+      res,
+    );
+    if (!data || !visibleText('fullName', req, res, data.fullName)) return;
+    const result = await pool.query(
+      'UPDATE users SET full_name=$1 WHERE user_id=$2 RETURNING user_id,role,full_name,email',
+      [data.fullName, req.user.userId],
+    );
+    res.json({ user: result.rows[0] });
+  } catch (e) {
+    next(e);
+  }
+});
 
 app.get('/api/v1/modules', requireAuth, async (req, res, next) => {
   try {
@@ -510,6 +528,12 @@ app.post(
                     .refine(noProfanity(), { message: profanityMessage }),
                   marks: z.number().positive(),
                   topicId: z.string().uuid().nullable().optional(),
+                  topic: z
+                    .string()
+                    .min(1)
+                    .max(200)
+                    .refine(noProfanity(), { message: profanityMessage })
+                    .optional(),
                   options: z
                     .array(
                       z
@@ -534,6 +558,11 @@ app.post(
       for (const question of data.questions) {
         if (!visibleText('questionText', req, res, question.questionText))
           return;
+        if (
+          question.topic &&
+          !visibleText('topicName', req, res, question.topic)
+        )
+          return;
         for (const option of question.options)
           if (!visibleText('optionText', req, res, option.optionText)) return;
       }
@@ -552,11 +581,20 @@ app.post(
           ],
         );
         for (const question of data.questions) {
+          let topicId = question.topicId || null;
+          if (question.topic) {
+            topicId = (
+              await tx.query(
+                `INSERT INTO topics(module_id,name) VALUES($1,$2) ON CONFLICT(module_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING topic_id`,
+                [data.moduleId, question.topic],
+              )
+            ).rows[0].topic_id;
+          }
           const q = await tx.query(
             `INSERT INTO questions(quiz_id,topic_id,question_text,marks) VALUES($1,$2,$3,$4) RETURNING question_id`,
             [
               quiz.rows[0].quiz_id,
-              question.topicId || null,
+              topicId,
               question.questionText,
               question.marks,
             ],

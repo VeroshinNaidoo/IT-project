@@ -4,12 +4,12 @@ Status reflects the current local implementation. PGlite evidence is explicitly 
 
 ## Profanity field coverage
 
-| User-visible field                | Backend authority                  | Evidence                                                    |
-| --------------------------------- | ---------------------------------- | ----------------------------------------------------------- |
-| Full name at registration/profile | `nameSchema` / `noProfanity()`     | `backend/tests/profanity.test.js`; direct registration test |
-| Module and study-group names      | `moduleSchema` / `groupSchema`     | API tests; profanity suite                                  |
-| Resource and quiz titles          | upload and quiz handlers           | API upload tests; profanity suite                           |
-| Quiz questions/options and topics | quiz schema and AI worker re-check | schema code; worker code; AI tests                          |
+| User-visible field                | Backend authority                  | Evidence                                                                          |
+| --------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
+| Full name at registration/profile | `nameSchema` / `noProfanity()`     | `backend/tests/profanity.test.js`; direct registration and profile-edit API tests |
+| Module and study-group names      | `moduleSchema` / `groupSchema`     | API tests; profanity suite                                                        |
+| Resource and quiz titles          | upload and quiz handlers           | API upload tests; profanity suite                                                 |
+| Quiz questions/options and topics | quiz schema and AI worker re-check | direct API field matrix; worker integration tests                                 |
 
 The backend never echoes the matched term or logs offending text. The filter has documented limits and requires periodic custom-list review.
 
@@ -35,7 +35,7 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-18          | Individual analytics                              | automated: `/api/v1/me/analytics` API test                                         |
 | FR-19          | Group analytics                                   | automated: group average API test                                                  |
 | FR-20          | Module/topic analytics                            | automated: lecturer weak-topic API test                                            |
-| FR-21          | `backend/src/profanity/` and visible-text schemas | 25 profanity tests passed                                                          |
+| FR-21          | `backend/src/profanity/` and visible-text schemas | automated: field matrix API tests and worker re-checks                             |
 | NFR01          | Async AI job architecture                         | automated: `backend/tests/ai-worker.test.js`                                       |
 | NFR02          | bcrypt and secure session cookies                 | API implementation present                                                         |
 | NFR03          | RBAC middleware                                   | API implementation present                                                         |

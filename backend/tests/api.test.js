@@ -77,6 +77,42 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     expect(JSON.stringify(result.body)).not.toContain('fuck');
   });
 
+  it('enforces the shared profanity boundary on every covered API text field', async () => {
+    const profile = await studentAgent
+      .put('/api/v1/auth/me')
+      .send({ fullName: 'fuck' });
+    expect(profile.status).toBe(422);
+    const module = await lecturerAgent
+      .post('/api/v1/modules')
+      .send({ moduleCode: 'BADTEXT', moduleName: 'fuck' });
+    expect(module.status).toBe(422);
+    const group = await studentAgent
+      .post('/api/v1/modules/no-module/groups')
+      .send({ groupName: 'fuck' });
+    expect(group.status).toBe(422);
+    const resource = await lecturerAgent
+      .post('/api/v1/modules/no-module/resources')
+      .field('title', 'fuck')
+      .attach('file', Buffer.from('%PDF-1.4'), 'text.pdf');
+    expect(resource.status).toBe(422);
+    const quiz = await lecturerAgent.post('/api/v1/quizzes').send({
+      moduleId: '00000000-0000-0000-0000-000000000000',
+      title: 'Valid',
+      questions: [
+        {
+          questionText: 'fuck',
+          topic: 'fuck',
+          marks: 1,
+          options: [
+            { optionText: 'A', isCorrect: true },
+            { optionText: 'B', isCorrect: false },
+          ],
+        },
+      ],
+    });
+    expect(quiz.status).toBe(422);
+  });
+
   it('creates a lecturer-owned module with a join code', async () => {
     const result = await lecturerAgent
       .post('/api/v1/modules')
@@ -84,6 +120,21 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     expect(result.status).toBe(201);
     expect(result.body.module.join_code).toHaveLength(16);
     moduleRecord = result.body.module;
+    const optionText = await lecturerAgent.post('/api/v1/quizzes').send({
+      moduleId: moduleRecord.module_id,
+      title: 'Valid',
+      questions: [
+        {
+          questionText: 'Valid question',
+          marks: 1,
+          options: [
+            { optionText: 'fuck', isCorrect: true },
+            { optionText: 'B', isCorrect: false },
+          ],
+        },
+      ],
+    });
+    expect(optionText.status).toBe(422);
   });
 
   it('enrols a student using the join code and lists the module', async () => {
