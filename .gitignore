@@ -9,3 +9,5 @@ uploads/
 .eduquest-db.pid
 *.log
 .pytest_cache/
+__pycache__/
+.pgsql/
