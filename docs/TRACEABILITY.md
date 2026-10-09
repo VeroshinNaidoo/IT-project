@@ -48,7 +48,7 @@ The backend never echoes the matched term or logs offending text. The filter has
 | NFR10          | Browser compatibility                             | Manual/browser tests pending                                                       |
 | NFR11          | Separate frontend/backend/AI modules              | Implemented                                                                        |
 | NFR12          | Indexes and query paths                           | Foundation indexes present                                                         |
-| NFR13          | Backup/recovery                                   | Pending hardening                                                                  |
+| NFR13          | Backup/recovery                                   | automated: `npm run test:backup`                                                   |
 | NFR14          | Resource-level authorization                      | Partial; full matrix pending                                                       |
 | NFR15          | Strict AI schemas                                 | Pydantic MockProvider implemented                                                  |
 | NFR16          | Generic error responses                           | API error handler implemented                                                      |

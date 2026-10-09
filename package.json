@@ -16,6 +16,9 @@
     "ai:worker": "node backend/scripts/ai-worker.js",
     "test:db:real": "node scripts/test-real-db.mjs",
     "db:seed": "node backend/scripts/seed.js",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
+    "test:backup": "npm run db:test:reset && node scripts/test-backup-restore.mjs",
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit"

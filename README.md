@@ -10,6 +10,7 @@ npm run db:start
 npm run db:migrate
 npm run seed
 npm test
+npm run test:backup
 ```
 
 `db:start` creates `.pgdata/dev` and `.pgdata/test`, writes `.env`, starts the two local socket servers, and waits for both to accept connections. `npm run db:stop` stops them and `npm run db:status` checks them.
@@ -31,6 +32,8 @@ npm run db:test:reset
 This drops and recreates only the `public` schema in the configured test database, then runs all migrations. Do not point `TEST_DATABASE_URL` at a production database.
 
 The database uses UUIDs, server-side opaque sessions, persistent AI jobs, module join codes, topic-linked questions, and database-enforced academic invariants. See `docs/DECISIONS.md` and `docs/INVARIANTS.md`.
+
+Create and restore an application-level JSON backup with `npm run db:backup -- backups/eduquest.json` and `npm run db:restore -- backups/eduquest.json`. Restore is explicit and should target only a known EduQuest database. `npm run test:backup` verifies a round trip against `TEST_DATABASE_URL`.
 
 For full row-locking and concurrency evidence, provide a real PostgreSQL URL through `REAL_TEST_DATABASE_URL` and run `npm run test:db:real`. PGlite intentionally cannot certify that part of the gate.
 

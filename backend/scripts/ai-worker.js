@@ -163,7 +163,7 @@ const processJob = async (job) => {
   }
 };
 
-const once = async () => {
+export const once = async () => {
   const job = await claimJob();
   if (job) await processJob(job);
   return Boolean(job);
