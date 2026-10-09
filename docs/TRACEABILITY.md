@@ -39,8 +39,8 @@ The backend never echoes the matched term or logs offending text. The filter has
 | NFR01          | Async AI job architecture                         | automated: `backend/tests/ai-worker.test.js`                                       |
 | NFR02          | bcrypt and secure session cookies                 | API implementation present                                                         |
 | NFR03          | RBAC middleware                                   | API implementation present                                                         |
-| NFR04          | React design system                               | Frontend shell; axe tests pending                                                  |
-| NFR05          | Responsive CSS                                    | Mobile layout; viewport tests pending                                              |
+| NFR04          | React design system                               | automated: `frontend/src/main.test.jsx`; axe tests pending                         |
+| NFR05          | Responsive CSS                                    | automated: frontend tests; viewport tests pending                                  |
 | NFR06          | Transactional submission                          | API transaction path; real concurrency pending                                     |
 | NFR07          | Database constraints/triggers                     | 7 DB invariant tests passed                                                        |
 | NFR08          | Zod/Pydantic validation                           | Current API/AI schemas implemented                                                 |

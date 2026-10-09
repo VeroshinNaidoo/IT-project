@@ -56,6 +56,19 @@ aside {
   text-align: left;
   font-size: 14px;
 }
+.nav.active {
+  background: #3b4bdb;
+}
+.sidebar-user {
+  color: #bfc7df;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 12px 18px;
+}
+.sidebar-user small {
+  color: #f2a93b;
+  text-transform: uppercase;
+}
 .nav::before {
   content: '•';
   margin-right: 10px;
@@ -116,6 +129,72 @@ h1 {
 .card p {
   color: #68718b;
   line-height: 1.6;
+}
+label {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0;
+  font-weight: 700;
+}
+input,
+select {
+  min-height: 44px;
+  border: 1px solid #e3dfd5;
+  border-radius: 10px;
+  padding: 0 12px;
+  font: inherit;
+  background: #fff;
+  color: #14213d;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid #e3dfd5;
+}
+.list-row span,
+.list-row small {
+  display: grid;
+  gap: 4px;
+}
+.list-row small,
+.muted {
+  color: #68718b;
+}
+.empty-state {
+  padding: 18px 0;
+  color: #68718b;
+}
+.field-error {
+  color: #b3261e !important;
+}
+.center-state,
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+.auth-page {
+  max-width: none;
+}
+.auth-card {
+  width: min(440px, calc(100vw - 32px));
+}
+.auth-card .primary {
+  width: 100%;
+  margin-top: 10px;
+}
+.link-button {
+  border: 0;
+  background: transparent;
+  color: #3b4bdb;
+  min-height: 44px;
+  cursor: pointer;
 }
 .primary,
 .secondary {

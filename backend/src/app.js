@@ -619,6 +619,48 @@ app.post(
   },
 );
 
+app.get(
+  '/api/v1/modules/:moduleId/quizzes',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const owner = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [req.params.moduleId, req.user.userId],
+      );
+      if (!owner.rowCount && req.user.role === 'lecturer')
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      if (!owner.rowCount && req.user.role === 'student') {
+        const enrolled = await pool.query(
+          'SELECT 1 FROM enrollments WHERE module_id=$1 AND student_id=$2',
+          [req.params.moduleId, req.user.userId],
+        );
+        if (!enrolled.rowCount)
+          return error(
+            res,
+            403,
+            'FORBIDDEN',
+            'You are not enrolled in this module.',
+            requestId(req),
+          );
+      }
+      const result = await pool.query(
+        "SELECT quiz_id,title,is_competitive,closes_at,status FROM quizzes WHERE module_id=$1 AND status='published' ORDER BY title",
+        [req.params.moduleId],
+      );
+      res.json({ data: result.rows });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
 app.post(
   '/api/v1/resources/:resourceId/generation-jobs',
   requireAuth,

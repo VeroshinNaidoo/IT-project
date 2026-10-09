@@ -16,6 +16,7 @@ export const authorizationMatrix = {
   'GET /api/v1/modules/:moduleId/resources': { auth: 'student|lecturer' },
   'POST /api/v1/modules/:moduleId/resources': { auth: 'lecturer' },
   'POST /api/v1/quizzes': { auth: 'lecturer' },
+  'GET /api/v1/modules/:moduleId/quizzes': { auth: 'student|lecturer' },
   'POST /api/v1/resources/:resourceId/generation-jobs': { auth: 'lecturer' },
   'GET /api/v1/ai-generation-jobs/:jobId': { auth: 'student|lecturer' },
   'POST /api/v1/quizzes/:quizId/attempts': { auth: 'student' },
