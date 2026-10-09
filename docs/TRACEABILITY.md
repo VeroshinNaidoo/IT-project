@@ -21,9 +21,9 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-04          | Module creation endpoint                          | API path implemented; route tests pending                                          |
 | FR-05          | Enrollment and module listing                     | API path implemented; route tests pending                                          |
 | FR-06          | Resource upload endpoint                          | API path implemented; upload matrix pending                                        |
-| FR-07          | Resource authorization                            | Service work pending                                                               |
+| FR-07          | Resource authorization                            | automated: ownership and role API tests                                            |
 | FR-08          | Study group create/join endpoints                 | API path implemented; route tests pending                                          |
-| FR-09          | Group resource visibility                         | Service work pending                                                               |
+| FR-09          | Group resource visibility                         | automated: group visibility API test                                               |
 | FR-10          | AI service contracts                              | `ai-service/app.py` implemented                                                    |
 | FR-11          | Quiz persistence and AI job integration           | automated: `backend/tests/ai-worker.test.js`; games partial, pending team decision |
 | FR-12          | Attempt start question delivery                   | automated: `backend/tests/api.test.js`                                             |

@@ -10,9 +10,9 @@ Strict status as of 2026-10-09. “Done and tested” requires a passing automat
 | FR-04 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js`                                             |
 | FR-05 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js`                                             |
 | FR-06 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js`                                             |
-| FR-07 | not started                     | —                                                                                               | None                                                                    |
+| FR-07 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js` ownership/upload tests                      |
 | FR-08 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js`                                             |
-| FR-09 | not started                     | —                                                                                               | None                                                                    |
+| FR-09 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js` group visibility test                       |
 | FR-10 | done and tested                 | `ai-service/app.py`                                                                             | `ai-service/test_app.py`                                                |
 | FR-11 | done and tested                 | `backend/src/app.js`, `backend/scripts/ai-worker.js`, `db/migrations/004_game_type_catalog.sql` | `backend/tests/ai-worker.test.js`; games partial, pending team decision |
 | FR-12 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js` start-attempt test                          |
@@ -43,4 +43,4 @@ Strict status as of 2026-10-09. “Done and tested” requires a passing automat
 | NFR16 | done and tested                 | `backend/src/app.js`                                                                            | `backend/tests/api.test.js`                                             |
 | NFR17 | done and tested                 | `backend/src/profanity/`                                                                        | `backend/tests/profanity.test.js`, `backend/tests/api.test.js`          |
 
-Current passing baseline: 32 JavaScript tests, 2 AI tests, zero skipped database tests. Real PostgreSQL concurrency remains explicitly unverified under PGlite.
+Current passing baseline: 61 JavaScript tests, 4 AI tests, zero skipped database tests. Real PostgreSQL concurrency remains explicitly unverified under PGlite. Browser axe/Playwright verification and exhaustive per-route behavioral matrix coverage remain incomplete.
