@@ -86,15 +86,6 @@ BEGIN
 END; $$;
 CREATE TRIGGER answer_consistency_required BEFORE INSERT OR UPDATE ON student_answers FOR EACH ROW EXECUTE FUNCTION enforce_answer_consistency();
 
-CREATE OR REPLACE FUNCTION enforce_games_practice_only() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM quizzes WHERE quiz_id = NEW.quiz_id AND is_competitive) THEN
-    RAISE EXCEPTION 'games must be practice-only' USING ERRCODE = '23514';
-  END IF;
-  RETURN NEW;
-END; $$;
-CREATE TRIGGER games_practice_only BEFORE INSERT OR UPDATE ON games FOR EACH ROW EXECUTE FUNCTION enforce_games_practice_only();
-
 CREATE OR REPLACE FUNCTION touch_job_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
 CREATE TRIGGER jobs_touch_updated_at BEFORE UPDATE ON ai_generation_jobs FOR EACH ROW EXECUTE FUNCTION touch_job_updated_at();

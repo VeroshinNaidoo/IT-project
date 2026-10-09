@@ -1,6 +1,5 @@
 CREATE TYPE user_role AS ENUM ('student', 'lecturer');
 CREATE TYPE quiz_status AS ENUM ('draft', 'published');
-CREATE TYPE game_type AS ENUM ('flashcards', 'speed_round', 'match_pairs');
 CREATE TYPE ai_job_status AS ENUM ('queued', 'running', 'succeeded', 'failed');
 
 CREATE TABLE users (
@@ -88,12 +87,24 @@ CREATE TABLE quizzes (
   CHECK (NOT is_competitive OR max_scored_attempts = 1)
 );
 
+CREATE TABLE game_types (
+  game_type_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  key text NOT NULL UNIQUE,
+  display_name text NOT NULL,
+  is_enabled boolean NOT NULL DEFAULT false
+);
+
+INSERT INTO game_types (key, display_name, is_enabled) VALUES
+  ('flashcards', 'Flashcards', false),
+  ('speed_round', 'Speed round', false),
+  ('match_pairs', 'Match pairs', false);
+
 CREATE TABLE games (
   game_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   quiz_id uuid NOT NULL REFERENCES quizzes(quiz_id) ON DELETE CASCADE,
-  game_type game_type NOT NULL,
+  game_type_id uuid NOT NULL REFERENCES game_types(game_type_id) ON DELETE RESTRICT,
   created_date timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (quiz_id, game_type)
+  UNIQUE (quiz_id, game_type_id)
 );
 
 CREATE TABLE questions (

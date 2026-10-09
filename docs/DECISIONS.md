@@ -9,6 +9,8 @@
 - Add quiz `title` and optional `closes_at`; the service rejects starts and submissions after the close time with HTTP 409.
 - Mini-scope is a short per-topic revision summary from one resource. Analysis is lecturer-facing and receives only aggregate topic statistics; no student names, emails, or IDs are sent to AI.
 - Allowed game types are `flashcards`, `speed_round`, and `match_pairs`. Games are practice-only and reuse quiz questions. Competitive games are gated until the student's scored attempt is complete; lecturers always have access.
+- Game mechanics are frozen pending team decision. The three keys are disabled placeholders in the `game_types` lookup table; adding a future type is a data change, not a migration. The implemented rule is: lecturers can access games, while students can access games for a competitive quiz only after their own scored attempt is completed. The earlier database test name suggesting that all competitive games were forbidden was corrected; the service policy is the authoritative access boundary.
+- Future game modules must implement `{ key, buildFromQuiz(quiz), validate(gameData), scoring: 'none' | 'practice' }`. No game score is eligible for leaderboard records without explicit future approval.
 - Unanswered questions score zero and do not create `student_answers` rows. Results report the unanswered count.
 - Upload maximum defaults to 20 MiB and is configurable through environment configuration.
 - `COOKIE_SECURE` defaults to true. It may be false only in development; production startup must reject that configuration.

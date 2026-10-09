@@ -109,8 +109,35 @@ function Modules({ role }) {
         <h2>Competitive quiz</h2>
         <div className="warning">One scored attempt only.</div>
         <button className="secondary">Start quiz</button>
+        <QuizGames quizId={null} />
       </article>
     </section>
+  );
+}
+
+function QuizGames({ quizId }) {
+  const [games, setGames] = useState([]);
+  const [error, setError] = useState('');
+  React.useEffect(() => {
+    if (!quizId) return;
+    fetch(`/api/v1/quizzes/${quizId}/games`, { credentials: 'include' })
+      .then((response) =>
+        response.ok
+          ? response.json()
+          : Promise.reject(new Error('Unable to load games.')),
+      )
+      .then((body) => setGames(body.data))
+      .catch((reason) => setError(reason.message));
+  }, [quizId]);
+  if (error) return <p className="field-error">{error}</p>;
+  if (!games.length) return <p className="empty-state">Games coming soon.</p>;
+  return (
+    <div className="games-area">
+      <span className="eyebrow">GAMES</span>
+      {games.map((game) => (
+        <span key={game.game_id}>{game.display_name}</span>
+      ))}
+    </div>
   );
 }
 function Leaderboard() {

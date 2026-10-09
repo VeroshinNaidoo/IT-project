@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
+import { canAccessGame } from '../src/games/access.js';
 
 const { Client } = pg;
 const optOut = process.env.EDUQUEST_SKIP_DB_TESTS === 'true';
@@ -314,7 +315,7 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
     );
   });
 
-  it('prevents games for competitive quizzes [game decision]', async () => {
+  it('uses disabled game catalog rows and leaves competitive access to the service policy [INV-09]', async () => {
     const lecturer = (
       await client.query(
         `INSERT INTO users (email, password_hash, role, full_name) VALUES ('game-lecturer@example.com', 'hash', 'lecturer', 'Game Lecturer') RETURNING user_id`,
@@ -332,10 +333,33 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
         [moduleId, lecturer],
       )
     ).rows[0].quiz_id;
-    await expectConstraintFailure(
-      `INSERT INTO games (quiz_id, game_type) VALUES ($1, 'flashcards')`,
-      [quizId],
-      'games are practice-only',
+    const gameType = (
+      await client.query(
+        `SELECT game_type_id FROM game_types WHERE key='flashcards'`,
+      )
+    ).rows[0].game_type_id;
+    const game = await client.query(
+      `INSERT INTO games (quiz_id, game_type_id) VALUES ($1, $2) RETURNING game_id`,
+      [quizId, gameType],
     );
+    expect(game.rowCount).toBe(1);
+    expect(
+      (
+        await client.query(
+          `SELECT is_enabled FROM game_types WHERE key='flashcards'`,
+        )
+      ).rows[0].is_enabled,
+    ).toBe(false);
+  });
+
+  it('allows competitive games only after a student scored attempt', () => {
+    const quiz = { is_competitive: true };
+    expect(canAccessGame({ role: 'student' }, quiz)).toBe(false);
+    expect(
+      canAccessGame({ role: 'student' }, quiz, {
+        scoredAttemptCompleted: true,
+      }),
+    ).toBe(true);
+    expect(canAccessGame({ role: 'lecturer' }, quiz)).toBe(true);
   });
 });

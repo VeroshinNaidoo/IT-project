@@ -21,6 +21,7 @@ import {
   recordProfanityViolation,
   isProfanityCooldownActive,
 } from './profanity/rate-limit.js';
+import { canAccessGame } from './games/access.js';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -834,6 +835,61 @@ app.get(
         [req.params.moduleId],
       );
       res.json({ data: result.rows });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/quizzes/:quizId/games',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const quiz = await pool.query('SELECT * FROM quizzes WHERE quiz_id=$1', [
+        req.params.quizId,
+      ]);
+      if (!quiz.rowCount)
+        return error(res, 404, 'NOT_FOUND', 'Quiz not found.', requestId(req));
+      const owner = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [quiz.rows[0].module_id, req.user.userId],
+      );
+      let scoredAttemptCompleted = false;
+      if (req.user.role === 'student') {
+        const enrolled = await pool.query(
+          'SELECT 1 FROM enrollments WHERE module_id=$1 AND student_id=$2',
+          [quiz.rows[0].module_id, req.user.userId],
+        );
+        if (!enrolled.rowCount)
+          return error(
+            res,
+            403,
+            'FORBIDDEN',
+            'You are not enrolled in this module.',
+            requestId(req),
+          );
+        const scored = await pool.query(
+          'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 AND student_id=$2 AND is_scored=true AND completion_time IS NOT NULL',
+          [req.params.quizId, req.user.userId],
+        );
+        scoredAttemptCompleted = Boolean(scored.rowCount);
+      } else if (!owner.rowCount) {
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      }
+      if (!canAccessGame(req.user, quiz.rows[0], { scoredAttemptCompleted }))
+        return res.json({ data: [] });
+      const games = await pool.query(
+        `SELECT g.game_id, gt.key, gt.display_name FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id WHERE g.quiz_id=$1 AND gt.is_enabled=true ORDER BY gt.key`,
+        [req.params.quizId],
+      );
+      res.json({ data: games.rows });
     } catch (e) {
       next(e);
     }

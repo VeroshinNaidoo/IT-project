@@ -29,4 +29,4 @@ erDiagram
   QUIZZES o|--o{ AI_GENERATION_JOBS : creates
 ```
 
-Games are practice-only and reuse quiz questions. They do not create leaderboard records.
+`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. The seeded keys `flashcards`, `speed_round`, and `match_pairs` are disabled placeholders. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
