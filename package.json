@@ -1,0 +1,27 @@
+{
+  "name": "eduquest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "npm run db:test:reset && vitest run",
+    "test:watch": "vitest",
+    "db:migrate": "node backend/scripts/migrate.js",
+    "db:test:reset": "node backend/scripts/reset-test-db.js",
+    "db:seed": "node backend/scripts/seed.js",
+    "lint": "eslint .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1"
+  }
+}
