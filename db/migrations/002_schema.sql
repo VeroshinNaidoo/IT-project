@@ -155,5 +155,7 @@ CREATE TABLE ai_generation_jobs (
   error_code text,
   quiz_id uuid REFERENCES quizzes(quiz_id) ON DELETE RESTRICT,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  question_count integer NOT NULL DEFAULT 5 CHECK (question_count BETWEEN 1 AND 50),
+  difficulty text NOT NULL DEFAULT 'mixed' CHECK (length(trim(difficulty)) > 0)
 );

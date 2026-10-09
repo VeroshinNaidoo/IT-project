@@ -8,7 +8,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App, QuizTaking } from './main.jsx';
+import { App, QuizTaking, ResourceRow } from './main.jsx';
 
 const response = (body, ok = true) => ({
   ok,
@@ -86,5 +86,114 @@ describe('frontend authentication and role routing', () => {
     expect(
       screen.getByRole('button', { name: 'Submit attempt' }).disabled,
     ).toBe(false);
+  });
+
+  it('shows queued, running and succeeded AI generation states with an editable draft', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ job: { job_id: 'job-1', status: 'queued' } }),
+      )
+      .mockResolvedValueOnce(
+        response({ job: { job_id: 'job-1', status: 'running' } }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          job: { job_id: 'job-1', status: 'succeeded', quiz_id: 'quiz-1' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          quiz: {
+            quiz_id: 'quiz-1',
+            title: 'Draft quiz',
+            is_competitive: false,
+            questions: [
+              { questionId: 'q-1', questionText: 'Question', topic: 'Topic' },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          quiz: {
+            quiz_id: 'quiz-1',
+            title: 'Published draft',
+            is_competitive: true,
+            questions: [
+              { questionId: 'q-1', questionText: 'Question', topic: 'Topic' },
+            ],
+          },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <ResourceRow
+        lecturer
+        resource={{
+          resource_id: 'resource-1',
+          title: 'Notes',
+          resource_type: 'txt',
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Generate quiz' }));
+    await waitFor(() => expect(screen.getByText(/running/i)).toBeTruthy(), {
+      timeout: 1000,
+    });
+    await waitFor(
+      () => expect(screen.getByText('Generated draft')).toBeTruthy(),
+      { timeout: 1500 },
+    );
+    expect(screen.getByDisplayValue('Draft quiz')).toBeTruthy();
+    expect(screen.getByText('Topic')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Quiz title'), {
+      target: { value: 'Published draft' },
+    });
+    fireEvent.change(screen.getByLabelText('Mode'), {
+      target: { value: 'competitive' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Publish quiz' }));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBe(5));
+  });
+
+  it('shows a friendly failed state and exposes retry', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ job: { job_id: 'job-2', status: 'queued' } }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          job: {
+            job_id: 'job-2',
+            status: 'failed',
+            error_code: 'GENERATION_FAILED',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({ job: { job_id: 'job-3', status: 'queued' } }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <ResourceRow
+        lecturer
+        resource={{
+          resource_id: 'resource-2',
+          title: 'Notes',
+          resource_type: 'txt',
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Generate quiz' }));
+    await waitFor(
+      () => expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy(),
+      { timeout: 1000 },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3),
+    );
   });
 });

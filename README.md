@@ -11,6 +11,7 @@ npm run db:migrate
 npm run seed
 npm test
 npm run test:backup
+npm run test:e2e
 ```
 
 `db:start` creates `.pgdata/dev` and `.pgdata/test`, writes `.env`, starts the two local socket servers, and waits for both to accept connections. `npm run db:stop` stops them and `npm run db:status` checks them.
@@ -22,6 +23,15 @@ npm run dev
 ```
 
 `npm test` requires `TEST_DATABASE_URL` (or `DATABASE_URL`) in the EduQuest `.env`, resets the test database schema, reapplies all migrations, and then runs the raw SQL invariant tests. To explicitly opt out, set `EDUQUEST_SKIP_DB_TESTS=true`; this prints a warning and is not a passing database gate.
+
+Install the Playwright browsers before the browser gate:
+
+```powershell
+npx playwright install chromium firefox
+npm run test:e2e
+```
+
+The browser suite covers 390px mobile, 768px tablet and 1280px desktop in both Chromium and Firefox, including an axe scan of the authentication screen.
 
 To reset the test database manually:
 

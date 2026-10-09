@@ -26,4 +26,21 @@ describe('route authorization matrix inventory', () => {
       authorizationMatrix['GET /api/v1/quizzes/:quizId/games'].auth,
     ).toContain('student');
   });
+
+  it('requires all five matrix dimensions for every route', () => {
+    const required = [
+      'unauthenticated',
+      'wrongRole',
+      'wrongOwner',
+      'validation',
+      'success',
+    ];
+    const incomplete = Object.entries(authorizationMatrix)
+      .filter(([, entry]) => required.some((name) => !entry.cases?.[name]))
+      .map(([route]) => route);
+    expect(
+      incomplete,
+      `Routes missing authorization cases: ${incomplete.join(', ')}`,
+    ).toEqual([]);
+  });
 });

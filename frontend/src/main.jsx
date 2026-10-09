@@ -334,10 +334,11 @@ function Resources({ user }) {
           empty="No resources are visible for this module."
         />
         {state.data.map((resource) => (
-          <div className="list-row" key={resource.resource_id}>
-            {resource.title}
-            <small>{resource.resource_type}</small>
-          </div>
+          <ResourceRow
+            key={resource.resource_id}
+            resource={resource}
+            lecturer={user.role === 'lecturer'}
+          />
         ))}
       </article>
       {user.role === 'lecturer' && (
@@ -380,6 +381,171 @@ function Resources({ user }) {
         </form>
       )}
     </section>
+  );
+}
+
+export function ResourceRow({ resource, lecturer }) {
+  const [questionCount, setQuestionCount] = useState(5);
+  const [difficulty, setDifficulty] = useState('mixed');
+  const [job, setJob] = useState(null);
+  const [quiz, setQuiz] = useState(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const generate = async () => {
+    setError('');
+    setQuiz(null);
+    try {
+      const body = await api(
+        `/resources/${resource.resource_id}/generation-jobs`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            questionCount: Number(questionCount),
+            difficulty,
+          }),
+        },
+      );
+      setJob(body.job);
+    } catch (reason) {
+      setError(reason.message);
+    }
+  };
+  useEffect(() => {
+    if (!job || !['queued', 'running'].includes(job.status)) return undefined;
+    const poll = async () => {
+      try {
+        const body = await api(`/ai-generation-jobs/${job.job_id}`);
+        setJob(body.job);
+        if (body.job.status === 'succeeded' && body.job.quiz_id)
+          setQuiz((await api(`/quizzes/${body.job.quiz_id}`)).quiz);
+      } catch (reason) {
+        setError(reason.message);
+      }
+    };
+    const timer = setInterval(poll, 100);
+    poll();
+    return () => clearInterval(timer);
+  }, [job?.job_id, job?.status]);
+  const publish = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const body = await api(`/quizzes/${quiz.quiz_id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title: quiz.title,
+          isCompetitive: quiz.is_competitive,
+          closesAt: quiz.closes_at,
+          status: 'published',
+        }),
+      });
+      setQuiz(body.quiz);
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (!lecturer)
+    return (
+      <div className="list-row">
+        <span>{resource.title}</span>
+        <small>{resource.resource_type}</small>
+      </div>
+    );
+  return (
+    <div className="card resource-generation">
+      <div className="list-row">
+        <span>
+          <b>{resource.title}</b>
+          <small>{resource.resource_type}</small>
+        </span>
+      </div>
+      <div className="generation-controls">
+        <label>
+          Questions
+          <input
+            type="number"
+            min="1"
+            max="50"
+            value={questionCount}
+            onChange={(event) => setQuestionCount(event.target.value)}
+          />
+        </label>
+        <label>
+          Difficulty
+          <select
+            value={difficulty}
+            onChange={(event) => setDifficulty(event.target.value)}
+          >
+            <option value="mixed">Mixed</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+        <button className="primary" onClick={generate}>
+          Generate quiz
+        </button>
+      </div>
+      {job && (
+        <p className="job-status" aria-live="polite">
+          Generation status: <b>{job.status}</b>
+          {job.status === 'failed' && (
+            <>
+              <span className="field-error">
+                Quiz generation failed. Please try again.
+              </span>
+              <button className="link-button" onClick={generate}>
+                Retry
+              </button>
+            </>
+          )}
+        </p>
+      )}
+      {error && <p className="field-error">{error}</p>}
+      {quiz && (
+        <form onSubmit={publish} className="generated-quiz">
+          <h3>Generated draft</h3>
+          <label>
+            Quiz title
+            <input
+              value={quiz.title}
+              onChange={(event) =>
+                setQuiz({ ...quiz, title: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Mode
+            <select
+              value={quiz.is_competitive ? 'competitive' : 'practice'}
+              onChange={(event) =>
+                setQuiz({
+                  ...quiz,
+                  is_competitive: event.target.value === 'competitive',
+                })
+              }
+            >
+              <option value="practice">Practice</option>
+              <option value="competitive">Competitive</option>
+            </select>
+          </label>
+          <ul>
+            {quiz.questions?.map((question) => (
+              <li key={question.questionId}>
+                {question.questionText}{' '}
+                <small>{question.topic || 'No topic'}</small>
+              </li>
+            ))}
+          </ul>
+          <button className="primary" disabled={saving}>
+            {saving ? 'Publishing…' : 'Publish quiz'}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 function Groups({ user }) {

@@ -410,11 +410,13 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
   });
 
   it('queues an AI job and restricts polling to its requester', async () => {
-    const queued = await lecturerAgent.post(
-      `/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`,
-    );
+    const queued = await lecturerAgent
+      .post(`/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`)
+      .send({ questionCount: 7, difficulty: 'hard' });
     expect(queued.status).toBe(202);
     expect(queued.body.job.status).toBe('queued');
+    expect(queued.body.job.question_count).toBe(7);
+    expect(queued.body.job.difficulty).toBe('hard');
     const status = await lecturerAgent.get(
       `/api/v1/ai-generation-jobs/${queued.body.job.job_id}`,
     );

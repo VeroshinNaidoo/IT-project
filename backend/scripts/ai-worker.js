@@ -86,8 +86,8 @@ const processJob = async (job) => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         extracted_text: await extractText(job),
-        question_count: 5,
-        difficulty: 'mixed',
+        question_count: job.question_count,
+        difficulty: job.difficulty,
       }),
     });
     if (!response.ok) throw new Error('AI_PROVIDER_ERROR');

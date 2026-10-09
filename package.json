@@ -18,12 +18,17 @@
     "db:seed": "node backend/scripts/seed.js",
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
+    "backup:pg": "node scripts/backup-pg.mjs",
+    "restore:pg": "node scripts/restore-pg.mjs",
     "test:backup": "npm run db:test:reset && node scripts/test-backup-restore.mjs",
     "lint": "eslint .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.64.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

@@ -679,11 +679,84 @@ app.post(
           'Resource not found.',
           requestId(req),
         );
+      const options = parse(
+        z
+          .object({
+            questionCount: z.number().int().min(1).max(50).default(5),
+            difficulty: z.string().trim().min(1).max(40).default('mixed'),
+          })
+          .strict(),
+        req.body || {},
+        req,
+        res,
+      );
+      if (!options) return;
       const job = await pool.query(
-        `INSERT INTO ai_generation_jobs(requested_by,resource_id) VALUES($1,$2) RETURNING *`,
-        [req.user.userId, req.params.resourceId],
+        `INSERT INTO ai_generation_jobs(requested_by,resource_id,question_count,difficulty) VALUES($1,$2,$3,$4) RETURNING *`,
+        [
+          req.user.userId,
+          req.params.resourceId,
+          options.questionCount,
+          options.difficulty,
+        ],
       );
       res.status(202).json({ job: job.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/quizzes/:quizId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const result = await pool.query(
+        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FROM question_options o WHERE o.question_id=q.question_id))) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
+        [req.params.quizId, req.user.userId],
+      );
+      if (!result.rowCount)
+        return error(res, 404, 'NOT_FOUND', 'Quiz not found.', requestId(req));
+      res.json({ quiz: result.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.put(
+  '/api/v1/quizzes/:quizId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const schema = z
+        .object({
+          title: titleSchema,
+          isCompetitive: z.boolean(),
+          closesAt: z.string().datetime().nullable().optional(),
+          status: z.enum(['draft', 'published']),
+        })
+        .strict();
+      const data = parse(schema, req.body, req, res);
+      if (!data) return;
+      if (!visibleText('quizTitle', req, res, data.title)) return;
+      const result = await pool.query(
+        `UPDATE quizzes z SET title=$1,is_competitive=$2,closes_at=$3,status=$4 FROM modules m WHERE z.quiz_id=$5 AND m.module_id=z.module_id AND m.lecturer_id=$6 RETURNING z.*`,
+        [
+          data.title,
+          data.isCompetitive,
+          data.closesAt || null,
+          data.status,
+          req.params.quizId,
+          req.user.userId,
+        ],
+      );
+      if (!result.rowCount)
+        return error(res, 404, 'NOT_FOUND', 'Quiz not found.', requestId(req));
+      res.json({ quiz: result.rows[0] });
     } catch (e) {
       next(e);
     }

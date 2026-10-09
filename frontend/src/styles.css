@@ -166,6 +166,32 @@ button:disabled {
 .muted {
   color: #68718b;
 }
+.resource-generation {
+  margin-top: 12px;
+}
+.generation-controls {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.generation-controls label {
+  margin: 8px 0 0;
+}
+.job-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.generated-quiz {
+  border-top: 1px solid #e3dfd5;
+  margin-top: 16px;
+  padding-top: 14px;
+}
+.generated-quiz ul {
+  padding-left: 20px;
+  line-height: 1.8;
+}
 .empty-state {
   padding: 18px 0;
   color: #68718b;
