@@ -6,7 +6,7 @@
     "test": "npm run db:test:reset && vitest run",
     "test:watch": "vitest",
     "seed": "node backend/scripts/seed.js",
-    "dev": "concurrently \"node backend/src/index.js\" \"python -m uvicorn app:app --app-dir ai-service --port 8000\" \"vite --config frontend/vite.config.js --host 127.0.0.1 --port 5173\"",
+    "dev": "concurrently \"node backend/src/index.js\" \"python -m uvicorn app:app --app-dir ai-service --port 8000\" \"node backend/scripts/ai-worker.js\" \"vite --config frontend/vite.config.js --host 127.0.0.1 --port 5173\"",
     "db:migrate": "node backend/scripts/migrate.js",
     "db:test:reset": "node backend/scripts/reset-test-db.js",
     "db:setup-check": "node scripts/db-setup-check.mjs",

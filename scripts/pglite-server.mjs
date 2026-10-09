@@ -30,6 +30,11 @@ const configs = {
 };
 
 async function writeEnv() {
+  if (existsSync(envPath))
+    return (await readFile(envPath, 'utf8'))
+      .split(/\r?\n/)
+      .filter((line) => /^[A-Z_]+=/.test(line))
+      .map((line) => line.split('=')[0]);
   const lines = [
     'DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/eduquest?sslmode=disable',
     'TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/eduquest_test?sslmode=disable',
@@ -44,6 +49,8 @@ async function waitFor(port, database) {
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
     const client = new Client({
+      connectionTimeoutMillis: 2000,
+      query_timeout: 2000,
       connectionString: `postgres://postgres:postgres@127.0.0.1:${port}/${database}?sslmode=disable`,
     });
     try {
@@ -89,6 +96,15 @@ async function daemon(role) {
 async function start() {
   const names = await writeEnv();
   for (const role of ['dev', 'test']) {
+    if (existsSync(configs[role].pid)) {
+      const pid = Number(await readFile(configs[role].pid, 'utf8'));
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+        await unlink(configs[role].pid);
+      }
+    }
     if (!existsSync(configs[role].pid)) {
       const child = spawn(process.execPath, [scriptPath, 'daemon', role], {
         cwd: root,

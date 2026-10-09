@@ -1,5 +1,24 @@
 # EduQuest progress
 
+## Local run verification — 2026-10-09
+
+Fixed Vite API forwarding, strict login payloads, development cookie configuration,
+AI worker startup, student quiz navigation, accessible navigation names, mobile
+navigation labels, and document language/title/viewport metadata. Database startup
+now preserves existing .env settings and removes stale PID files only when the
+recorded process no longer exists. Recovered the local daemons without deleting data.
+
+Verified 89 JavaScript tests and 4 Python tests with no skips. Added a real browser
+smoke test for lecturer login, session persistence after reload, generated draft,
+publishing and logout. It requires the seeded demo accounts and running local stack.
+The authentication axe test covers only the login screen, not the whole product.
+Final browser results: 6 Chromium tests passed and 6 Firefox tests passed, zero skips,
+covering widths 390, 768 and 1280. Lint, formatting, type-check and frontend build pass.
+
+The earlier authorization completion claim was overstated; STATUS and TRACEABILITY
+now identify the missing strict validation and cross-owner evidence. Native
+PostgreSQL concurrency/backup and complete screen accessibility remain outstanding.
+
 ## Milestone 1 — Foundation
 
 - Built PostgreSQL-compatible PGlite dev/test socket servers, persistent `.pgdata`, environment generation, setup checks, migrations, schema triggers, indexes, seed tooling, and raw SQL invariant tests.

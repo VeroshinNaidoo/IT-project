@@ -24,7 +24,11 @@ function Auth({ onLogin }) {
     try {
       const body = await api(`/auth/${mode}`, {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify(
+          mode === 'login'
+            ? { email: form.email, password: form.password }
+            : form,
+        ),
       });
       onLogin(body.user);
     } catch (reason) {
@@ -116,7 +120,7 @@ export function App() {
     'Resources',
     'Study groups',
     'Leaderboard',
-    'Quiz',
+    'Quizzes',
   ];
   const lecturerScreens = ['Modules', 'Resources', 'Quizzes', 'Analytics'];
   const screens = user.role === 'student' ? studentScreens : lecturerScreens;
@@ -137,6 +141,7 @@ export function App() {
           <button
             className={`nav ${screen === item ? 'active' : ''}`}
             key={item}
+            aria-label={item}
             onClick={() => setScreen(item)}
           >
             {item}
@@ -155,7 +160,9 @@ export function App() {
             <h1>{screen}</h1>
           </div>
           <span className="avatar">
-            {(user.full_name || 'EQ').slice(0, 2).toUpperCase()}
+            {(user.full_name || user.fullName || 'EQ')
+              .slice(0, 2)
+              .toUpperCase()}
           </span>
         </header>
         {screen === 'Dashboard' && <Dashboard user={user} />}

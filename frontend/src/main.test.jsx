@@ -67,6 +67,13 @@ describe('frontend authentication and role routing', () => {
       screen.getByRole('button', { name: 'Log in' }).closest('form'),
     );
     await waitFor(() => expect(screen.getByText('Analytics')).toBeTruthy());
+    const loginCall = fetchMock.mock.calls.find(([url]) =>
+      url.endsWith('/auth/login'),
+    );
+    expect(JSON.parse(loginCall[1].body)).toEqual({
+      email: 'lecturer@example.com',
+      password: 'StrongPassword1!',
+    });
     expect(screen.queryByText('Study groups')).toBeNull();
   });
 

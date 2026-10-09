@@ -59,11 +59,17 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(
-  '/api/v1/auth',
+  ['/api/v1/auth/login', '/api/v1/auth/register'],
   rateLimit({
     windowMs: 10 * 60 * 1000,
     limit: Number(process.env.AUTH_RATE_LIMIT || 30),
     standardHeaders: true,
+    message: {
+      error: {
+        code: 'RATE_LIMITED',
+        message: 'Too many sign-in attempts. Please wait and try again.',
+      },
+    },
   }),
 );
 

@@ -334,7 +334,7 @@ button:disabled {
 }
 @media (max-width: 760px) {
   aside {
-    width: 72px;
+    width: 110px;
     padding: 22px 8px;
   }
   .brand {
@@ -348,11 +348,11 @@ button:disabled {
     display: none;
   }
   .nav {
-    font-size: 0;
+    font-size: 12px;
     text-align: center;
   }
   .nav::before {
-    font-size: 20px;
+    display: none;
     margin: 0;
   }
   main {
