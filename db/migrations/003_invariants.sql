@@ -1,5 +1,6 @@
 CREATE UNIQUE INDEX question_one_correct_option ON question_options(question_id) WHERE is_correct;
 CREATE UNIQUE INDEX competitive_one_scored_attempt ON quiz_attempts(quiz_id, student_id) WHERE is_scored;
+CREATE UNIQUE INDEX users_email_lower_unique ON users (lower(email));
 
 CREATE INDEX sessions_user_id_idx ON sessions(user_id);
 CREATE INDEX modules_lecturer_id_idx ON modules(lecturer_id);
@@ -23,19 +24,24 @@ BEGIN
   END IF;
 END; $$;
 
-CREATE OR REPLACE FUNCTION enforce_academic_roles() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION enforce_module_lecturer_role() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN PERFORM require_role(NEW.lecturer_id, 'lecturer'); RETURN NEW; END; $$;
+CREATE OR REPLACE FUNCTION enforce_enrollment_student_role() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF TG_TABLE_NAME = 'modules' THEN PERFORM require_role(NEW.lecturer_id, 'lecturer'); END IF;
-  IF TG_TABLE_NAME = 'enrollments' THEN PERFORM require_role(NEW.student_id, 'student'); END IF;
-  IF TG_TABLE_NAME = 'group_members' THEN PERFORM require_role(NEW.student_id, 'student'); END IF;
-  IF TG_TABLE_NAME = 'quiz_attempts' THEN PERFORM require_role(NEW.student_id, 'student'); END IF;
+  IF NOT EXISTS (SELECT 1 FROM users WHERE user_id = NEW.student_id AND role = 'student') THEN
+    RAISE EXCEPTION 'role constraint violated' USING ERRCODE = '23514';
+  END IF;
   RETURN NEW;
 END; $$;
+CREATE OR REPLACE FUNCTION enforce_group_member_student_role() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN PERFORM require_role(NEW.student_id, 'student'); RETURN NEW; END; $$;
+CREATE OR REPLACE FUNCTION enforce_attempt_student_role() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN PERFORM require_role(NEW.student_id, 'student'); RETURN NEW; END; $$;
 
-CREATE TRIGGER modules_lecturer_role BEFORE INSERT OR UPDATE ON modules FOR EACH ROW EXECUTE FUNCTION enforce_academic_roles();
-CREATE TRIGGER enrollments_student_role BEFORE INSERT OR UPDATE ON enrollments FOR EACH ROW EXECUTE FUNCTION enforce_academic_roles();
-CREATE TRIGGER group_members_student_role BEFORE INSERT OR UPDATE ON group_members FOR EACH ROW EXECUTE FUNCTION enforce_academic_roles();
-CREATE TRIGGER attempts_student_role BEFORE INSERT OR UPDATE ON quiz_attempts FOR EACH ROW EXECUTE FUNCTION enforce_academic_roles();
+CREATE TRIGGER modules_lecturer_role BEFORE INSERT OR UPDATE ON modules FOR EACH ROW EXECUTE FUNCTION enforce_module_lecturer_role();
+CREATE TRIGGER enrollments_student_role BEFORE INSERT OR UPDATE ON enrollments FOR EACH ROW EXECUTE FUNCTION enforce_enrollment_student_role();
+CREATE TRIGGER group_members_student_role BEFORE INSERT OR UPDATE ON group_members FOR EACH ROW EXECUTE FUNCTION enforce_group_member_student_role();
+CREATE TRIGGER attempts_student_role BEFORE INSERT OR UPDATE ON quiz_attempts FOR EACH ROW EXECUTE FUNCTION enforce_attempt_student_role();
 
 CREATE OR REPLACE FUNCTION enforce_group_membership() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE module_for_group uuid;

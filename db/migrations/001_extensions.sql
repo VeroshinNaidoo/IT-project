@@ -1,2 +1,1 @@
-CREATE EXTENSION IF NOT EXISTS citext;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- PGlite provides gen_random_uuid() as a built-in function; no contrib extension is required.

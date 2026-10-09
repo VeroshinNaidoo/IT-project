@@ -9,5 +9,6 @@
     "moduleResolution": "NodeNext",
     "skipLibCheck": true
   },
-  "include": ["backend", "frontend"]
+  "include": ["backend", "scripts"],
+  "exclude": ["frontend"]
 }

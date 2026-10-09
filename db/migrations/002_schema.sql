@@ -5,7 +5,7 @@ CREATE TYPE ai_job_status AS ENUM ('queued', 'running', 'succeeded', 'failed');
 
 CREATE TABLE users (
   user_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email citext NOT NULL UNIQUE,
+  email text NOT NULL CHECK (email = lower(email)),
   password_hash text NOT NULL,
   role user_role NOT NULL,
   full_name text NOT NULL CHECK (length(trim(full_name)) > 0),

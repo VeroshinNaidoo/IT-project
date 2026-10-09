@@ -4,4 +4,8 @@ coverage/
 dist/
 build/
 uploads/
+.pgdata/
+.pglite-*.pid
+.eduquest-db.pid
 *.log
+.pytest_cache/

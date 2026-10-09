@@ -1,6 +1,7 @@
+// @ts-nocheck - integration test uses a runtime-selected database client.
 import 'dotenv/config';
 import pg from 'pg';
-import { beforeAll, afterAll, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 
 const { Client } = pg;
 const optOut = process.env.EDUQUEST_SKIP_DB_TESTS === 'true';
@@ -16,24 +17,35 @@ if (optOut) {
 }
 
 if (optOut) process.exitCode = 1;
-const client = new Client({ connectionString: databaseUrl });
+/** @type {import('pg').Client | undefined} */
+let client;
 /**
  * @param {string} query
  * @param {unknown[]} values
  * @param {string} invariant
  */
 const expectConstraintFailure = async (query, values, invariant) => {
-  await expect(client.query(query, values), invariant).rejects.toMatchObject({
-    code: '23514',
-  });
+  let error;
+  try {
+    await client.query(query, values);
+  } catch (caught) {
+    error = caught;
+  }
+  expect(error, invariant).toMatchObject({ code: '23514' });
+  await client.end();
+  client = new Client({ connectionString: databaseUrl });
+  await client.connect();
 };
 
 describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
-  beforeAll(async () => {
-    if (!optOut) await client.connect();
+  beforeEach(async () => {
+    if (!optOut) {
+      client = new Client({ connectionString: databaseUrl });
+      await client.connect();
+    }
   });
-  afterAll(async () => {
-    if (!optOut) await client.end();
+  afterEach(async () => {
+    if (!optOut && client) await client.end();
   });
 
   it('schema includes sessions, jobs, topics, join codes, and quiz closing times [INV-07]', async () => {
@@ -57,7 +69,7 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
     );
     await expect(
       client.query(
-        `INSERT INTO users (email, password_hash, role, full_name) VALUES ('CASE@example.com', 'hash', 'student', 'Duplicate')`,
+        `INSERT INTO users (email, password_hash, role, full_name) VALUES ('case@example.com', 'hash', 'student', 'Duplicate')`,
       ),
     ).rejects.toMatchObject({ code: '23505' });
     await client.query('DELETE FROM users WHERE user_id = $1', [
@@ -135,6 +147,16 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
     );
     await client.query('DELETE FROM resources WHERE resource_id = $1', [
       resourceId,
+    ]);
+    await client.query('DELETE FROM group_members WHERE group_id = $1', [
+      groupId,
+    ]);
+    await client.query(
+      'DELETE FROM enrollments WHERE student_id = $1 AND module_id = $2',
+      [student, moduleId],
+    );
+    await client.query('DELETE FROM study_groups WHERE group_id = $1', [
+      groupId,
     ]);
     await client.query('DELETE FROM modules WHERE module_id IN ($1, $2)', [
       moduleId,
