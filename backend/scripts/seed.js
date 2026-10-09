@@ -1,3 +1,4 @@
+// @ts-nocheck - seed values are runtime environment/data records.
 import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
