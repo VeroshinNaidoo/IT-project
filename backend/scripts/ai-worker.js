@@ -1,11 +1,47 @@
 // @ts-nocheck
 import 'dotenv/config';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { pool } from '../db.js';
 import { containsProfanity } from '../src/profanity/index.js';
 
 const aiUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 const maxAttempts = 3;
+
+export const validateAiOutput = (output) => {
+  if (
+    !output ||
+    typeof output.title !== 'string' ||
+    !output.title.trim() ||
+    !Array.isArray(output.questions) ||
+    !output.questions.length
+  )
+    return false;
+  return output.questions.every((question) => {
+    if (
+      typeof question.question_text !== 'string' ||
+      typeof question.topic !== 'string' ||
+      !(Number(question.marks) > 0) ||
+      !Array.isArray(question.options) ||
+      question.options.length < 2 ||
+      question.options.length > 6
+    )
+      return false;
+    const texts = question.options.map((option) =>
+      String(option.option_text).toLocaleLowerCase(),
+    );
+    return (
+      question.options.filter((option) => option.is_correct === true).length ===
+        1 &&
+      new Set(texts).size === texts.length &&
+      question.options.every(
+        (option) =>
+          typeof option.option_text === 'string' &&
+          typeof option.is_correct === 'boolean',
+      )
+    );
+  });
+};
 
 const extractText = async (resource) => {
   const extension = resource.resource_type.toLowerCase();
@@ -57,6 +93,7 @@ const processJob = async (job) => {
     if (!response.ok) throw new Error('AI_PROVIDER_ERROR');
     const output = await response.json();
     if (
+      !validateAiOutput(output) ||
       containsProfanity(output.title) ||
       output.questions.some(
         (question) =>
@@ -132,10 +169,12 @@ const once = async () => {
   return Boolean(job);
 };
 
-if (process.argv.includes('--once')) {
+const isMain =
+  process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain && process.argv.includes('--once')) {
   await once();
   await pool.end();
-} else {
+} else if (isMain) {
   console.log('EduQuest AI worker polling');
   while (true) {
     const worked = await once();

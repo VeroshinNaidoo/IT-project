@@ -13,47 +13,47 @@ Status reflects the current local implementation. PGlite evidence is explicitly 
 
 The backend never echoes the matched term or logs offending text. The filter has documented limits and requires periodic custom-list review.
 
-| ID             | Implementation                                    | Evidence/status                                                                  |
-| -------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| FR-01          | `backend/src/app.js` registration                 | API path implemented; route tests pending                                        |
-| FR-02          | `backend/src/app.js` login/logout/session cookie  | API path implemented; route tests pending                                        |
-| FR-03          | `requireRole` and session role                    | API path implemented; route tests pending                                        |
-| FR-04          | Module creation endpoint                          | API path implemented; route tests pending                                        |
-| FR-05          | Enrollment and module listing                     | API path implemented; route tests pending                                        |
-| FR-06          | Resource upload endpoint                          | API path implemented; upload matrix pending                                      |
-| FR-07          | Resource authorization                            | Service work pending                                                             |
-| FR-08          | Study group create/join endpoints                 | API path implemented; route tests pending                                        |
-| FR-09          | Group resource visibility                         | Service work pending                                                             |
-| FR-10          | AI service contracts                              | `ai-service/app.py` implemented                                                  |
-| FR-11          | Quiz persistence and AI job integration           | partial: games pending team decision; AI job queue/status and worker are present |
-| FR-12          | Attempt start question delivery                   | automated: `backend/tests/api.test.js`                                           |
-| FR-13          | Answer persistence                                | automated: `backend/tests/api.test.js`                                           |
-| FR-14          | Server-side scoring                               | automated: `backend/tests/api.test.js`                                           |
-| FR-15          | Competitive attempt guard                         | automated: DB invariant and API suites                                           |
-| FR-16          | Derived leaderboard                               | automated: ranking and module/group scope API test                               |
-| FR-17          | Student leaderboard authorization                 | automated: student scope and role boundary API test                              |
-| FR-18          | Individual analytics                              | automated: `/api/v1/me/analytics` API test                                       |
-| FR-19          | Group analytics                                   | automated: group average API test                                                |
-| FR-20          | Module/topic analytics                            | automated: lecturer weak-topic API test                                          |
-| FR-21          | `backend/src/profanity/` and visible-text schemas | 25 profanity tests passed                                                        |
-| NFR01          | Async AI job architecture                         | Job table present; worker pending                                                |
-| NFR02          | bcrypt and secure session cookies                 | API implementation present                                                       |
-| NFR03          | RBAC middleware                                   | API implementation present                                                       |
-| NFR04          | React design system                               | Frontend shell; axe tests pending                                                |
-| NFR05          | Responsive CSS                                    | Mobile layout; viewport tests pending                                            |
-| NFR06          | Transactional submission                          | API transaction path; real concurrency pending                                   |
-| NFR07          | Database constraints/triggers                     | 7 DB invariant tests passed                                                      |
-| NFR08          | Zod/Pydantic validation                           | Current API/AI schemas implemented                                               |
-| NFR09          | Upload size limit                                 | Size limit implemented; magic-byte tests pending                                 |
-| NFR10          | Browser compatibility                             | Manual/browser tests pending                                                     |
-| NFR11          | Separate frontend/backend/AI modules              | Implemented                                                                      |
-| NFR12          | Indexes and query paths                           | Foundation indexes present                                                       |
-| NFR13          | Backup/recovery                                   | Pending hardening                                                                |
-| NFR14          | Resource-level authorization                      | Partial; full matrix pending                                                     |
-| NFR15          | Strict AI schemas                                 | Pydantic MockProvider implemented                                                |
-| NFR16          | Generic error responses                           | API error handler implemented                                                    |
-| NFR17          | Profanity, generic rejection, cooldown            | 25 profanity tests passed; API/AI integration pending                            |
-| INV-01, INV-13 | Competitive uniqueness and atomic submission      | PGlite passes; `npm run test:db:real` required for full row-lock verification    |
+| ID             | Implementation                                    | Evidence/status                                                                    |
+| -------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| FR-01          | `backend/src/app.js` registration                 | API path implemented; route tests pending                                          |
+| FR-02          | `backend/src/app.js` login/logout/session cookie  | API path implemented; route tests pending                                          |
+| FR-03          | `requireRole` and session role                    | API path implemented; route tests pending                                          |
+| FR-04          | Module creation endpoint                          | API path implemented; route tests pending                                          |
+| FR-05          | Enrollment and module listing                     | API path implemented; route tests pending                                          |
+| FR-06          | Resource upload endpoint                          | API path implemented; upload matrix pending                                        |
+| FR-07          | Resource authorization                            | Service work pending                                                               |
+| FR-08          | Study group create/join endpoints                 | API path implemented; route tests pending                                          |
+| FR-09          | Group resource visibility                         | Service work pending                                                               |
+| FR-10          | AI service contracts                              | `ai-service/app.py` implemented                                                    |
+| FR-11          | Quiz persistence and AI job integration           | automated: `backend/tests/ai-worker.test.js`; games partial, pending team decision |
+| FR-12          | Attempt start question delivery                   | automated: `backend/tests/api.test.js`                                             |
+| FR-13          | Answer persistence                                | automated: `backend/tests/api.test.js`                                             |
+| FR-14          | Server-side scoring                               | automated: `backend/tests/api.test.js`                                             |
+| FR-15          | Competitive attempt guard                         | automated: DB invariant and API suites                                             |
+| FR-16          | Derived leaderboard                               | automated: ranking and module/group scope API test                                 |
+| FR-17          | Student leaderboard authorization                 | automated: student scope and role boundary API test                                |
+| FR-18          | Individual analytics                              | automated: `/api/v1/me/analytics` API test                                         |
+| FR-19          | Group analytics                                   | automated: group average API test                                                  |
+| FR-20          | Module/topic analytics                            | automated: lecturer weak-topic API test                                            |
+| FR-21          | `backend/src/profanity/` and visible-text schemas | 25 profanity tests passed                                                          |
+| NFR01          | Async AI job architecture                         | automated: `backend/tests/ai-worker.test.js`                                       |
+| NFR02          | bcrypt and secure session cookies                 | API implementation present                                                         |
+| NFR03          | RBAC middleware                                   | API implementation present                                                         |
+| NFR04          | React design system                               | Frontend shell; axe tests pending                                                  |
+| NFR05          | Responsive CSS                                    | Mobile layout; viewport tests pending                                              |
+| NFR06          | Transactional submission                          | API transaction path; real concurrency pending                                     |
+| NFR07          | Database constraints/triggers                     | 7 DB invariant tests passed                                                        |
+| NFR08          | Zod/Pydantic validation                           | Current API/AI schemas implemented                                                 |
+| NFR09          | Upload size limit                                 | Size limit implemented; magic-byte tests pending                                   |
+| NFR10          | Browser compatibility                             | Manual/browser tests pending                                                       |
+| NFR11          | Separate frontend/backend/AI modules              | Implemented                                                                        |
+| NFR12          | Indexes and query paths                           | Foundation indexes present                                                         |
+| NFR13          | Backup/recovery                                   | Pending hardening                                                                  |
+| NFR14          | Resource-level authorization                      | Partial; full matrix pending                                                       |
+| NFR15          | Strict AI schemas                                 | Pydantic MockProvider implemented                                                  |
+| NFR16          | Generic error responses                           | API error handler implemented                                                      |
+| NFR17          | Profanity, generic rejection, cooldown            | 25 profanity tests passed; API/AI integration pending                              |
+| INV-01, INV-13 | Competitive uniqueness and atomic submission      | PGlite passes; `npm run test:db:real` required for full row-lock verification      |
 
 Game mechanics are intentionally frozen. The three catalog entries are disabled placeholders; no playable game UI, game logic, or game scoring is implemented.
 
