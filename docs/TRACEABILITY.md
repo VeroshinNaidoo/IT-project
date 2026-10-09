@@ -2,6 +2,17 @@
 
 Status reflects the current local implementation. PGlite evidence is explicitly not equivalent to real PostgreSQL concurrency evidence.
 
+## Profanity field coverage
+
+| User-visible field                | Backend authority                  | Evidence                                                    |
+| --------------------------------- | ---------------------------------- | ----------------------------------------------------------- |
+| Full name at registration/profile | `nameSchema` / `noProfanity()`     | `backend/tests/profanity.test.js`; direct registration test |
+| Module and study-group names      | `moduleSchema` / `groupSchema`     | API tests; profanity suite                                  |
+| Resource and quiz titles          | upload and quiz handlers           | API upload tests; profanity suite                           |
+| Quiz questions/options and topics | quiz schema and AI worker re-check | schema code; worker code; AI tests                          |
+
+The backend never echoes the matched term or logs offending text. The filter has documented limits and requires periodic custom-list review.
+
 | ID             | Implementation                                    | Evidence/status                                                               |
 | -------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
 | FR-01          | `backend/src/app.js` registration                 | API path implemented; route tests pending                                     |
@@ -43,3 +54,5 @@ Status reflects the current local implementation. PGlite evidence is explicitly 
 | NFR16          | Generic error responses                           | API error handler implemented                                                 |
 | NFR17          | Profanity, generic rejection, cooldown            | 25 profanity tests passed; API/AI integration pending                         |
 | INV-01, INV-13 | Competitive uniqueness and atomic submission      | PGlite passes; `npm run test:db:real` required for full row-lock verification |
+
+Automated axe/Playwright and the manual checklist remain required before NFR04/NFR05/NFR10 can be marked done. `npm run test:db:real` fails loudly unless `REAL_TEST_DATABASE_URL` is supplied; concurrency evidence is therefore marked “needs real PostgreSQL” under PGlite.

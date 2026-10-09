@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, unlink } from 'node:fs/promises';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -40,6 +40,13 @@ const upload = multer({
     fileSize: Number(process.env.UPLOAD_MAX_BYTES || 20 * 1024 * 1024),
   },
 });
+const allowedExtensions = new Set(['.pdf', '.docx', '.pptx', '.txt', '.md']);
+const hasAllowedMagic = (extension, bytes) =>
+  extension === '.pdf'
+    ? bytes.subarray(0, 5).toString() === '%PDF-'
+    : ['.docx', '.pptx'].includes(extension)
+      ? bytes.subarray(0, 4).toString('hex') === '504b0304'
+      : !bytes.subarray(0, 1024).includes(0);
 
 app.use(helmet());
 app.use(
@@ -69,11 +76,14 @@ const visibleText = (field, req, res, value) => {
 const parse = (schema, value, req, res) => {
   const result = schema.safeParse(value);
   if (!result.success) {
+    const hasProfanity = result.error.issues.some(
+      (issue) => issue.message === profanityMessage,
+    );
     error(
       res,
-      400,
-      'VALIDATION_ERROR',
-      'Please check the submitted fields.',
+      hasProfanity ? 422 : 400,
+      hasProfanity ? 'TEXT_NOT_ALLOWED' : 'VALIDATION_ERROR',
+      hasProfanity ? profanityMessage : 'Please check the submitted fields.',
       requestId(req),
     );
     return null;
@@ -383,6 +393,48 @@ app.post(
   },
 );
 
+app.get(
+  '/api/v1/modules/:moduleId/resources',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const lecturer = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [req.params.moduleId, req.user.userId],
+      );
+      if (!lecturer.rowCount && req.user.role === 'lecturer')
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      if (!lecturer.rowCount && req.user.role === 'student') {
+        const enrolled = await pool.query(
+          'SELECT 1 FROM enrollments WHERE module_id=$1 AND student_id=$2',
+          [req.params.moduleId, req.user.userId],
+        );
+        if (!enrolled.rowCount)
+          return error(
+            res,
+            403,
+            'FORBIDDEN',
+            'You are not enrolled in this module.',
+            requestId(req),
+          );
+      }
+      const result = await pool.query(
+        `SELECT DISTINCT r.* FROM resources r LEFT JOIN group_members gm ON gm.group_id=r.group_id AND gm.student_id=$2 WHERE r.module_id=$1 AND (r.group_id IS NULL OR gm.student_id IS NOT NULL OR EXISTS (SELECT 1 FROM modules m WHERE m.module_id=r.module_id AND m.lecturer_id=$2)) ORDER BY r.created_date DESC`,
+        [req.params.moduleId, req.user.userId],
+      );
+      res.json({ data: result.rows });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
 app.post(
   '/api/v1/modules/:moduleId/resources',
   requireAuth,
@@ -398,15 +450,32 @@ app.post(
           'Please choose a file.',
           requestId(req),
         );
+      const extension = path.extname(req.file.originalname).toLowerCase();
+      const bytes = await readFile(req.file.path);
+      if (
+        !allowedExtensions.has(extension) ||
+        !hasAllowedMagic(extension, bytes)
+      ) {
+        await unlink(req.file.path).catch(() => {});
+        return error(
+          res,
+          422,
+          'FILE_TYPE_NOT_ALLOWED',
+          'That file type is not allowed.',
+          requestId(req),
+        );
+      }
       const title = String(req.body.title || '').trim();
       if (!title || !visibleText('resourceTitle', req, res, title)) return;
+      const groupId = req.body.groupId || null;
       const result = await pool.query(
-        `INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+        `INSERT INTO resources(uploaded_by,module_id,group_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [
           req.user.userId,
           req.params.moduleId,
+          groupId,
           title,
-          req.file.mimetype,
+          extension.slice(1),
           req.file.path,
           req.file.size,
         ],
@@ -505,6 +574,59 @@ app.post(
       } finally {
         tx.release();
       }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/resources/:resourceId/generation-jobs',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const resource = await pool.query(
+        'SELECT resource_id FROM resources r JOIN modules m ON m.module_id=r.module_id WHERE r.resource_id=$1 AND m.lecturer_id=$2',
+        [req.params.resourceId, req.user.userId],
+      );
+      if (!resource.rowCount)
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Resource not found.',
+          requestId(req),
+        );
+      const job = await pool.query(
+        `INSERT INTO ai_generation_jobs(requested_by,resource_id) VALUES($1,$2) RETURNING *`,
+        [req.user.userId, req.params.resourceId],
+      );
+      res.status(202).json({ job: job.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/ai-generation-jobs/:jobId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const result = await pool.query(
+        'SELECT * FROM ai_generation_jobs WHERE job_id=$1 AND requested_by=$2',
+        [req.params.jobId, req.user.userId],
+      );
+      if (!result.rowCount)
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Generation job not found.',
+          requestId(req),
+        );
+      res.json({ job: result.rows[0] });
     } catch (e) {
       next(e);
     }

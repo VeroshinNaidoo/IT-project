@@ -1,0 +1,144 @@
+// @ts-nocheck
+import 'dotenv/config';
+import { readFile } from 'node:fs/promises';
+import { pool } from '../db.js';
+import { containsProfanity } from '../src/profanity/index.js';
+
+const aiUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+const maxAttempts = 3;
+
+const extractText = async (resource) => {
+  const extension = resource.resource_type.toLowerCase();
+  if (extension !== 'txt' && extension !== 'md')
+    return 'Uploaded educational material.';
+  return readFile(resource.file_location, 'utf8');
+};
+
+const claimJob = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT j.*, r.file_location, r.resource_type
+       FROM ai_generation_jobs j JOIN resources r ON r.resource_id=j.resource_id
+       WHERE j.status='queued' AND j.attempts < $1
+       ORDER BY j.created_at FOR UPDATE SKIP LOCKED LIMIT 1`,
+      [maxAttempts],
+    );
+    if (!result.rowCount) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const job = await client.query(
+      `UPDATE ai_generation_jobs SET status='running', attempts=attempts+1, updated_at=now() WHERE job_id=$1 RETURNING *`,
+      [result.rows[0].job_id],
+    );
+    await client.query('COMMIT');
+    return { ...result.rows[0], ...job.rows[0] };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const processJob = async (job) => {
+  try {
+    const response = await fetch(`${aiUrl}/generate-quiz`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        extracted_text: await extractText(job),
+        question_count: 5,
+        difficulty: 'mixed',
+      }),
+    });
+    if (!response.ok) throw new Error('AI_PROVIDER_ERROR');
+    const output = await response.json();
+    if (
+      containsProfanity(output.title) ||
+      output.questions.some(
+        (question) =>
+          containsProfanity(question.question_text) ||
+          containsProfanity(question.topic) ||
+          question.options.some((option) =>
+            containsProfanity(option.option_text),
+          ),
+      )
+    ) {
+      throw new Error('AI_OUTPUT_TEXT_NOT_ALLOWED');
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const quiz = await client.query(
+        `INSERT INTO quizzes(module_id,resource_id,created_by,title,status) SELECT module_id,$1,$2,$3,'draft' FROM resources WHERE resource_id=$1 RETURNING quiz_id,module_id`,
+        [job.resource_id, job.requested_by, output.title],
+      );
+      for (const question of output.questions) {
+        const topic = await client.query(
+          `INSERT INTO topics(module_id,name) VALUES($1,$2) ON CONFLICT(module_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING topic_id`,
+          [quiz.rows[0].module_id, question.topic],
+        );
+        const inserted = await client.query(
+          `INSERT INTO questions(quiz_id,topic_id,question_text,marks) VALUES($1,$2,$3,$4) RETURNING question_id`,
+          [
+            quiz.rows[0].quiz_id,
+            topic.rows[0].topic_id,
+            question.question_text,
+            question.marks,
+          ],
+        );
+        for (const option of question.options)
+          await client.query(
+            `INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,$2,$3)`,
+            [
+              inserted.rows[0].question_id,
+              option.option_text,
+              option.is_correct,
+            ],
+          );
+      }
+      await client.query(
+        `UPDATE ai_generation_jobs SET status='succeeded',quiz_id=$1,error_code=NULL,updated_at=now() WHERE job_id=$2`,
+        [quiz.rows[0].quiz_id, job.job_id],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    const nextStatus = job.attempts >= maxAttempts ? 'failed' : 'queued';
+    await pool.query(
+      `UPDATE ai_generation_jobs SET status=$1,error_code=$2,updated_at=now() WHERE job_id=$3`,
+      [
+        nextStatus,
+        error.message === 'AI_OUTPUT_TEXT_NOT_ALLOWED'
+          ? error.message
+          : 'GENERATION_FAILED',
+        job.job_id,
+      ],
+    );
+  }
+};
+
+const once = async () => {
+  const job = await claimJob();
+  if (job) await processJob(job);
+  return Boolean(job);
+};
+
+if (process.argv.includes('--once')) {
+  await once();
+  await pool.end();
+} else {
+  console.log('EduQuest AI worker polling');
+  while (true) {
+    const worked = await once();
+    if (!worked) await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}

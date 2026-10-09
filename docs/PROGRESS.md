@@ -9,17 +9,17 @@
 ## Milestone 2 — Auth/RBAC
 
 - Built session-cookie authentication, student-only registration, lecturer role middleware, password hashing, request validation, rate limiting, and error handling in `backend/src/app.js`.
-- Verification: pending full API test expansion.
+- Verification: 13 direct API tests pass; the complete per-route authorization matrix is still pending.
 
 ## Milestone 3 — Modules/resources/groups
 
 - Built module creation, join-code enrolment, study-group create/join, and validated resource upload endpoints.
-- Verification: pending full API and upload abuse matrix.
+- Verification: upload magic-byte, group-visibility, ownership and role tests pass; exhaustive matrix remains pending.
 
 ## Milestone 4 — AI/quiz generation
 
 - Added deterministic FastAPI MockProvider endpoints with strict Pydantic quiz, mini-scope, and aggregate-analysis schemas.
-- Verification: pytest tests included; asynchronous job persistence wiring remains to be completed.
+- Verification: 4 pytest contract/security tests pass; persistent queue/status/worker wiring is present, integration tests remain pending.
 
 ## Milestone 5 — Quiz engine/scoring
 
@@ -29,12 +29,12 @@
 ## Milestone 6 — Leaderboard/analytics
 
 - Built derived leaderboard and lecturer weakest-topic analytics endpoints.
-- Verification: pending analytics edge-case tests.
+- Verification: endpoint exists; individual/group analytics and edge-case tests remain pending.
 
 ## Milestone 7 — Frontend
 
 - Built responsive React shell implementing the DESIGN.md palette, sidebar navigation, dashboard, modules, leaderboard, analytics, and competitive-quiz warning views.
-- Verification: browser/axe test suite remains to be added.
+- Verification: production build passes; API-backed screen completion and axe/Playwright tests remain pending.
 
 ## Milestone 8 — Delivery
 
