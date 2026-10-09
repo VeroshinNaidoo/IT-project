@@ -30,11 +30,11 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-13          | Answer persistence                                | automated: `backend/tests/api.test.js`                                           |
 | FR-14          | Server-side scoring                               | automated: `backend/tests/api.test.js`                                           |
 | FR-15          | Competitive attempt guard                         | automated: DB invariant and API suites                                           |
-| FR-16          | Derived leaderboard                               | API path implemented                                                             |
-| FR-17          | Student leaderboard authorization                 | Service hardening pending                                                        |
-| FR-18          | Individual analytics                              | Analytics expansion pending                                                      |
-| FR-19          | Group analytics                                   | Analytics expansion pending                                                      |
-| FR-20          | Module/topic analytics                            | Weak-topic API path implemented                                                  |
+| FR-16          | Derived leaderboard                               | automated: ranking and module/group scope API test                               |
+| FR-17          | Student leaderboard authorization                 | automated: student scope and role boundary API test                              |
+| FR-18          | Individual analytics                              | automated: `/api/v1/me/analytics` API test                                       |
+| FR-19          | Group analytics                                   | automated: group average API test                                                |
+| FR-20          | Module/topic analytics                            | automated: lecturer weak-topic API test                                          |
 | FR-21          | `backend/src/profanity/` and visible-text schemas | 25 profanity tests passed                                                        |
 | NFR01          | Async AI job architecture                         | Job table present; worker pending                                                |
 | NFR02          | bcrypt and secure session cookies                 | API implementation present                                                       |

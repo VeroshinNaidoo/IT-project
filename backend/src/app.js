@@ -849,11 +849,112 @@ app.get(
   requireAuth,
   async (req, res, next) => {
     try {
+      const ownership = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [req.params.moduleId, req.user.userId],
+      );
+      if (req.user.role === 'lecturer' && !ownership.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      if (req.user.role === 'student') {
+        const enrolled = await pool.query(
+          'SELECT 1 FROM enrollments WHERE module_id=$1 AND student_id=$2',
+          [req.params.moduleId, req.user.userId],
+        );
+        if (!enrolled.rowCount)
+          return error(
+            res,
+            403,
+            'FORBIDDEN',
+            'You are not enrolled in this module.',
+            requestId(req),
+          );
+      }
+      const groupId = req.query.groupId || null;
+      if (groupId) {
+        const group = await pool.query(
+          'SELECT 1 FROM study_groups WHERE group_id=$1 AND module_id=$2',
+          [groupId, req.params.moduleId],
+        );
+        if (!group.rowCount)
+          return error(
+            res,
+            400,
+            'VALIDATION_ERROR',
+            'Please check the submitted fields.',
+            requestId(req),
+          );
+        if (req.user.role === 'student') {
+          const member = await pool.query(
+            'SELECT 1 FROM group_members WHERE group_id=$1 AND student_id=$2',
+            [groupId, req.user.userId],
+          );
+          if (!member.rowCount)
+            return error(
+              res,
+              403,
+              'FORBIDDEN',
+              'You are not in this study group.',
+              requestId(req),
+            );
+        }
+      }
       const result = await pool.query(
-        `SELECT a.student_id,u.full_name,a.score,a.completion_time,rank() over(order by a.score desc,a.completion_time asc) AS rank FROM quiz_attempts a JOIN quizzes q ON q.quiz_id=a.quiz_id JOIN users u ON u.user_id=a.student_id WHERE q.module_id=$1 AND a.is_scored=true AND a.completion_time IS NOT NULL ORDER BY rank,a.completion_time`,
-        [req.params.moduleId],
+        `SELECT a.student_id,u.full_name,a.score,a.completion_time,rank() over(order by a.score desc,a.completion_time asc) AS rank FROM quiz_attempts a JOIN quizzes q ON q.quiz_id=a.quiz_id JOIN users u ON u.user_id=a.student_id ${groupId ? 'JOIN group_members gm ON gm.student_id=a.student_id AND gm.group_id=$2' : ''} WHERE q.module_id=$1 AND a.is_scored=true AND a.completion_time IS NOT NULL ORDER BY rank,a.completion_time`,
+        groupId ? [req.params.moduleId, groupId] : [req.params.moduleId],
       );
       res.json({ data: result.rows });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/me/analytics',
+  requireAuth,
+  requireRole('student'),
+  async (req, res, next) => {
+    try {
+      const result = await pool.query(
+        `SELECT t.topic_id,t.name,CASE WHEN count(sa.answer_id)=0 THEN NULL ELSE round(100.0*sum(CASE WHEN sa.is_correct THEN 1 ELSE 0 END)/count(sa.answer_id),2) END AS correctness_percentage FROM topics t LEFT JOIN questions q ON q.topic_id=t.topic_id LEFT JOIN quizzes z ON z.quiz_id=q.quiz_id LEFT JOIN quiz_attempts a ON a.quiz_id=z.quiz_id AND a.student_id=$1 AND a.is_scored=true AND a.completion_time IS NOT NULL LEFT JOIN student_answers sa ON sa.question_id=q.question_id AND sa.attempt_id=a.attempt_id GROUP BY t.topic_id,t.name ORDER BY t.name`,
+        [req.user.userId],
+      );
+      res.json({ data: result.rows });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/modules/:moduleId/groups/:groupId/analytics',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const owned = await pool.query(
+        'SELECT 1 FROM study_groups g JOIN modules m ON m.module_id=g.module_id WHERE g.group_id=$1 AND g.module_id=$2 AND m.lecturer_id=$3',
+        [req.params.groupId, req.params.moduleId, req.user.userId],
+      );
+      if (!owned.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this group.',
+          requestId(req),
+        );
+      const result = await pool.query(
+        `SELECT round(avg(a.score),2) AS average_score,count(DISTINCT a.student_id)::int AS students FROM quiz_attempts a JOIN quizzes q ON q.quiz_id=a.quiz_id JOIN group_members gm ON gm.student_id=a.student_id AND gm.group_id=$1 WHERE q.module_id=$2 AND a.is_scored=true AND a.completion_time IS NOT NULL`,
+        [req.params.groupId, req.params.moduleId],
+      );
+      res.json({ data: result.rows[0] });
     } catch (e) {
       next(e);
     }

@@ -249,6 +249,46 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     ).toBe(409);
   });
 
+  it('returns competition ranking and scoped analytics with role boundaries', async () => {
+    if (!groupRecord) {
+      const group = await studentAgent
+        .post(`/api/v1/modules/${moduleRecord.module_id}/groups`)
+        .send({ groupName: 'Analytics Group' });
+      expect(group.status).toBe(201);
+      groupRecord = group.body.group;
+    }
+    const leaderboard = await studentAgent.get(
+      `/api/v1/modules/${moduleRecord.module_id}/leaderboard`,
+    );
+    expect(leaderboard.status).toBe(200);
+    expect(leaderboard.body.data[0].rank).toBe('1');
+    const groupLeaderboard = await studentAgent.get(
+      `/api/v1/modules/${moduleRecord.module_id}/leaderboard?groupId=${groupRecord.group_id}`,
+    );
+    expect(groupLeaderboard.status).toBe(200);
+    expect(groupLeaderboard.body.data).toHaveLength(1);
+    expect((await studentAgent.get('/api/v1/me/analytics')).status).toBe(200);
+    expect(
+      (
+        await studentAgent.get(
+          `/api/v1/modules/${moduleRecord.module_id}/analytics`,
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await lecturerAgent.get(
+          `/api/v1/modules/${moduleRecord.module_id}/analytics`,
+        )
+      ).status,
+    ).toBe(200);
+    const groupAnalytics = await lecturerAgent.get(
+      `/api/v1/modules/${moduleRecord.module_id}/groups/${groupRecord.group_id}/analytics`,
+    );
+    expect(groupAnalytics.status).toBe(200);
+    expect(groupAnalytics.body.data.students).toBe(1);
+  });
+
   it('creates and joins a study group as an enrolled student', async () => {
     const created = await studentAgent
       .post(`/api/v1/modules/${moduleRecord.module_id}/groups`)
