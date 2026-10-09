@@ -638,17 +638,25 @@ app.post(
   '/api/v1/quizzes/:quizId/attempts',
   requireAuth,
   async (req, res, next) => {
+    const tx = await pool.connect();
     try {
-      const quiz = await pool.query(
-        "SELECT * FROM quizzes WHERE quiz_id=$1 AND status='published'",
+      await tx.query('BEGIN');
+      await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `${req.params.quizId}:${req.user.userId}`,
+      ]);
+      const quiz = await tx.query(
+        "SELECT * FROM quizzes WHERE quiz_id=$1 AND status='published' FOR SHARE",
         [req.params.quizId],
       );
-      if (!quiz.rowCount)
+      if (!quiz.rowCount) {
+        await tx.query('ROLLBACK');
         return error(res, 404, 'NOT_FOUND', 'Quiz not found.', requestId(req));
+      }
       if (
         quiz.rows[0].closes_at &&
         new Date(quiz.rows[0].closes_at) < new Date()
-      )
+      ) {
+        await tx.query('ROLLBACK');
         return error(
           res,
           409,
@@ -656,13 +664,17 @@ app.post(
           'This quiz is closed.',
           requestId(req),
         );
-      if (req.user.role !== 'student')
+      }
+      if (req.user.role !== 'student') {
+        await tx.query('ROLLBACK');
         return error(res, 403, 'FORBIDDEN', 'Students only.', requestId(req));
-      const enrolled = await pool.query(
+      }
+      const enrolled = await tx.query(
         'SELECT 1 FROM enrollments WHERE student_id=$1 AND module_id=$2',
         [req.user.userId, quiz.rows[0].module_id],
       );
-      if (!enrolled.rowCount)
+      if (!enrolled.rowCount) {
+        await tx.query('ROLLBACK');
         return error(
           res,
           403,
@@ -670,11 +682,13 @@ app.post(
           'You are not enrolled in this module.',
           requestId(req),
         );
-      const existing = await pool.query(
+      }
+      const existing = await tx.query(
         'SELECT * FROM quiz_attempts WHERE quiz_id=$1 AND student_id=$2 AND ((is_scored) OR completion_time IS NULL) ORDER BY start_time LIMIT 1',
         [req.params.quizId, req.user.userId],
       );
-      if (existing.rowCount)
+      if (existing.rowCount) {
+        await tx.query('ROLLBACK');
         return res.status(409).json({
           error: {
             code: 'ATTEMPT_EXISTS',
@@ -683,21 +697,26 @@ app.post(
           },
           attempt: existing.rows[0],
         });
-      const attempt = await pool.query(
+      }
+      const attempt = await tx.query(
         'INSERT INTO quiz_attempts(quiz_id,student_id) VALUES($1,$2) RETURNING attempt_id,start_time',
         [req.params.quizId, req.user.userId],
       );
-      const questions = await pool.query(
+      const questions = await tx.query(
         "SELECT q.question_id,q.question_text,q.marks,q.topic_id,json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) options FROM questions q JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 GROUP BY q.question_id ORDER BY q.question_id",
         [req.params.quizId],
       );
+      await tx.query('COMMIT');
       res.status(201).json({
         attempt: attempt.rows[0],
         quiz: quiz.rows[0],
         questions: questions.rows,
       });
     } catch (e) {
+      await tx.query('ROLLBACK').catch(() => {});
       next(e);
+    } finally {
+      tx.release();
     }
   },
 );

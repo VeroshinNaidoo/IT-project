@@ -26,10 +26,10 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-09          | Group resource visibility                         | Service work pending                                                             |
 | FR-10          | AI service contracts                              | `ai-service/app.py` implemented                                                  |
 | FR-11          | Quiz persistence and AI job integration           | partial: games pending team decision; AI job queue/status and worker are present |
-| FR-12          | Attempt start question delivery                   | API path implemented                                                             |
-| FR-13          | Answer persistence                                | API path implemented                                                             |
-| FR-14          | Server-side scoring                               | API path implemented                                                             |
-| FR-15          | Competitive attempt guard                         | DB partial unique index plus service path                                        |
+| FR-12          | Attempt start question delivery                   | automated: `backend/tests/api.test.js`                                           |
+| FR-13          | Answer persistence                                | automated: `backend/tests/api.test.js`                                           |
+| FR-14          | Server-side scoring                               | automated: `backend/tests/api.test.js`                                           |
+| FR-15          | Competitive attempt guard                         | automated: DB invariant and API suites                                           |
 | FR-16          | Derived leaderboard                               | API path implemented                                                             |
 | FR-17          | Student leaderboard authorization                 | Service hardening pending                                                        |
 | FR-18          | Individual analytics                              | Analytics expansion pending                                                      |

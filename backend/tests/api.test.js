@@ -18,6 +18,9 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
   let moduleRecord;
   let resourceRecord;
   let groupRecord;
+  let quizRecord;
+  let attemptRecord;
+  let questionRecords;
 
   beforeAll(async () => {
     const passwordHash = await bcrypt.hash('StrongLecturerPassword1!', 12);
@@ -98,6 +101,152 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
         (module) => module.module_id === moduleRecord.module_id,
       ),
     ).toBe(true);
+  });
+
+  it('creates a competitive quiz for quiz-engine tests', async () => {
+    const response = await lecturerAgent.post('/api/v1/quizzes').send({
+      moduleId: moduleRecord.module_id,
+      title: 'API Competitive Quiz',
+      isCompetitive: true,
+      questions: [
+        {
+          questionText: 'Which layer stores data?',
+          marks: 1,
+          options: [
+            { optionText: 'Database', isCorrect: true },
+            { optionText: 'Presentation', isCorrect: false },
+          ],
+        },
+        {
+          questionText: 'Which command reads rows?',
+          marks: 1,
+          options: [
+            { optionText: 'SELECT', isCorrect: true },
+            { optionText: 'DROP', isCorrect: false },
+          ],
+        },
+      ],
+    });
+    expect(response.status).toBe(201);
+    quizRecord = response.body.quiz;
+  });
+
+  it('starts an attempt transactionally without exposing correctness', async () => {
+    const response = await studentAgent.post(
+      `/api/v1/quizzes/${quizRecord.quiz_id}/attempts`,
+    );
+    expect(response.status).toBe(201);
+    expect(JSON.stringify(response.body)).not.toContain('isCorrect');
+    attemptRecord = response.body.attempt;
+    questionRecords = await pool.query(
+      `SELECT q.question_id, q.marks, o.option_id, o.is_correct FROM questions q JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 ORDER BY q.question_id, o.option_id`,
+      [quizRecord.quiz_id],
+    );
+    expect(response.body.questions).toHaveLength(2);
+  });
+
+  it('rejects forged score fields and options belonging to another question', async () => {
+    const rows = questionRecords.rows;
+    const first = rows[0];
+    const otherQuestionOption = rows.find(
+      (row) => row.question_id !== first.question_id,
+    );
+    expect(
+      (
+        await studentAgent
+          .post(`/api/v1/attempts/${attemptRecord.attempt_id}/submit`)
+          .send({
+            score: 999,
+            isCorrect: true,
+            answers: [],
+          })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await studentAgent
+          .post(`/api/v1/attempts/${attemptRecord.attempt_id}/submit`)
+          .send({
+            answers: [
+              {
+                questionId: first.question_id,
+                optionId: otherQuestionOption.option_id,
+              },
+            ],
+          })
+      ).status,
+    ).toBe(400);
+  });
+
+  it('scores on the server, counts unanswered questions, and makes submit idempotent', async () => {
+    const correct = questionRecords.rows.find((row) => row.is_correct);
+    const result = await studentAgent
+      .post(`/api/v1/attempts/${attemptRecord.attempt_id}/submit`)
+      .send({
+        answers: [
+          { questionId: correct.question_id, optionId: correct.option_id },
+        ],
+      });
+    expect(result.status).toBe(200);
+    expect(Number(result.body.result.score)).toBe(1);
+    expect(result.body.unansweredCount).toBe(1);
+    expect(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS count FROM student_answers WHERE attempt_id=$1',
+          [attemptRecord.attempt_id],
+        )
+      ).rows[0].count,
+    ).toBe(1);
+    const replay = await studentAgent
+      .post(`/api/v1/attempts/${attemptRecord.attempt_id}/submit`)
+      .send({ answers: [] });
+    expect(replay.status).toBe(200);
+    expect(replay.body.alreadySubmitted).toBe(true);
+    expect(Number(replay.body.score)).toBe(1);
+  });
+
+  it('blocks a second competitive attempt and rejects a late submission', async () => {
+    expect(
+      (
+        await studentAgent.post(
+          `/api/v1/quizzes/${quizRecord.quiz_id}/attempts`,
+        )
+      ).status,
+    ).toBe(409);
+    const lateQuiz = await lecturerAgent.post('/api/v1/quizzes').send({
+      moduleId: moduleRecord.module_id,
+      title: 'Late Quiz',
+      isCompetitive: false,
+      closesAt: new Date(Date.now() + 60_000).toISOString(),
+      questions: [
+        {
+          questionText: 'Late question',
+          marks: 1,
+          options: [
+            { optionText: 'Yes', isCorrect: true },
+            { optionText: 'No', isCorrect: false },
+          ],
+        },
+      ],
+    });
+    const lateAttempt = await studentAgent.post(
+      `/api/v1/quizzes/${lateQuiz.body.quiz.quiz_id}/attempts`,
+    );
+    expect(lateAttempt.status).toBe(201);
+    await pool.query(
+      "UPDATE quizzes SET closes_at=now()-interval '1 second' WHERE quiz_id=$1",
+      [lateQuiz.body.quiz.quiz_id],
+    );
+    expect(
+      (
+        await studentAgent
+          .post(
+            `/api/v1/attempts/${lateAttempt.body.attempt.attempt_id}/submit`,
+          )
+          .send({ answers: [] })
+      ).status,
+    ).toBe(409);
   });
 
   it('creates and joins a study group as an enrolled student', async () => {

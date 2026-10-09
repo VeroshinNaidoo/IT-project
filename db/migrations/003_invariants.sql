@@ -1,5 +1,6 @@
 CREATE UNIQUE INDEX question_one_correct_option ON question_options(question_id) WHERE is_correct;
 CREATE UNIQUE INDEX competitive_one_scored_attempt ON quiz_attempts(quiz_id, student_id) WHERE is_scored;
+CREATE UNIQUE INDEX one_active_attempt_per_student_quiz ON quiz_attempts(quiz_id, student_id) WHERE completion_time IS NULL;
 CREATE UNIQUE INDEX users_email_lower_unique ON users (lower(email));
 
 CREATE INDEX sessions_user_id_idx ON sessions(user_id);

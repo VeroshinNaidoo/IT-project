@@ -11,6 +11,9 @@ INSERT INTO game_types (key, display_name, is_enabled) VALUES
   ('match_pairs', 'Match pairs', false)
 ON CONFLICT (key) DO NOTHING;
 
+CREATE UNIQUE INDEX IF NOT EXISTS one_active_attempt_per_student_quiz
+  ON quiz_attempts(quiz_id, student_id) WHERE completion_time IS NULL;
+
 ALTER TABLE games ADD COLUMN IF NOT EXISTS game_type_id uuid;
 DO $$
 BEGIN
