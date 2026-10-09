@@ -58,3 +58,5 @@ The backend never echoes the matched term or logs offending text. The filter has
 Game mechanics are intentionally frozen. The three catalog entries are disabled placeholders; no playable game UI, game logic, or game scoring is implemented.
 
 Automated axe/Playwright and the manual checklist remain required before NFR04/NFR05/NFR10 can be marked done. `npm run test:db:real` fails loudly unless `REAL_TEST_DATABASE_URL` is supplied; concurrency evidence is therefore marked “needs real PostgreSQL” under PGlite.
+
+The route inventory guard is `backend/tests/authorization-matrix.test.js`; it derives registered Express routes and fails when `backend/src/authorization-matrix.js` has no entry. Behavioral 401/403/owner/validation/success cases are covered incrementally in `backend/tests/api.test.js`; exhaustive per-route fixture coverage remains pending.
