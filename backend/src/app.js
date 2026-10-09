@@ -60,7 +60,11 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(
   '/api/v1/auth',
-  rateLimit({ windowMs: 10 * 60 * 1000, limit: 30, standardHeaders: true }),
+  rateLimit({
+    windowMs: 10 * 60 * 1000,
+    limit: Number(process.env.AUTH_RATE_LIMIT || 30),
+    standardHeaders: true,
+  }),
 );
 
 const sessionHash = (token) =>
@@ -250,6 +254,7 @@ app.post('/api/v1/auth/login', async (req, res, next) => {
 });
 app.post('/api/v1/auth/logout', requireAuth, async (req, res, next) => {
   try {
+    if (!parse(z.object({}).strict(), req.body || {}, req, res)) return;
     await pool.query(
       'UPDATE sessions SET revoked_at=now() WHERE token_hash=$1',
       [sessionHash(req.cookies.eduquest_session)],
@@ -387,8 +392,10 @@ app.post(
 app.post(
   '/api/v1/groups/:groupId/join',
   requireAuth,
+  requireRole('student'),
   async (req, res, next) => {
     try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res)) return;
       const group = await pool.query(
         'SELECT module_id FROM study_groups WHERE group_id=$1',
         [req.params.groupId],
@@ -486,6 +493,20 @@ app.post(
       }
       const title = String(req.body.title || '').trim();
       if (!title || !visibleText('resourceTitle', req, res, title)) return;
+      const owner = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [req.params.moduleId, req.user.userId],
+      );
+      if (!owner.rowCount) {
+        await unlink(req.file.path).catch(() => {});
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      }
       const groupId = req.body.groupId || null;
       const result = await pool.query(
         `INSERT INTO resources(uploaded_by,module_id,group_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -555,6 +576,18 @@ app.post(
         .strict();
       const data = parse(schema, req.body, req, res);
       if (!data || !visibleText('quizTitle', req, res, data.title)) return;
+      const ownedModule = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [data.moduleId, req.user.userId],
+      );
+      if (!ownedModule.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
       for (const question of data.questions) {
         if (!visibleText('questionText', req, res, question.questionText))
           return;
@@ -791,6 +824,8 @@ app.post(
   '/api/v1/quizzes/:quizId/attempts',
   requireAuth,
   async (req, res, next) => {
+    const requestData = parse(z.object({}).strict(), req.body || {}, req, res);
+    if (!requestData) return;
     const tx = await pool.connect();
     try {
       await tx.query('BEGIN');
