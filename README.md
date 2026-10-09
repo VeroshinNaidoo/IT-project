@@ -8,6 +8,7 @@ Requirements: Node.js 22+ and Python 3.11+. PostgreSQL-compatible PGlite runs lo
 npm install
 npm run db:start
 npm run db:migrate
+npm run seed
 npm test
 ```
 
@@ -32,3 +33,9 @@ This drops and recreates only the `public` schema in the configured test databas
 The database uses UUIDs, server-side opaque sessions, persistent AI jobs, module join codes, topic-linked questions, and database-enforced academic invariants. See `docs/DECISIONS.md` and `docs/INVARIANTS.md`.
 
 For full row-locking and concurrency evidence, provide a real PostgreSQL URL through `REAL_TEST_DATABASE_URL` and run `npm run test:db:real`. PGlite intentionally cannot certify that part of the gate.
+
+The seed prints the demo credentials. Defaults are:
+
+- Lecturer: `demo-lecturer@example.com` / `EduQuestDemo123!`
+- Students: `demo-student-1@example.com` through `demo-student-5@example.com` / `EduQuestDemo123!`
+- Module: `DEMO101`, JoinCode `DEMOJOIN2026`
