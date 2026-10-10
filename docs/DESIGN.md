@@ -11,3 +11,12 @@
 - Touch targets are at least 44px.
 - Competitive quizzes show the banner: “One scored attempt only.”
 - Defined screens: student dashboard, quiz taking, leaderboard with podium/ranked list and Module/My group toggle, lecturer analytics with stat cards, weakest topics, and group averages.
+
+## UI refinement — 2026-10-10
+
+Shared surfaces use restrained shadows, stronger heading hierarchy, and consistent
+48px form controls. The login screen pairs an editorial welcome panel with a focused
+form. Mobile navigation becomes a labelled top panel, preserving content width.
+Cards enter with a 360ms fade/translation; controls use 180ms hover/focus transitions.
+All motion is disabled with `prefers-reduced-motion: reduce`. CSS-only decoration
+keeps the design lightweight. The approved palette and fonts remain unchanged.

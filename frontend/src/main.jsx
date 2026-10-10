@@ -37,11 +37,39 @@ function Auth({ onLogin }) {
   };
   return (
     <main className="auth-page">
+      <section className="auth-intro" aria-label="Welcome to EduQuest">
+        <span className="intro-label">
+          A LITTLE CURIOSITY. A LOT OF POSSIBILITY.
+        </span>
+        <h2>
+          Your next
+          <br />
+          lightbulb moment
+          <br />
+          <em>starts here.</em>
+        </h2>
+        <p>
+          Bring your notes, your questions, and your ambition. Make room for a
+          better way to learn.
+        </p>
+        <div className="intro-tags">
+          <span>Learn together</span>
+          <span>Build confidence</span>
+        </div>
+        <div className="intro-orbit" aria-hidden="true">
+          <span>EQ</span>
+        </div>
+      </section>
       <form className="card auth-card" onSubmit={submit}>
         <span className="eyebrow">EDUQUEST</span>
         <h1>
           {mode === 'login' ? 'Welcome back' : 'Create your student account'}
         </h1>
+        <p className="auth-description">
+          {mode === 'login'
+            ? 'Your learning journey, all in one place.'
+            : 'A fresh start for your next big idea.'}
+        </p>
         {mode === 'register' && (
           <label>
             Full name
@@ -142,6 +170,7 @@ export function App() {
             className={`nav ${screen === item ? 'active' : ''}`}
             key={item}
             aria-label={item}
+            aria-current={screen === item ? 'page' : undefined}
             onClick={() => setScreen(item)}
           >
             {item}
@@ -158,6 +187,19 @@ export function App() {
               {user.role === 'student' ? 'LEARNING HUB' : 'LECTURER HUB'}
             </span>
             <h1>{screen}</h1>
+            <p className="page-description">
+              {screen === 'Dashboard'
+                ? 'A little progress, every day.'
+                : screen === 'Resources'
+                  ? 'Good ideas start with great material.'
+                  : screen === 'Quizzes'
+                    ? 'Turn what you know into what you can do.'
+                    : screen === 'Analytics'
+                      ? 'Understand progress. Plan what comes next.'
+                      : screen === 'Leaderboard'
+                        ? 'Celebrate the work behind every achievement.'
+                        : 'Everything you need, thoughtfully organised.'}
+            </p>
           </div>
           <span className="avatar">
             {(user.full_name || user.fullName || 'EQ')
@@ -223,7 +265,11 @@ function Dashboard({ user }) {
         <span className="eyebrow">
           {user.role === 'student' ? 'YOUR LEARNING' : 'YOUR TEACHING'}
         </span>
-        <h2>Keep your work moving.</h2>
+        <h2>
+          {user.role === 'student'
+            ? 'Small steps. Big discoveries.'
+            : 'Inspire the next discovery.'}
+        </h2>
         <p>
           Use the navigation to manage modules, study groups, quizzes and
           results.
