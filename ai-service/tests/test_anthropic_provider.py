@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import pytest
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import AnthropicProvider, OpenAIProvider, QuizRequest
+from app import AnthropicProvider, OpenAICompatibleProvider, OpenAIProvider, QuizRequest
 
 
 class Part:
@@ -106,3 +106,50 @@ def test_openai_requires_model(monkeypatch):
     monkeypatch.delenv("AI_MODEL", raising=False)
     with pytest.raises(RuntimeError, match="AI_MODEL is required"):
         OpenAIProvider(FakeOpenAIClient([]))
+
+
+def test_compatible_requires_base_url_and_https():
+    with pytest.raises(RuntimeError, match="AI_BASE_URL"):
+        OpenAICompatibleProvider(FakeOpenAIClient([]), api_key="k", model="m")
+    with pytest.raises(RuntimeError, match="https"):
+        OpenAICompatibleProvider(FakeOpenAIClient([]), base_url="http://example.com", api_key="k", model="m")
+
+
+def test_compatible_parses_code_fenced_plain_fallback():
+    class Completions:
+        def __init__(self): self.calls = 0
+        def create(self, **kwargs):
+            self.calls += 1
+            if "response_format" in kwargs: raise RuntimeError("unsupported")
+            return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": "```json\n" + valid() + "\n```"})()})()]})()
+    client = type("C", (), {"chat": type("H", (), {"completions": Completions()})()})()
+    result = OpenAICompatibleProvider(client, base_url="https://free.example", api_key="k", model="m", sleep=lambda _: None).generate_quiz(request())
+    assert result.title == "Test"
+
+
+def test_compatible_429_retry_after_and_secret_safe_error():
+    class RateLimit(Exception):
+        status_code = 429
+        headers = {"retry-after": "0"}
+    class Completions:
+        def __init__(self): self.values = iter([RateLimit(), valid()])
+        def create(self, **kwargs):
+            value = next(self.values)
+            if isinstance(value, Exception): raise value
+            return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": value})()})()]})()
+    client = type("C", (), {"chat": type("H", (), {"completions": Completions()})()})()
+    provider = OpenAICompatibleProvider(client, base_url="https://free.example", api_key="secret-compatible-key", model="m", retries=1, sleep=lambda _: None)
+    assert provider.generate_quiz(request()).title == "Test"
+
+
+def test_compatible_malformed_output_retries_then_fails_without_key():
+    class Completions:
+        def __init__(self): self.values = iter(["bad", "still bad"])
+        def create(self, **kwargs):
+            value = next(self.values)
+            if "response_format" in kwargs: raise RuntimeError("unsupported")
+            return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": value})()})()]})()
+    client = type("C", (), {"chat": type("H", (), {"completions": Completions()})()})()
+    with pytest.raises(RuntimeError, match="AI generation failed") as error:
+        OpenAICompatibleProvider(client, base_url="https://free.example", api_key="secret-compatible-key", model="m", retries=1, sleep=lambda _: None).generate_quiz(request())
+    assert "secret-compatible-key" not in str(error.value)
