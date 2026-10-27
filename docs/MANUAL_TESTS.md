@@ -27,3 +27,13 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 9. In a replay, intentionally answer three questions incorrectly. Confirm **No hearts left** and no further moves.
 10. Play a six-question quiz without reaching 100 cure. Confirm **Questions exhausted** shows final cure and score.
 11. Return to leaderboard and lecturer analytics. Confirm Infected scores and sessions are absent from scored quiz results.
+
+## FR-28 Island Escape solo smoke test
+
+1. Seed data, sign in as a demo student, open the 40-question demo quiz, and choose **Play Island Escape**. Confirm Phase 1, Question 1 of 10, wrong answers 0 of 5, streak 0, three retries, and score 0 are visible.
+2. Inspect the network response and UI before answering. Confirm options are present but no `isCorrect`, correct-option marker, or explanation is exposed.
+3. For a perfect run, submit the correct option for all 30 questions. Confirm the first three answers score 10 each, later consecutive answers score 20, the streak carries between phases, final score is 570, and **You reached the mainland** appears.
+4. Start a replay. In Phase 1, answer five questions incorrectly. Confirm the fifth answer immediately shows **Your tools were lost**, Phase 1 restarts at zero progress, streak resets, earned score remains, and two retries remain.
+5. Continue causing setbacks until the fourth setback. Confirm the terminal screen says **Stranded**, no further answer is accepted, and the final score/personal best are displayed.
+6. Start or resume a play, note the question, refresh before answering, and confirm the same play and pending question return without correctness.
+7. Return to the quiz leaderboard and lecturer analytics. Confirm the Island score and personal best do not alter any scored attempt, rank, or percentage.

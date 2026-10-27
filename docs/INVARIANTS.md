@@ -31,5 +31,12 @@
 | INV-27 | Generic game moves are append-only and uniquely ordered per play             | Immutable trigger and `(PlayID, MoveNumber)` uniqueness    | Raw SQL constraint test                                         |
 | INV-28 | A terminal generic game play accepts no further moves                        | Move-insert trigger and future transactional handlers      | Raw SQL terminal-play test                                      |
 | INV-29 | Lecturer game progress exposes aggregate counts only                         | Owned-module aggregate projection                          | Behavioral authorization-matrix response-shape test             |
+| INV-30 | Island wrong count cannot remain at five; the setback is immediate           | Pure engine transition and state/DB validation             | Engine property/worked-example and raw SQL tests                |
+| INV-31 | Island score never decreases                                                 | Pure engine and database update trigger                    | Property-based, replay, API, and raw SQL tests                  |
+| INV-32 | Island double points is active only while streak is at least three           | Zod state schema and database trigger                      | Property-based, worked-example, and raw SQL tests               |
+| INV-33 | Island setbacks never exceed four and the fourth ends the play as lost       | Pure engine, state schema, and database trigger            | Engine fourth-setback, API loss-run, and raw SQL tests          |
+| INV-34 | An Island question cannot repeat within one phase attempt                    | Selection engine and unique play/attempt/question index    | Selection/property and raw SQL tests                            |
+| INV-35 | Island correctness is never exposed before answer submission                 | Dedicated question serializer                              | API, component, and Playwright disclosure assertions            |
+| INV-36 | Island results never affect attempts, leaderboards, or analytics             | Separate generic-game persistence                          | API isolation test                                              |
 
 Game access policy is centralized in `canAccessGame`: lecturers always have access; students on competitive quizzes require their own completed scored attempt. Infected is enabled. Flashcards and the four future game types remain disabled until their individual implementation gates pass.

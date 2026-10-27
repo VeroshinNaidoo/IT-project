@@ -44,4 +44,14 @@
 - Infected retains its dedicated session tables. New solo games use versioned JSONB state in `game_plays` plus append-only `game_play_moves`; each game owns a strict Zod state schema so mechanics can evolve without changing the shared storage shape.
 - Generic play moves store the accepted move payload and resulting versioned state. The ordered move log is the rebuild source; terminal plays reject later moves at the database boundary.
 - A lecturer’s shared game-progress view returns only game type, play count, and completion count for modules they own. It never returns user identity, state, questions, or options.
-- The demo competitive quiz now has 25 questions distributed across five topics and all five levels so later game stages can share one stable fixture.
+- The demo competitive quiz now has 40 questions distributed across five topics and all five levels so all approved solo games can share one stable fixture.
+
+## 2026-10-27 — FR-28 Island Escape solo mode
+
+- All Island Escape numbers are centralized in `backend/src/games/island_escape/config.js`: 30 minimum questions, three phases of ten, 10 base points, a three-answer streak threshold, two-times points while active, five wrong answers per setback, and three retries before the fourth setback ends the play.
+- The first three consecutive correct answers score 10 each. Doubling starts on the next question, continues while answers remain correct, and affects points only. A wrong answer resets the streak and doubling.
+- Phase 1 setbacks discard that attempt's materials and restart Phase 1. Phase 2 setbacks discard boat parts and restart Phase 2. Phase 3 setbacks discard the boat and return to Phase 2 while preserving Phase 1 materials. Earned score is never removed.
+- Question selection prefers levels 1–2 in Phase 1, level 3 in Phase 2, and levels 4–5 in Phase 3, filling shortages from the nearest level. It uses never-asked questions first; after a setback exhausts that pool, it recycles least-recently asked questions. A question cannot repeat within one phase attempt.
+- Island Escape uses the shared versioned `game_plays` and append-only `game_play_moves` records. One in-progress solo play per student/game/quiz resumes on start; terminal plays may be replayed. Personal best is stored separately per student and quiz.
+- The existing `canAccessGame` rule applies unchanged. Island Escape is practice-only, and its score, state, setbacks, and personal best never affect scored attempts, leaderboards, or analytics.
+- Public start/refresh responses contain the current question and options but no correctness. The correct option and explanation appear only in the answer response. There is no game free text.

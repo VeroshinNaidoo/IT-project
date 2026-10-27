@@ -50,7 +50,12 @@ const pathFor = (template, values = fixture) =>
     .replace(':startQuizId', values.startQuizId)
     .replace(':jobId', values.jobId)
     .replace(':attemptId', values.attemptId)
-    .replace(':id', values.infectedSessionId);
+    .replace(
+      ':id',
+      template.includes('island-escape')
+        ? values.islandPlayId
+        : values.infectedSessionId,
+    );
 
 async function login(role) {
   const agent = request.agent(app);
@@ -145,6 +150,12 @@ const bodies = {
   'POST /api/v1/games/infected/sessions/:id/answer': () => ({
     optionId: fixture.infectedOptionId,
   }),
+  'POST /api/v1/games/island-escape/plays': () => ({
+    quizId: fixture.startQuizId,
+  }),
+  'POST /api/v1/games/island-escape/plays/:id/answer': () => ({
+    optionId: fixture.infectedOptionId,
+  }),
 };
 
 const specs = {
@@ -236,6 +247,18 @@ const specs = {
   'GET /api/v1/modules/:moduleId/games/activity': [
     '/api/v1/modules/:moduleId/games/activity',
     'lecturer',
+  ],
+  'POST /api/v1/games/island-escape/plays': [
+    '/api/v1/games/island-escape/plays',
+    'student',
+  ],
+  'POST /api/v1/games/island-escape/plays/:id/answer': [
+    '/api/v1/games/island-escape/plays/:id/answer',
+    'student',
+  ],
+  'GET /api/v1/games/island-escape/plays/:id': [
+    '/api/v1/games/island-escape/plays/:id',
+    'student',
   ],
 };
 
@@ -331,7 +354,8 @@ async function createFixture() {
   );
   let infectedCardId;
   let infectedOptionId;
-  for (let index = 0; index < 6; index += 1) {
+  const islandQuestionIds = [];
+  for (let index = 0; index < 30; index += 1) {
     const infectedQuestion = (
       await pool.query(
         `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level,explanation)
@@ -360,6 +384,7 @@ async function createFixture() {
       infectedCardId = infectedQuestion.question_id;
       infectedOptionId = option.option_id;
     }
+    islandQuestionIds.push(infectedQuestion.question_id);
   }
   const infectedGame = (
     await pool.query(
@@ -386,6 +411,43 @@ async function createFixture() {
      SELECT $1,$2,0,question_id,difficulty_level FROM questions WHERE question_id=$3`,
     [infectedTurn.turn_id, infectedSession.session_id, infectedCardId],
   );
+  const islandType = (
+    await pool.query(
+      `SELECT game_type_id FROM game_types WHERE key='island_escape'`,
+    )
+  ).rows[0];
+  const islandState = {
+    version: 1,
+    phase: 1,
+    phaseAttempt: 1,
+    phaseQuestionNumber: 0,
+    wrongInPhase: 0,
+    streak: 0,
+    doubleActive: false,
+    setbacks: 0,
+    score: 0,
+    materials: [],
+    boatParts: [],
+    sailProgress: 0,
+    askedQuestionIds: [infectedCardId],
+    phaseQuestionIds: islandQuestionIds.slice(0, 10),
+    currentQuestionId: infectedCardId,
+    status: 'in_progress',
+    lastEvent: 'started',
+    pointsEarned: 0,
+  };
+  const islandPlay = (
+    await pool.query(
+      `INSERT INTO game_plays(game_type_id,student_id,quiz_id,state,score)
+       VALUES($1,$2,$3,$4::jsonb,0) RETURNING play_id`,
+      [
+        islandType.game_type_id,
+        ids[users.student.email],
+        startQuiz.quiz_id,
+        JSON.stringify(islandState),
+      ],
+    )
+  ).rows[0];
   const job = (
     await pool.query(
       'INSERT INTO ai_generation_jobs(requested_by,resource_id) VALUES($1,$2) RETURNING *',
@@ -411,12 +473,18 @@ async function createFixture() {
     infectedSessionId: infectedSession.session_id,
     infectedCardId,
     infectedOptionId,
+    islandPlayId: islandPlay.play_id,
   };
 }
 
 async function assertNoSensitive(result, route) {
   expect(JSON.stringify(result.body)).not.toContain('password_hash');
-  if (route !== 'POST /api/v1/games/infected/sessions/:id/answer')
+  if (
+    ![
+      'POST /api/v1/games/infected/sessions/:id/answer',
+      'POST /api/v1/games/island-escape/plays/:id/answer',
+    ].includes(route)
+  )
     expect(JSON.stringify(result.body)).not.toMatch(
       /is_correct|isCorrect|correctOption/,
     );
@@ -457,7 +525,8 @@ async function assertRoute(route, [template, successRole]) {
     if (
       template.includes(':') ||
       route === 'POST /api/v1/quizzes' ||
-      route === 'POST /api/v1/games/infected/sessions'
+      route === 'POST /api/v1/games/infected/sessions' ||
+      route === 'POST /api/v1/games/island-escape/plays'
     ) {
       const ownerPath = pathFor(template, {
         ...fixture,
@@ -470,11 +539,13 @@ async function assertRoute(route, [template, successRole]) {
         jobId: uuid(),
         attemptId: uuid(),
         infectedSessionId: uuid(),
+        islandPlayId: uuid(),
       });
       const ownerBody =
         route === 'POST /api/v1/quizzes'
           ? { ...body, moduleId: uuid() }
-          : route === 'POST /api/v1/games/infected/sessions'
+          : route === 'POST /api/v1/games/infected/sessions' ||
+              route === 'POST /api/v1/games/island-escape/plays'
             ? { quizId: uuid() }
             : body;
       expect([403, 404], `${route} wrong owner`).toContain(
@@ -523,7 +594,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(32);
+    expect(routeInventory.length).toBe(35);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

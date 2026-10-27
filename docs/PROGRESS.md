@@ -1,5 +1,14 @@
 # EduQuest progress
 
+## FR-28 — Island Escape solo — 2026-10-27
+
+- Built the pure deterministic three-phase engine, centralized configuration, strict versioned state schema, difficulty-ramped question selection, setback/recycling rules, personal-best tracking, and replayable append-only moves.
+- Added migration 008 with the enabled catalog type, Island move references, option/question scope FK, per-attempt no-repeat index, personal best table, and state/score/terminal triggers.
+- Added strict start/resume, owner refresh, and row-locked idempotent answer APIs under `/api/v1/games/island-escape`, using the shared `canAccessGame` policy and pre-answer correctness boundary.
+- Built the responsive accessible Island screen with original SVG art, phase/inventory/boat/sailing states, textual wrong/streak/retry/score indicators, feedback, setback, terminal, replay, loading, empty, and error states.
+- Updated the seed to 40 questions across five topics and levels so Island Escape is playable after `npm run seed`.
+- Gate: 177 JavaScript tests, 4 Python tests, and 24 Chromium/Firefox browser tests passed with zero skips. Lint, formatting, type-check, and production frontend build passed. FR-28 solo is done and tested; game output remains isolated from scored attempts, rankings, and analytics.
+
 ## FR-23–FR-27 Stage 0 — Shared game foundation — 2026-10-27
 
 - Replaced three-value question difficulty storage with checked levels 1–5 and one shared Easy/Medium/Hard tier mapper. Infected behavior remains unchanged through that mapper.

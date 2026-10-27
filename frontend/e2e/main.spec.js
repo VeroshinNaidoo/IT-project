@@ -135,3 +135,124 @@ test('Infected solo flow is responsive, keyboard operable and axe clean', async 
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('Island Escape flow is responsive, keyboard operable and axe clean', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    let body;
+    if (path.endsWith('/auth/me'))
+      body = {
+        user: {
+          userId: 'student-1',
+          role: 'student',
+          full_name: 'Demo Student',
+        },
+      };
+    else if (path.endsWith('/modules'))
+      body = {
+        data: [{ module_id: 'module-1', module_name: 'Database Systems' }],
+      };
+    else if (path.endsWith('/modules/module-1/quizzes'))
+      body = {
+        data: [
+          {
+            quiz_id: 'quiz-island',
+            title: 'Island practice quiz',
+            is_competitive: false,
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-island/games'))
+      body = {
+        data: [
+          {
+            game_id: 'game-island',
+            key: 'island_escape',
+            display_name: 'Island Escape',
+            available: true,
+          },
+        ],
+      };
+    else if (path.endsWith('/games/island-escape/plays'))
+      body = {
+        play: {
+          playId: 'play-island',
+          phase: 1,
+          phaseName: 'Gather materials',
+          phaseQuestionNumber: 0,
+          wrongInPhase: 0,
+          streak: 0,
+          doubleActive: false,
+          setbacks: 0,
+          retriesRemaining: 3,
+          score: 0,
+          materials: [],
+          boatParts: [],
+          sailProgress: 0,
+          status: 'in_progress',
+        },
+        question: {
+          questionId: 'question-island',
+          questionText: 'Which material makes a strong mast?',
+          difficultyLevel: 1,
+          difficulty: 'easy',
+          topic: 'Materials',
+          options: [
+            { optionId: 'option-wood', optionText: 'Wood' },
+            { optionId: 'option-paper', optionText: 'Paper' },
+          ],
+        },
+      };
+    else if (path.endsWith('/answer'))
+      body = {
+        isCorrect: true,
+        correctOption: { optionId: 'option-wood', optionText: 'Wood' },
+        explanation: 'Wood is rigid enough to support the sail.',
+        pointsEarned: 10,
+        event: 'answer',
+        play: {
+          playId: 'play-island',
+          phase: 1,
+          phaseName: 'Gather materials',
+          phaseQuestionNumber: 1,
+          wrongInPhase: 0,
+          streak: 1,
+          doubleActive: false,
+          setbacks: 0,
+          retriesRemaining: 3,
+          score: 10,
+          materials: ['Wood'],
+          boatParts: [],
+          sailProgress: 0,
+          status: 'in_progress',
+        },
+        question: null,
+      };
+    else body = { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Quizzes' }).click();
+  await page.getByRole('combobox').selectOption('module-1');
+  await page.getByRole('button', { name: 'Play Island Escape' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Island Escape', level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByText('Phase 1 of 3 · Question 1 of 10')).toBeVisible();
+  await expect(page.getByText(/Correct answer:/)).toHaveCount(0);
+  await page.getByLabel('Wood').focus();
+  await page.keyboard.press('Space');
+  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Points earned: 10/)).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

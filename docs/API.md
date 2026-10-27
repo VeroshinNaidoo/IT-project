@@ -38,3 +38,11 @@ Generated quiz questions include:
 ```
 
 `difficulty_level` is a required integer from 1 through 5. The backend rejects missing, fractional, or out-of-range levels, empty/oversize or instruction-like explanations, duplicate questions/options, invalid correct-option counts, and profanity before persistence.
+
+## FR-28 Island Escape solo API
+
+- `POST /games/island-escape/plays` with `{ "quizId": "uuid" }` starts or resumes the caller's play. It returns public state and the server-selected question/options without correctness. Fewer than 30 eligible questions returns 409.
+- `GET /games/island-escape/plays/:id` restores only the owner's state and pending question, again without correctness.
+- `POST /games/island-escape/plays/:id/answer` with `{ "optionId": "uuid" }` locks the play row, validates the option against the current question, applies one engine transition, appends the move, and returns correctness, correct option, explanation, points, state, event, and the next question or terminal result. A replay returns the stored response without scoring twice.
+
+All bodies are strict: client-supplied score, phase, streak, correctness, or status produces 422. Practice-quiz students must be enrolled; competitive quizzes unlock only after their own scored attempt; lecturers are limited to quizzes in modules they own. Island data never enters scored-attempt analytics or leaderboards.

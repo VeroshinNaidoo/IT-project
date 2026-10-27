@@ -635,4 +635,148 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
       'INV-11 invalid difficulty level',
     );
   });
+
+  it('enforces Island Escape state and move invariants [INV-30, INV-31, INV-32, INV-33, INV-34]', async () => {
+    const lecturer = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('island-db-lecturer@example.com','hash','lecturer','Island DB Lecturer') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const student = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('island-db-student@example.com','hash','student','Island DB Student') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const moduleId = (
+      await client.query(
+        `INSERT INTO modules(lecturer_id,module_code,module_name,join_code)
+         VALUES($1,'ISLDB','Island DB','ISLANDDBJOIN') RETURNING module_id`,
+        [lecturer],
+      )
+    ).rows[0].module_id;
+    await client.query(
+      'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2)',
+      [student, moduleId],
+    );
+    const quizId = (
+      await client.query(
+        `INSERT INTO quizzes(module_id,created_by,title,status)
+         VALUES($1,$2,'Island DB Quiz','published') RETURNING quiz_id`,
+        [moduleId, lecturer],
+      )
+    ).rows[0].quiz_id;
+    const questions = [];
+    for (const text of ['Island one?', 'Island two?']) {
+      const questionId = (
+        await client.query(
+          `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level)
+           VALUES($1,$2,1,3) RETURNING question_id`,
+          [quizId, text],
+        )
+      ).rows[0].question_id;
+      const optionId = (
+        await client.query(
+          `INSERT INTO question_options(question_id,option_text,is_correct)
+           VALUES($1,$2,true) RETURNING option_id`,
+          [questionId, `${text} correct`],
+        )
+      ).rows[0].option_id;
+      questions.push({ questionId, optionId });
+    }
+    const typeId = (
+      await client.query(
+        `SELECT game_type_id FROM game_types WHERE key='island_escape'`,
+      )
+    ).rows[0].game_type_id;
+    const state = {
+      version: 1,
+      phase: 1,
+      phaseAttempt: 1,
+      phaseQuestionNumber: 0,
+      wrongInPhase: 0,
+      streak: 0,
+      doubleActive: false,
+      setbacks: 0,
+      score: 0,
+      materials: [],
+      boatParts: [],
+      sailProgress: 0,
+      askedQuestionIds: [questions[0].questionId],
+      phaseQuestionIds: questions.map((question) => question.questionId),
+      currentQuestionId: questions[0].questionId,
+      status: 'in_progress',
+      lastEvent: 'started',
+      pointsEarned: 0,
+    };
+    const playId = (
+      await client.query(
+        `INSERT INTO game_plays(game_type_id,student_id,quiz_id,state,score)
+         VALUES($1,$2,$3,$4::jsonb,0) RETURNING play_id`,
+        [typeId, student, quizId, JSON.stringify(state)],
+      )
+    ).rows[0].play_id;
+    await expectConstraintFailure(
+      'UPDATE game_plays SET state=$1::jsonb WHERE play_id=$2',
+      [JSON.stringify({ ...state, wrongInPhase: 5 }), playId],
+      'INV-30 immediate setback',
+    );
+    await expectConstraintFailure(
+      'UPDATE game_plays SET state=$1::jsonb WHERE play_id=$2',
+      [JSON.stringify({ ...state, doubleActive: true, streak: 2 }), playId],
+      'INV-32 doubling requires streak',
+    );
+    await expectConstraintFailure(
+      'UPDATE game_plays SET state=$1::jsonb WHERE play_id=$2',
+      [JSON.stringify({ ...state, setbacks: 4 }), playId],
+      'INV-33 fourth setback loses',
+    );
+    await client.query(
+      'UPDATE game_plays SET state=$1::jsonb,score=10 WHERE play_id=$2',
+      [JSON.stringify({ ...state, score: 10 }), playId],
+    );
+    await expectConstraintFailure(
+      'UPDATE game_plays SET state=$1::jsonb,score=5 WHERE play_id=$2',
+      [JSON.stringify({ ...state, score: 5 }), playId],
+      'INV-31 score never decreases',
+    );
+    await expectConstraintFailure(
+      `INSERT INTO game_play_moves(
+         play_id,move_number,move_type,payload,state_after,question_id,option_id,phase_attempt
+       ) VALUES($1,1,'answer','{}',$2::jsonb,$3,$4,1)`,
+      [
+        playId,
+        JSON.stringify({ ...state, score: 10 }),
+        questions[0].questionId,
+        questions[1].optionId,
+      ],
+      'INV-34 option belongs to current question',
+      '23503',
+    );
+    await client.query(
+      `INSERT INTO game_play_moves(
+         play_id,move_number,move_type,payload,state_after,question_id,option_id,phase_attempt
+       ) VALUES($1,1,'answer','{}',$2::jsonb,$3,$4,1)`,
+      [
+        playId,
+        JSON.stringify({ ...state, score: 10 }),
+        questions[0].questionId,
+        questions[0].optionId,
+      ],
+    );
+    await expectConstraintFailure(
+      `INSERT INTO game_play_moves(
+         play_id,move_number,move_type,payload,state_after,question_id,option_id,phase_attempt
+       ) VALUES($1,2,'answer','{}',$2::jsonb,$3,$4,1)`,
+      [
+        playId,
+        JSON.stringify({ ...state, score: 10 }),
+        questions[0].questionId,
+        questions[0].optionId,
+      ],
+      'INV-34 no repeat within phase attempt',
+      '23505',
+    );
+  });
 });

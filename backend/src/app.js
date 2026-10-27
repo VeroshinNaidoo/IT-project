@@ -23,9 +23,10 @@ import {
 } from './profanity/rate-limit.js';
 import { canAccessGame } from './games/access.js';
 import { registerInfectedRoutes } from './games/infected/routes.js';
+import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
+import { ISLAND_MIN_QUESTIONS } from './games/island_escape/config.js';
 
 const app = express();
-const port = Number(process.env.PORT || 4000);
 const cookieSecure =
   process.env.COOKIE_SECURE !== 'false' ||
   process.env.NODE_ENV !== 'development';
@@ -1274,9 +1275,12 @@ app.get(
          GROUP BY g.game_id,gt.key,gt.display_name ORDER BY gt.key`,
         [req.params.quizId],
       );
-      const minimum = Number(process.env.GAME_MIN_QUESTIONS || 6);
       res.json({
         data: games.rows.map((game) => {
+          const minimum =
+            game.key === 'island_escape'
+              ? ISLAND_MIN_QUESTIONS
+              : Number(process.env.GAME_MIN_QUESTIONS || 6);
           const enoughQuestions = game.question_count >= minimum;
           return {
             ...game,
@@ -1284,7 +1288,9 @@ app.get(
             reason: !accessAllowed
               ? 'Complete your scored attempt to unlock this game.'
               : !enoughQuestions
-                ? `Not enough questions for this game yet. At least ${minimum} are required.`
+                ? game.key === 'island_escape'
+                  ? `Needs a quiz with at least ${minimum} questions.`
+                  : `Not enough questions for this game yet. At least ${minimum} are required.`
                 : null,
           };
         }),
@@ -1371,6 +1377,14 @@ registerInfectedRoutes({
   requestId,
 });
 
+registerIslandEscapeRoutes({
+  app,
+  pool,
+  requireAuth,
+  error,
+  requestId,
+});
+
 app.use((err, req, res, _next) => {
   console.error(
     JSON.stringify({
@@ -1390,5 +1404,3 @@ app.use((err, req, res, _next) => {
 });
 
 export { app };
-if (process.env.NODE_ENV !== 'test')
-  app.listen(port, () => console.log(`EduQuest API listening on ${port}`));

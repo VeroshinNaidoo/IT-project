@@ -44,6 +44,15 @@ const routePolicies = {
     auth: 'lecturer',
   },
   'GET /api/v1/modules/:moduleId/games/activity': { auth: 'lecturer' },
+  'POST /api/v1/games/island-escape/plays': {
+    auth: 'student|lecturer',
+  },
+  'POST /api/v1/games/island-escape/plays/:id/answer': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/games/island-escape/plays/:id': {
+    auth: 'student|lecturer',
+  },
 };
 
 const caseNames = [

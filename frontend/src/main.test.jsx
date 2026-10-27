@@ -8,12 +8,191 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App, InfectedGame, QuizTaking, ResourceRow } from './main.jsx';
+import {
+  App,
+  InfectedGame,
+  IslandEscapeGame,
+  QuizTaking,
+  ResourceRow,
+} from './main.jsx';
 
 const response = (body, ok = true) => ({
   ok,
   status: ok ? 200 : 401,
   json: async () => body,
+});
+
+const islandPlay = (overrides = {}) => ({
+  playId: 'play-1',
+  phase: 1,
+  phaseName: 'Gather materials',
+  phaseQuestionNumber: 0,
+  wrongInPhase: 0,
+  streak: 0,
+  doubleActive: false,
+  setbacks: 0,
+  retriesRemaining: 3,
+  score: 0,
+  materials: [],
+  boatParts: [],
+  sailProgress: 0,
+  status: 'in_progress',
+  ...overrides,
+});
+
+const islandQuestion = {
+  questionId: 'question-1',
+  questionText: 'Which material makes a strong mast?',
+  difficultyLevel: 1,
+  difficulty: 'easy',
+  topic: 'Materials',
+  options: [
+    { optionId: 'option-1', optionText: 'Wood' },
+    { optionId: 'option-2', optionText: 'Paper' },
+  ],
+};
+
+describe('Island Escape solo game', () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => cleanup());
+
+  it('renders a pending question without revealing correctness and applies feedback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({ play: islandPlay(), question: islandQuestion }),
+        )
+        .mockResolvedValueOnce(
+          response({
+            isCorrect: true,
+            correctOption: { optionId: 'option-1', optionText: 'Wood' },
+            explanation: 'Wood is rigid enough to support the sail.',
+            pointsEarned: 10,
+            event: 'answer',
+            play: islandPlay({
+              phaseQuestionNumber: 1,
+              streak: 1,
+              score: 10,
+              materials: ['Wood'],
+            }),
+            question: { ...islandQuestion, questionId: 'question-2' },
+          }),
+        ),
+    );
+    render(<IslandEscapeGame quizId="quiz-1" onBack={() => {}} />);
+    expect(await screen.findByText(islandQuestion.questionText)).toBeTruthy();
+    expect(screen.queryByText(/Correct answer:/)).toBeNull();
+    fireEvent.click(screen.getByLabelText('Wood'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    expect(await screen.findByText('Correct')).toBeTruthy();
+    expect(screen.getByText(/Points earned: 10/)).toBeTruthy();
+    expect(screen.getByText(/Score: 10/)).toBeTruthy();
+  });
+
+  it('shows setback details and continues from the restarted phase', async () => {
+    const restarted = islandPlay({ setbacks: 1, retriesRemaining: 2 });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({
+            play: islandPlay({ wrongInPhase: 4 }),
+            question: islandQuestion,
+          }),
+        )
+        .mockResolvedValueOnce(
+          response({
+            isCorrect: false,
+            correctOption: { optionId: 'option-1', optionText: 'Wood' },
+            explanation: 'Wood is the stronger choice.',
+            pointsEarned: 0,
+            event: 'tools_lost',
+            play: restarted,
+            question: { ...islandQuestion, questionId: 'restart-question' },
+          }),
+        ),
+    );
+    render(<IslandEscapeGame quizId="quiz-2" onBack={() => {}} />);
+    fireEvent.click(await screen.findByLabelText('Paper'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    expect(await screen.findByText('Your tools were lost')).toBeTruthy();
+    expect(screen.getByText('2 retries remain.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText(islandQuestion.questionText)).toBeTruthy();
+    expect(screen.getByText(/Wrong answers 0 of 5/)).toBeTruthy();
+  });
+
+  it.each([
+    ['won', 'You reached the mainland'],
+    ['lost', 'Stranded'],
+    ['exhausted', 'No more questions are available'],
+  ])('renders the %s terminal state', async (status, heading) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          play: islandPlay({ status, score: 570 }),
+          question: null,
+          personalBest: 570,
+        }),
+      ),
+    );
+    render(<IslandEscapeGame quizId={`quiz-${status}`} onBack={() => {}} />);
+    expect(await screen.findByText(heading)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play again' })).toBeTruthy();
+    cleanup();
+  });
+
+  it('resumes the server-owned question after reload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          resumed: true,
+          play: islandPlay({ phase: 2, phaseQuestionNumber: 3, score: 120 }),
+          question: islandQuestion,
+        }),
+      ),
+    );
+    render(<IslandEscapeGame quizId="quiz-resume" onBack={() => {}} />);
+    expect(await screen.findByText(islandQuestion.questionText)).toBeTruthy();
+    expect(screen.getByText(/Phase 2 of 3 · Question 4 of 10/)).toBeTruthy();
+    expect(screen.queryByText(/Correct answer:/)).toBeNull();
+  });
+
+  it('shows friendly unavailable and empty states', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          response(
+            { error: { message: 'Needs a quiz with at least 30 questions.' } },
+            false,
+          ),
+        ),
+    );
+    const view = render(
+      <IslandEscapeGame quizId="quiz-short" onBack={() => {}} />,
+    );
+    expect(
+      await screen.findByText('Needs a quiz with at least 30 questions.'),
+    ).toBeTruthy();
+    view.unmount();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(response({ play: islandPlay(), question: null })),
+    );
+    render(<IslandEscapeGame quizId="quiz-empty" onBack={() => {}} />);
+    expect(
+      await screen.findByText('No Island Escape question is ready.'),
+    ).toBeTruthy();
+  });
 });
 
 describe('frontend authentication and role routing', () => {

@@ -224,11 +224,21 @@ export function App() {
               setGameQuizId(id);
               setScreen('Infected');
             }}
+            onPlayIslandEscape={(id) => {
+              setGameQuizId(id);
+              setScreen('Island Escape');
+            }}
           />
         )}
         {screen === 'Quiz' && <QuizTaking quizId={quizId} />}
         {screen === 'Infected' && (
           <InfectedGame
+            quizId={gameQuizId}
+            onBack={() => setScreen('Quizzes')}
+          />
+        )}
+        {screen === 'Island Escape' && (
+          <IslandEscapeGame
             quizId={gameQuizId}
             onBack={() => setScreen('Quizzes')}
           />
@@ -781,7 +791,7 @@ function Analytics({ user }) {
     </section>
   );
 }
-function Quizzes({ onTake, onPlayInfected }) {
+function Quizzes({ onTake, onPlayInfected, onPlayIslandEscape }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
   const quizzes = useData(
@@ -829,6 +839,7 @@ function Quizzes({ onTake, onPlayInfected }) {
               <QuizGames
                 quizId={quiz.quiz_id}
                 onPlayInfected={() => onPlayInfected(quiz.quiz_id)}
+                onPlayIslandEscape={() => onPlayIslandEscape(quiz.quiz_id)}
               />
             </div>
           ))}
@@ -840,7 +851,7 @@ function Quizzes({ onTake, onPlayInfected }) {
   );
 }
 
-export function QuizGames({ quizId, onPlayInfected }) {
+export function QuizGames({ quizId, onPlayInfected, onPlayIslandEscape }) {
   const games = useData(`/quizzes/${quizId}/games`);
   if (games.loading) return <p className="muted">Loading games…</p>;
   if (games.error) return <p className="field-error">{games.error}</p>;
@@ -858,6 +869,11 @@ export function QuizGames({ quizId, onPlayInfected }) {
           {game.key === 'infected' && game.available && (
             <button className="primary" onClick={onPlayInfected}>
               Play Infected
+            </button>
+          )}
+          {game.key === 'island_escape' && game.available && (
+            <button className="primary" onClick={onPlayIslandEscape}>
+              Play Island Escape
             </button>
           )}
         </div>
@@ -1129,6 +1145,274 @@ export function InfectedGame({ quizId, onBack }) {
       ) : (
         <p className="empty-state">No cards are available.</p>
       )}
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+const islandSetbacks = {
+  tools_lost: {
+    title: 'Your tools were lost',
+    text: 'Phase 1 restarts and the materials from this attempt are gone.',
+  },
+  boat_broken: {
+    title: 'The boat broke',
+    text: 'Phase 2 restarts. Your gathered materials are safe.',
+  },
+  sharks: {
+    title: 'Sharks damaged the boat',
+    text: 'Return to Phase 2 and rebuild. Your Phase 1 materials are safe.',
+  },
+};
+
+function IslandScene({ play }) {
+  const progress =
+    play.phase === 1
+      ? play.materials.length
+      : play.phase === 2
+        ? play.boatParts.length
+        : play.sailProgress;
+  const boatX = 82 + Math.min(10, progress) * 14;
+  return (
+    <svg
+      className="island-scene"
+      viewBox="0 0 260 150"
+      role="img"
+      aria-label={`${play.phaseName}; ${progress} progress items collected`}
+    >
+      <rect width="260" height="150" rx="18" fill="#dcecf4" />
+      <circle cx="218" cy="30" r="15" fill="#f2a93b" />
+      <path d="M0 105 Q65 88 130 105 T260 105 V150 H0Z" fill="#4d91b8" />
+      <path d="M0 112 Q48 87 92 110 L74 128 H0Z" fill="#d8bd72" />
+      <path d="M26 104 Q40 62 48 36" stroke="#795b38" strokeWidth="6" />
+      <path d="M47 39 Q17 29 12 49 Q35 48 47 39" fill="#2f8f5b" />
+      <path d="M47 39 Q76 22 87 42 Q62 48 47 39" fill="#2f8f5b" />
+      {play.phase >= 2 && (
+        <g transform={`translate(${boatX} 84)`}>
+          <path d="M0 30 L50 30 L41 45 L10 45Z" fill="#9b633d" />
+          <path d="M25 30 V0" stroke="#5f402a" strokeWidth="4" />
+          <path d="M28 2 L28 25 L49 25Z" fill="#f6f4ef" />
+        </g>
+      )}
+      <path d="M226 92 Q242 70 258 92 V112 H226Z" fill="#7ea36f" />
+      <text x="205" y="130" fill="#14213d" fontSize="10">
+        MAINLAND
+      </text>
+    </svg>
+  );
+}
+
+export function IslandEscapeGame({ quizId, onBack }) {
+  const [state, setState] = useState(null);
+  const [selectedOption, setSelectedOption] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const start = async () => {
+    setLoading(true);
+    setError('');
+    setFeedback(null);
+    setSelectedOption('');
+    try {
+      setState(
+        await api('/games/island-escape/plays', {
+          method: 'POST',
+          body: JSON.stringify({ quizId }),
+        }),
+      );
+    } catch (reason) {
+      setError(reason.message);
+      setState(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (quizId) start();
+  }, [quizId]);
+
+  const answer = async () => {
+    if (!selectedOption || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      setFeedback(
+        await api(`/games/island-escape/plays/${state.play.playId}/answer`, {
+          method: 'POST',
+          body: JSON.stringify({ optionId: selectedOption }),
+        }),
+      );
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const continueGame = () => {
+    setState({
+      play: feedback.play,
+      question: feedback.question,
+      personalBest: feedback.personalBest,
+    });
+    setFeedback(null);
+    setSelectedOption('');
+  };
+
+  if (!quizId) return <p className="empty-state">Choose a quiz first.</p>;
+  if (loading) return <p className="center-state">Preparing your escape…</p>;
+  if (!state)
+    return (
+      <section className="card game-error">
+        <p className="field-error">{error}</p>
+        <button className="secondary" onClick={onBack}>
+          Back to quiz
+        </button>
+      </section>
+    );
+
+  const play = feedback?.play || state.play;
+  const terminal = ['won', 'lost', 'exhausted'].includes(play.status);
+  const setback = feedback && islandSetbacks[feedback.event];
+  return (
+    <section className="island-game">
+      <div className="island-topbar">
+        <button className="link-button" onClick={onBack}>
+          ← Back to quiz
+        </button>
+        <div>
+          <span className="eyebrow">SOLO ADVENTURE</span>
+          <h2>Island Escape</h2>
+        </div>
+        <b>Score {play.score}</b>
+      </div>
+
+      <div className="island-layout">
+        <div className="island-visual">
+          <IslandScene play={play} />
+          <div className="phase-strip" aria-label="Escape phases">
+            {[1, 2, 3].map((phase) => (
+              <span
+                key={phase}
+                className={phase === play.phase ? 'active' : ''}
+                aria-current={phase === play.phase ? 'step' : undefined}
+              >
+                {phase}. {['Gather', 'Build', 'Sail'][phase - 1]}
+              </span>
+            ))}
+          </div>
+          <p className="phase-copy">
+            Phase {play.phase} of 3 · Question{' '}
+            {Math.min(10, play.phaseQuestionNumber + 1)} of 10
+          </p>
+          <div className="island-stats">
+            <span>
+              Wrong answers {play.wrongInPhase} of 5{' '}
+              <span aria-hidden="true">
+                {'●'.repeat(play.wrongInPhase)}
+                {'○'.repeat(5 - play.wrongInPhase)}
+              </span>
+            </span>
+            <span>Streak {play.streak}</span>
+            <span>Retries remaining {play.retriesRemaining}</span>
+          </div>
+          {play.doubleActive && (
+            <strong className="double-active">DOUBLE POINTS ACTIVE</strong>
+          )}
+          <div className="island-inventory">
+            <span>Materials: {play.materials.join(', ') || 'None yet'}</span>
+            <span>Boat parts: {play.boatParts.join(', ') || 'None yet'}</span>
+            <span>Sailing progress: {play.sailProgress} steps</span>
+          </div>
+        </div>
+
+        {feedback ? (
+          <div
+            className={`feedback-panel ${feedback.isCorrect ? 'correct' : 'incorrect'}`}
+            aria-live="assertive"
+          >
+            <h3>{feedback.isCorrect ? 'Correct' : 'Incorrect'}</h3>
+            <p>
+              <b>Correct answer:</b> {feedback.correctOption.optionText}
+            </p>
+            <p>{feedback.explanation}</p>
+            <p>
+              Points earned: {feedback.pointsEarned}. Score: {play.score}.
+            </p>
+            {setback && (
+              <div className="setback-callout">
+                <h3>{setback.title}</h3>
+                <p>{setback.text}</p>
+                <p>{play.retriesRemaining} retries remain.</p>
+              </div>
+            )}
+            <button className="primary" onClick={continueGame}>
+              Continue
+            </button>
+          </div>
+        ) : terminal ? (
+          <div className={`terminal-screen ${play.status}`} aria-live="polite">
+            <h3>
+              {play.status === 'won'
+                ? 'You reached the mainland'
+                : play.status === 'lost'
+                  ? 'Stranded'
+                  : 'No more questions are available'}
+            </h3>
+            <p>
+              Final score: {play.score} · Personal best:{' '}
+              {state.personalBest ?? play.score}
+            </p>
+            <div className="terminal-actions">
+              <button className="primary" onClick={start}>
+                Play again
+              </button>
+              <button className="secondary" onClick={onBack}>
+                Back to quiz
+              </button>
+            </div>
+          </div>
+        ) : state.question ? (
+          <div className="island-question">
+            <span className={`difficulty ${state.question.difficulty}`}>
+              Level {state.question.difficultyLevel} ·{' '}
+              {state.question.difficulty}
+            </span>
+            <small>{state.question.topic}</small>
+            <h3>{state.question.questionText}</h3>
+            <fieldset>
+              <legend>Choose one answer</legend>
+              {state.question.options.map((option) => (
+                <label key={option.optionId}>
+                  <input
+                    type="radio"
+                    name="island-answer"
+                    checked={selectedOption === option.optionId}
+                    onChange={() => setSelectedOption(option.optionId)}
+                  />
+                  {option.optionText}
+                </label>
+              ))}
+            </fieldset>
+            <button
+              className="primary"
+              disabled={!selectedOption || busy}
+              onClick={answer}
+            >
+              Submit answer
+            </button>
+          </div>
+        ) : (
+          <p className="empty-state">No Island Escape question is ready.</p>
+        )}
+      </div>
       {error && (
         <p className="field-error" role="alert">
           {error}

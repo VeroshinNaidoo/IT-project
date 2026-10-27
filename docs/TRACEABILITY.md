@@ -42,6 +42,7 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-25          | Boss Battle                                                       | not started; disabled catalog row and generic storage foundation only                                                                         |
 | FR-26          | Pixel Car Racer                                                   | not started; disabled catalog row and generic storage foundation only                                                                         |
 | FR-27          | Multiplayer room layer                                            | not started; no room persistence, SSE, or multiplayer behavior                                                                                |
+| FR-28          | Island Escape solo survival game                                  | automated: pure-engine/property tests, DB invariants, API access/win/setback/replay/isolation tests, component tests, Playwright/axe flow     |
 | NFR01          | Async AI job architecture                                         | automated: `backend/tests/ai-worker.test.js`                                                                                                  |
 | NFR02          | bcrypt and secure session cookies                                 | API implementation present                                                                                                                    |
 | NFR03          | RBAC middleware                                                   | API implementation present                                                                                                                    |
@@ -65,7 +66,7 @@ Infected remains enabled and practice-only. Flashcards and the four new game cat
 
 Automated axe/Playwright and the manual checklist remain required before NFR04/NFR05/NFR10 can be marked done. `npm run test:db:real` fails loudly unless `REAL_TEST_DATABASE_URL` is supplied; concurrency evidence is therefore marked “needs real PostgreSQL” under PGlite.
 
-The matrix derives 32 Express routes and executes shared assertions, including all five Infected routes and the aggregate generic-game activity route. Dedicated Infected integration fixtures additionally prove real session ownership, module ownership, exact 422 unknown-field rejection, pre-answer response secrecy, and success shapes. The generic activity response is asserted to contain no student, state, question, or option data. Older routes retain the limitations documented by their existing matrix assertions, so NFR14 remains partial overall.
+The matrix derives 35 Express routes and executes shared assertions, including all five Infected routes, all three Island Escape routes, and the aggregate generic-game activity route. Dedicated game integration fixtures additionally prove real session/play ownership, module ownership, exact 422 unknown-field rejection, pre-answer response secrecy, and success shapes. The generic activity response is asserted to contain no student, state, question, or option data. Older routes retain the limitations documented by their existing matrix assertions, so NFR14 remains partial overall.
 
 ## Infected invariant evidence
 
@@ -91,6 +92,20 @@ The matrix derives 32 Express routes and executes shared assertions, including a
 | INV-28    | Terminal generic plays reject moves                   | DB trigger test                                         |
 | INV-29    | Lecturer progress is owned-module aggregate data only | Authorization-matrix ownership and response-shape tests |
 
+## Island Escape invariant evidence
+
+| Invariant | Enforcement                                    | Automated evidence                                    |
+| --------- | ---------------------------------------------- | ----------------------------------------------------- |
+| INV-30    | Immediate setback transition and bounded state | engine property/worked examples and raw SQL           |
+| INV-31    | Monotonic score engine and update trigger      | property, replay, API, and raw SQL tests              |
+| INV-32    | Strict Zod/SQL doubling-streak relationship    | engine transition/property and raw SQL tests          |
+| INV-33    | Engine/state/SQL setback terminal bound        | engine, API fourth-setback run, and raw SQL tests     |
+| INV-34    | Attempt-scoped unique question index           | selection/property and raw SQL tests                  |
+| INV-35    | Pre-answer serializers omit correctness        | API, component, and Playwright assertions             |
+| INV-36    | Separate practice-only persistence             | API leaderboard/attempt/analytics isolation assertion |
+
 FR-22 Stage 1 gate evidence: 131 JavaScript tests, 4 Python tests, and 18 browser tests passed with zero skips. Lint, Prettier, TypeScript, and the production frontend build also pass. Earlier assertion totals were manually estimated and are not treated as verified behavioral evidence.
 
 FR-23–FR-27 Stage 0 gate evidence: 141 JavaScript tests, 4 Python tests, and 18 Chromium/Firefox browser tests passed with zero skips. Lint, Prettier, TypeScript, and the production frontend build pass. The four solo game features and multiplayer room layer remain not started.
+
+FR-28 gate evidence: 177 JavaScript tests, 4 Python tests, and 24 Chromium/Firefox browser tests passed with zero skips. Island-specific evidence includes 14 engine/property tests, 11 API integration tests, DB INV-30–INV-34 assertions, component coverage for question/answer/setback/terminal/resume/error states, and axe/keyboard checks at 390/768/1280. All 35 inventoried routes pass the executable authorization-matrix guard. Lint, Prettier, TypeScript, and production build pass.

@@ -34,12 +34,15 @@ erDiagram
   USERS ||--o{ GAME_PLAYS : starts
   QUIZZES ||--o{ GAME_PLAYS : supplies
   GAME_PLAYS ||--o{ GAME_PLAY_MOVES : records
+  GAME_TYPES ||--o{ GAME_PERSONAL_BESTS : classifies
+  USERS ||--o{ GAME_PERSONAL_BESTS : earns
+  QUIZZES ||--o{ GAME_PERSONAL_BESTS : tracks
   USERS ||--o{ AI_GENERATION_JOBS : requests
   RESOURCES ||--o{ AI_GENERATION_JOBS : processes
   QUIZZES o|--o{ AI_GENERATION_JOBS : creates
 ```
 
-`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected` is enabled; `flashcards`, `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer` are disabled until their implementation gates pass. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
+`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected` and `island_escape` are enabled; `flashcards`, `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer` are disabled until their implementation gates pass. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
 
 Questions use required `DifficultyLevel smallint` (1–5, default 3) and nullable `Explanation` (1–300 characters). The shared mapping is levels 1–2 Easy, 3 Medium, and 4–5 Hard.
 
@@ -51,5 +54,6 @@ Questions use required `DifficultyLevel smallint` (1–5, default 3) and nullabl
 Generic solo-game storage introduced by migration 007:
 
 - `game_plays(PlayID PK, GameTypeID FK, StudentID FK, QuizID FK, Mode, Status, State jsonb, Score, CreatedAt, UpdatedAt, CompletedAt)` stores versioned game-owned state. A partial unique index permits one in-progress solo play per game type, user, and quiz.
-- `game_play_moves(MoveID PK, PlayID FK, MoveNumber, MoveType, Payload jsonb, StateAfter jsonb, CreatedAt)` is append-only and uniquely ordered within a play.
+- `game_play_moves(MoveID PK, PlayID FK, MoveNumber, MoveType, Payload jsonb, StateAfter jsonb, QuestionID FK nullable, OptionID FK nullable, PhaseAttempt nullable, CreatedAt)` is append-only and uniquely ordered within a play. Island Escape uses the question, option, and phase-attempt columns to enforce answer scope and no repeated question within an attempt.
 - Checks require object-shaped versioned state and non-negative scores. Triggers enforce module scope, append-only moves, and terminal-state finality.
+- `game_personal_bests(GameTypeID FK, StudentID FK, QuizID FK, Score, UpdatedAt)` stores practice-only personal records; its composite key is `(GameTypeID, StudentID, QuizID)`.
