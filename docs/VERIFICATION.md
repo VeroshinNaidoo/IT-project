@@ -29,3 +29,29 @@ Variable names were checked without printing values. Present names: `DATABASE_UR
 ## Verdict
 
 Ready with caveats: the local PGlite-backed application and the two built solo games pass the offline, API, database, frontend, accessibility, and browser gates. It is not ready for a claim of complete production verification until real PostgreSQL concurrency, live Anthropic behavior, and native dump/restore are run.
+
+## Follow-up verification — 2026-10-27
+
+The project `.env` was rechecked by variable name only. `REAL_TEST_DATABASE_URL` and `ANTHROPIC_API_KEY` were not present in the file or process environment during this run. Chromium and Firefox remain installed.
+
+### Step 6 security spot checks
+
+| Check                                        | Result | Evidence                                                                          |
+| -------------------------------------------- | ------ | --------------------------------------------------------------------------------- |
+| Unauthenticated protected access returns 401 | passed | `backend/tests/api.test.js` — `rejects unauthenticated protected access with 401` |
+| Wrong role returns 403                       | passed | `backend/tests/api.test.js` — `rejects wrong-role module creation with 403`       |
+| Profanity generic rejection                  | passed | `backend/tests/api.test.js`, `backend/tests/profanity.test.js`                    |
+| Logout revokes session                       | passed | `backend/tests/api.test.js` — `revokes the server-side session on logout`         |
+| Invalid login hides account state            | passed | `backend/tests/api.test.js` — invalid-login test                                  |
+| Spoofed upload bytes rejected                | passed | `backend/tests/api.test.js` — magic-byte test                                     |
+| Forged score/cross-question option rejected  | passed | `backend/tests/api.test.js` — forged-score test                                   |
+| Correctness hidden before submission         | passed | API and browser disclosure tests                                                  |
+
+### Blocked follow-up steps
+
+- Step 3: blocked. `node -r dotenv/config scripts/test-real-db.mjs` failed with `REAL_TEST_DATABASE_URL is required for real PostgreSQL verification`. Add `REAL_TEST_DATABASE_URL` to `.env`, then run `npm run test:db:real`.
+- Step 4: blocked. This checkout contains no `AnthropicProvider` and no `npm run test:ai:real` script. Add `ANTHROPIC_API_KEY` to `.env` and implement/configure that provider and fixture runner before live-AI verification.
+- Step 5 real-AI journey/screenshots: blocked by Step 4; no screenshots were generated.
+- Step 7 native backup: blocked because `pg_dump` and `pg_restore` were not found on PATH.
+
+Updated verdict: ready with caveats. Offline verification and security spot checks pass, but real PostgreSQL concurrency, live Anthropic verification, real-AI screenshots, and native PostgreSQL backup/restore remain unverified.
