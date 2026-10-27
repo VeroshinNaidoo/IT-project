@@ -55,3 +55,18 @@ FR-22 Stage 1 is green: 131 JavaScript tests passed (including 14 pure-engine, 1
 FR-23–FR-27 Stage 0 foundation is green: 141 JavaScript tests, 4 Python tests, and 18 Chromium/Firefox browser tests passed with zero skips; lint, formatting, type-check, and the production frontend build pass. It does not mark any of those game requirements complete: all four catalog rows remain disabled and the multiplayer layer is not started.
 
 FR-28 solo is green: 177 JavaScript tests, 4 Python tests, and 24 Chromium/Firefox browser tests pass with zero skips. This includes 14 Island pure-engine/property tests, 11 Island API integration tests, raw-SQL INV-30–INV-34 coverage, all 35 inventoried routes in the authorization matrix, Island component coverage, and the Island axe/keyboard flow at 390, 768, and 1280 pixels. Lint, formatting, type-check, and production build pass. Island Escape is practice-only and enabled.
+
+## Game implementation audit before FR-23–FR-26
+
+Stage 0 is done and tested: `DifficultyLevel smallint CHECK (1..5)`, shared `tierOf()`, generic `game_plays` and append-only `game_play_moves`, catalog rows for `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer`, and Infected’s use of `tierOf()` are covered by `backend/tests/game-foundation.test.js`, `backend/tests/database.invariants.test.js`, and the existing Infected engine/API tests.
+
+| Game | Status | Evidence |
+| --- | --- | --- |
+| Infected | built and tested | `backend/tests/infected-engine.test.js`, `backend/tests/infected-api.test.js`, DB invariants, frontend component tests, and Playwright/axe flow |
+| Memory Match | not built | No game module, route, frontend flow, or game-specific tests exist |
+| Timer Trivia | not built | No game module, route, frontend flow, or game-specific tests exist |
+| Boss Battle | not built | No game module, route, frontend flow, or game-specific tests exist |
+| Pixel Car Racer | not built | No game module, route, frontend flow, or game-specific tests exist |
+| Island Escape | built and tested | `backend/tests/island-escape-engine.test.js`, `backend/tests/island-escape-api.test.js`, DB invariants, frontend component tests, and Playwright/axe flow |
+
+Multiplayer rooms and multiplayer modes are not built and remain not verified.
