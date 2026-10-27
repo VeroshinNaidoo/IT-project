@@ -56,6 +56,42 @@ The project `.env` was rechecked by variable name only. `REAL_TEST_DATABASE_URL`
 
 Updated verdict: ready with caveats. Offline verification and security spot checks pass, but real PostgreSQL concurrency, live Anthropic verification, real-AI screenshots, and native PostgreSQL backup/restore remain unverified.
 
+## Full verification run — 2026-10-27
+
+### Environment
+
+`.env` exists at the project root and `git check-ignore .env` passed. The following names were missing from `.env`: `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, and `REAL_TEST_DATABASE_URL`. No values were printed. `.env.txt` was not present.
+
+### Offline results
+
+| Area                |       Ran | Passed | Skipped | Result |
+| ------------------- | --------: | -----: | ------: | ------ |
+| JavaScript/Vitest   |       177 |    177 |       0 | passed |
+| Python/AI           |        19 |     19 |       0 | passed |
+| Playwright/axe      |        24 |     24 |       0 | passed |
+| Lint                | 1 command |      1 |       0 | passed |
+| Format              | 1 command |      1 |       0 | passed |
+| Type-check          | 1 command |      1 |       0 | passed |
+| Frontend build      | 1 command |      1 |       0 | passed |
+| DB reset/invariants |        11 |     11 |       0 | passed |
+
+### Blocked and unverified
+
+- Step 3: blocked: `REAL_TEST_DATABASE_URL`. Add it to `.env` and run `npm run test:db:real`; no concurrency test names can honestly be reported yet.
+- Step 4: blocked: `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`. Add the four provider variables and rerun the real-AI path. No live request was attempted.
+- Step 5: the existing 24 browser tests passed using mocked routes, but the requested full lecturer/student generation journey and screenshots were not run. No screenshot evidence is claimed.
+- Native `pg_dump`/`pg_restore`: unavailable because neither executable was found. JSON backup fallback passed after restarting the PGlite processes; round-trip reported 8 migrations.
+- `npm audit --audit-level=high`: 12 vulnerabilities reported: 5 moderate, 5 high, 2 critical. No forced dependency upgrade was applied.
+- The four unbuilt games (Memory Match, Timer Trivia, Boss Battle, Pixel Car Racer) and multiplayer remain unverified.
+
+### Bug list
+
+- PGlite connection terminated during the first backup attempt after browser verification; restarting the local PGlite processes resolved it. No application code change was made, so there is no bug-fix commit.
+
+### Verdict
+
+Ready with caveats: all credential-free suites passed with zero skips, but real PostgreSQL concurrency, live AI, the requested end-to-end generated-quiz journey, native backup, and the audit vulnerabilities remain unverified.
+
 ## Google AI Studio smoke check — 2026-10-27
 
 - `.env`: exists; `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL` are missing. No values were printed.
