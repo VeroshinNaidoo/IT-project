@@ -30,6 +30,19 @@ const routePolicies = {
     auth: 'lecturer',
   },
   'GET /api/v1/modules/:moduleId/analytics': { auth: 'lecturer' },
+  'POST /api/v1/games/infected/sessions': { auth: 'student|lecturer' },
+  'POST /api/v1/games/infected/sessions/:id/choose': {
+    auth: 'student|lecturer',
+  },
+  'POST /api/v1/games/infected/sessions/:id/answer': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/games/infected/sessions/:id': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/modules/:moduleId/games/infected/activity': {
+    auth: 'lecturer',
+  },
 };
 
 const caseNames = [
@@ -51,8 +64,9 @@ export const authorizationMatrix = Object.fromEntries(
       cases: Object.fromEntries(
         caseNames.map((name) => [
           name,
-          policy.auth === 'public' &&
-          ['unauthenticated', 'wrongRole', 'wrongOwner'].includes(name)
+          (policy.auth === 'public' &&
+            ['unauthenticated', 'wrongRole', 'wrongOwner'].includes(name)) ||
+          (policy.auth === 'student|lecturer' && name === 'wrongRole')
             ? 'not_applicable'
             : 'required',
         ]),

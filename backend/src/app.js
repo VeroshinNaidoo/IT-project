@@ -22,6 +22,7 @@ import {
   isProfanityCooldownActive,
 } from './profanity/rate-limit.js';
 import { canAccessGame } from './games/access.js';
+import { registerInfectedRoutes } from './games/infected/routes.js';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -554,6 +555,17 @@ app.post(
                     .min(1)
                     .refine(noProfanity(), { message: profanityMessage }),
                   marks: z.number().positive(),
+                  difficulty: z
+                    .enum(['easy', 'medium', 'hard'])
+                    .default('medium'),
+                  explanation: z
+                    .string()
+                    .trim()
+                    .min(1)
+                    .max(300)
+                    .refine(noProfanity(), { message: profanityMessage })
+                    .nullable()
+                    .optional(),
                   topicId: z.string().uuid().nullable().optional(),
                   topic: z
                     .string()
@@ -604,6 +616,11 @@ app.post(
           return;
         for (const option of question.options)
           if (!visibleText('optionText', req, res, option.optionText)) return;
+        if (
+          question.explanation &&
+          !visibleText('explanation', req, res, question.explanation)
+        )
+          return;
       }
       const tx = await pool.connect();
       try {
@@ -630,12 +647,14 @@ app.post(
             ).rows[0].topic_id;
           }
           const q = await tx.query(
-            `INSERT INTO questions(quiz_id,topic_id,question_text,marks) VALUES($1,$2,$3,$4) RETURNING question_id`,
+            `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation) VALUES($1,$2,$3,$4,$5,$6) RETURNING question_id`,
             [
               quiz.rows[0].quiz_id,
               topicId,
               question.questionText,
               question.marks,
+              question.difficulty,
+              question.explanation || null,
             ],
           );
           for (const option of question.options)
@@ -753,7 +772,7 @@ app.get(
   async (req, res, next) => {
     try {
       const result = await pool.query(
-        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FROM question_options o WHERE o.question_id=q.question_id))) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
+        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'difficulty',q.difficulty,'explanation',q.explanation,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FROM question_options o WHERE o.question_id=q.question_id))) FILTER (WHERE q.question_id IS NOT NULL) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
         [req.params.quizId, req.user.userId],
       );
       if (!result.rowCount)
@@ -777,25 +796,74 @@ app.put(
           isCompetitive: z.boolean(),
           closesAt: z.string().datetime().nullable().optional(),
           status: z.enum(['draft', 'published']),
+          questions: z
+            .array(
+              z
+                .object({
+                  questionId: z.string().uuid(),
+                  difficulty: z.enum(['easy', 'medium', 'hard']),
+                  explanation: z
+                    .string()
+                    .trim()
+                    .min(1)
+                    .max(300)
+                    .refine(noProfanity(), { message: profanityMessage }),
+                })
+                .strict(),
+            )
+            .optional(),
         })
         .strict();
       const data = parse(schema, req.body, req, res);
       if (!data) return;
       if (!visibleText('quizTitle', req, res, data.title)) return;
-      const result = await pool.query(
-        `UPDATE quizzes z SET title=$1,is_competitive=$2,closes_at=$3,status=$4 FROM modules m WHERE z.quiz_id=$5 AND m.module_id=z.module_id AND m.lecturer_id=$6 RETURNING z.*`,
-        [
-          data.title,
-          data.isCompetitive,
-          data.closesAt || null,
-          data.status,
-          req.params.quizId,
-          req.user.userId,
-        ],
-      );
-      if (!result.rowCount)
-        return error(res, 404, 'NOT_FOUND', 'Quiz not found.', requestId(req));
-      res.json({ quiz: result.rows[0] });
+      for (const question of data.questions || [])
+        if (!visibleText('explanation', req, res, question.explanation)) return;
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const result = await client.query(
+          `UPDATE quizzes z SET title=$1,is_competitive=$2,closes_at=$3,status=$4 FROM modules m WHERE z.quiz_id=$5 AND m.module_id=z.module_id AND m.lecturer_id=$6 RETURNING z.*`,
+          [
+            data.title,
+            data.isCompetitive,
+            data.closesAt || null,
+            data.status,
+            req.params.quizId,
+            req.user.userId,
+          ],
+        );
+        if (!result.rowCount) {
+          await client.query('ROLLBACK');
+          return error(
+            res,
+            404,
+            'NOT_FOUND',
+            'Quiz not found.',
+            requestId(req),
+          );
+        }
+        for (const question of data.questions || []) {
+          const updated = await client.query(
+            `UPDATE questions SET difficulty=$1,explanation=$2
+             WHERE question_id=$3 AND quiz_id=$4 RETURNING question_id`,
+            [
+              question.difficulty,
+              question.explanation,
+              question.questionId,
+              req.params.quizId,
+            ],
+          );
+          if (!updated.rowCount) throw new Error('QUIZ_QUESTION_NOT_FOUND');
+        }
+        await client.query('COMMIT');
+        res.json({ quiz: result.rows[0] });
+      } catch (caught) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw caught;
+      } finally {
+        client.release();
+      }
     } catch (e) {
       next(e);
     }
@@ -1197,13 +1265,32 @@ app.get(
           requestId(req),
         );
       }
-      if (!canAccessGame(req.user, quiz.rows[0], { scoredAttemptCompleted }))
-        return res.json({ data: [] });
+      const accessAllowed = canAccessGame(req.user, quiz.rows[0], {
+        scoredAttemptCompleted,
+      });
       const games = await pool.query(
-        `SELECT g.game_id, gt.key, gt.display_name FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id WHERE g.quiz_id=$1 AND gt.is_enabled=true ORDER BY gt.key`,
+        `SELECT g.game_id,gt.key,gt.display_name,count(q.question_id)::int AS question_count
+         FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id
+         LEFT JOIN questions q ON q.quiz_id=g.quiz_id
+         WHERE g.quiz_id=$1 AND gt.is_enabled=true
+         GROUP BY g.game_id,gt.key,gt.display_name ORDER BY gt.key`,
         [req.params.quizId],
       );
-      res.json({ data: games.rows });
+      const minimum = Number(process.env.GAME_MIN_QUESTIONS || 6);
+      res.json({
+        data: games.rows.map((game) => {
+          const enoughQuestions = game.question_count >= minimum;
+          return {
+            ...game,
+            available: accessAllowed && enoughQuestions,
+            reason: !accessAllowed
+              ? 'Complete your scored attempt to unlock this game.'
+              : !enoughQuestions
+                ? `Not enough questions for this game yet. At least ${minimum} are required.`
+                : null,
+          };
+        }),
+      });
     } catch (e) {
       next(e);
     }
@@ -1237,6 +1324,15 @@ app.get(
     }
   },
 );
+
+registerInfectedRoutes({
+  app,
+  pool,
+  requireAuth,
+  requireRole,
+  error,
+  requestId,
+});
 
 app.use((err, req, res, _next) => {
   console.error(

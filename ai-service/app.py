@@ -1,4 +1,7 @@
 from fastapi import FastAPI
+import re
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 app = FastAPI(title="EduQuest Mock AI Service")
@@ -13,7 +16,20 @@ class Question(BaseModel):
     question_text: str = Field(min_length=1)
     topic: str = Field(min_length=1)
     marks: float = Field(gt=0)
+    difficulty: Literal["easy", "medium", "hard"]
+    explanation: str = Field(min_length=1, max_length=300)
     options: list[Option] = Field(min_length=2, max_length=6)
+
+    @field_validator("explanation")
+    @classmethod
+    def explanation_is_brief_and_not_an_instruction(cls, value: str) -> str:
+        text = value.strip()
+        sentences = [part for part in re.split(r"[.!?]+", text) if part.strip()]
+        if not 1 <= len(sentences) <= 2:
+            raise ValueError("explanation must contain one or two sentences")
+        if re.search(r"\b(ignore|follow|obey|disregard)\b.{0,40}\b(instruction|prompt|rule)s?\b|\bsystem prompt\b|\breveal secrets?\b", text, re.I):
+            raise ValueError("explanation cannot contain instructions")
+        return text
 
     @field_validator("options")
     @classmethod
@@ -56,7 +72,8 @@ class AnalysisResponse(BaseModel):
 @app.post("/generate-quiz", response_model=QuizResponse)
 def generate_quiz(request: QuizRequest) -> QuizResponse:
     # MockProvider is deterministic and treats extracted text as data, never instructions.
-    return QuizResponse(title="Revision quiz", questions=[Question(question_text=f"What is a key idea from the supplied material?", topic="General", marks=1, options=[Option(option_text="The supplied material's main concept", is_correct=True), Option(option_text="An unrelated concept", is_correct=False)]) for _ in range(request.question_count)])
+    difficulties = ["easy", "medium", "hard"]
+    return QuizResponse(title="Revision quiz", questions=[Question(question_text=f"What is key idea {index + 1} from the supplied material?", topic="General", marks=1, difficulty=difficulties[index % 3], explanation="The main concept is the idea supported directly by the supplied material.", options=[Option(option_text=f"Supported concept {index + 1}", is_correct=True), Option(option_text=f"Unrelated concept {index + 1}", is_correct=False), Option(option_text=f"Unsupported detail {index + 1}", is_correct=False), Option(option_text=f"Contradictory claim {index + 1}", is_correct=False)]) for index in range(request.question_count)])
 
 
 @app.post("/generate-mini-scope", response_model=MiniScopeResponse)

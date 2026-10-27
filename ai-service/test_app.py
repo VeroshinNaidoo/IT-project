@@ -9,6 +9,8 @@ def test_mock_quiz_is_structured_and_deterministic():
     assert response.status_code == 200
     assert len(response.json()["questions"]) == 2
     assert sum(option["is_correct"] for option in response.json()["questions"][0]["options"]) == 1
+    assert [question["difficulty"] for question in response.json()["questions"]] == ["easy", "medium"]
+    assert all(1 <= len(question["explanation"]) <= 300 for question in response.json()["questions"])
 
 
 def test_malformed_quiz_shape_is_rejected():

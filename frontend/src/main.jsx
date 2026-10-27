@@ -133,6 +133,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState('Dashboard');
   const [quizId, setQuizId] = useState(null);
+  const [gameQuizId, setGameQuizId] = useState(null);
   useEffect(() => {
     api('/auth/me')
       .then((body) => setUser(body.user))
@@ -219,9 +220,19 @@ export function App() {
               setQuizId(id);
               setScreen('Quiz');
             }}
+            onPlayInfected={(id) => {
+              setGameQuizId(id);
+              setScreen('Infected');
+            }}
           />
         )}
         {screen === 'Quiz' && <QuizTaking quizId={quizId} />}
+        {screen === 'Infected' && (
+          <InfectedGame
+            quizId={gameQuizId}
+            onBack={() => setScreen('Quizzes')}
+          />
+        )}
       </main>
     </div>
   );
@@ -491,6 +502,11 @@ export function ResourceRow({ resource, lecturer }) {
           isCompetitive: quiz.is_competitive,
           closesAt: quiz.closes_at,
           status: 'published',
+          questions: (quiz.questions || []).map((question) => ({
+            questionId: question.questionId,
+            difficulty: question.difficulty || 'medium',
+            explanation: question.explanation,
+          })),
         }),
       });
       setQuiz(body.quiz);
@@ -585,14 +601,52 @@ export function ResourceRow({ resource, lecturer }) {
               <option value="competitive">Competitive</option>
             </select>
           </label>
-          <ul>
+          <div className="draft-questions">
             {quiz.questions?.map((question) => (
-              <li key={question.questionId}>
-                {question.questionText}{' '}
+              <fieldset key={question.questionId}>
+                <legend>{question.questionText}</legend>
                 <small>{question.topic || 'No topic'}</small>
-              </li>
+                <label>
+                  Difficulty
+                  <select
+                    value={question.difficulty || 'medium'}
+                    onChange={(event) =>
+                      setQuiz({
+                        ...quiz,
+                        questions: quiz.questions.map((item) =>
+                          item.questionId === question.questionId
+                            ? { ...item, difficulty: event.target.value }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </label>
+                <label>
+                  Explanation
+                  <textarea
+                    maxLength="300"
+                    value={question.explanation || ''}
+                    onChange={(event) =>
+                      setQuiz({
+                        ...quiz,
+                        questions: quiz.questions.map((item) =>
+                          item.questionId === question.questionId
+                            ? { ...item, explanation: event.target.value }
+                            : item,
+                        ),
+                      })
+                    }
+                    required
+                  />
+                </label>
+              </fieldset>
             ))}
-          </ul>
+          </div>
           <button className="primary" disabled={saving}>
             {saving ? 'Publishing…' : 'Publish quiz'}
           </button>
@@ -722,7 +776,7 @@ function Analytics({ user }) {
     </section>
   );
 }
-function Quizzes({ onTake }) {
+function Quizzes({ onTake, onPlayInfected }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
   const quizzes = useData(
@@ -750,26 +804,330 @@ function Quizzes({ onTake }) {
         <>
           <State state={quizzes} empty="No published quizzes yet." />
           {quizzes.data.map((quiz) => (
-            <div className="list-row" key={quiz.quiz_id}>
-              <span>
-                {quiz.title}
-                <small>
-                  {quiz.is_competitive
-                    ? 'One scored attempt only.'
-                    : 'Practice quiz'}
-                </small>
-              </span>
-              <button
-                className="secondary"
-                onClick={() => onTake(quiz.quiz_id)}
-              >
-                Open quiz
-              </button>
+            <div className="quiz-entry" key={quiz.quiz_id}>
+              <div className="list-row">
+                <span>
+                  {quiz.title}
+                  <small>
+                    {quiz.is_competitive
+                      ? 'One scored attempt only.'
+                      : 'Practice quiz'}
+                  </small>
+                </span>
+                <button
+                  className="secondary"
+                  onClick={() => onTake(quiz.quiz_id)}
+                >
+                  Open quiz
+                </button>
+              </div>
+              <QuizGames
+                quizId={quiz.quiz_id}
+                onPlayInfected={() => onPlayInfected(quiz.quiz_id)}
+              />
             </div>
           ))}
         </>
       ) : (
         <p className="empty-state">Choose a module to view quizzes.</p>
+      )}
+    </section>
+  );
+}
+
+export function QuizGames({ quizId, onPlayInfected }) {
+  const games = useData(`/quizzes/${quizId}/games`);
+  if (games.loading) return <p className="muted">Loading games…</p>;
+  if (games.error) return <p className="field-error">{games.error}</p>;
+  if (!games.data.length)
+    return <p className="empty-state compact">Games coming soon.</p>;
+  return (
+    <section className="games-area" aria-label="Games">
+      <h3>Games</h3>
+      {games.data.map((game) => (
+        <div className="game-entry" key={game.game_id}>
+          <div>
+            <b>{game.display_name}</b>
+            {!game.available && <small>{game.reason}</small>}
+          </div>
+          {game.key === 'infected' && game.available && (
+            <button className="primary" onClick={onPlayInfected}>
+              Play Infected
+            </button>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+const difficultyMeta = {
+  easy: { icon: '●', label: 'Easy' },
+  medium: { icon: '◆', label: 'Medium' },
+  hard: { icon: '▲', label: 'Hard' },
+};
+
+function InfectedCharacter({ cure }) {
+  const band = Math.min(4, Math.floor(cure / 20));
+  const colours = ['#B3261E', '#C77700', '#F2A93B', '#688A62', '#2F8F5B'];
+  const expressions = [
+    'M34 66 Q50 52 66 66',
+    'M34 64 Q50 56 66 64',
+    'M34 62 L66 62',
+    'M34 60 Q50 70 66 60',
+    'M32 58 Q50 75 68 58',
+  ];
+  return (
+    <svg
+      className="infected-character"
+      viewBox="0 0 100 120"
+      role="img"
+      aria-label={`Character health state ${band + 1} of 5`}
+    >
+      <circle cx="50" cy="50" r="38" fill={colours[band]} opacity="0.18" />
+      <path
+        d="M28 44 Q50 10 72 44 L68 84 Q50 103 32 84 Z"
+        fill={colours[band]}
+      />
+      <circle cx="40" cy="50" r="4" fill="#14213D" />
+      <circle cx="60" cy="50" r="4" fill="#14213D" />
+      <path
+        d={expressions[band]}
+        fill="none"
+        stroke="#14213D"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M31 34 L23 23 M69 34 L77 23"
+        stroke={colours[band]}
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function InfectedGame({ quizId, onBack }) {
+  const [state, setState] = useState(null);
+  const [selectedOption, setSelectedOption] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const start = async () => {
+    setLoading(true);
+    setError('');
+    setFeedback(null);
+    setSelectedOption('');
+    try {
+      setState(
+        await api('/games/infected/sessions', {
+          method: 'POST',
+          body: JSON.stringify({ quizId }),
+        }),
+      );
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (quizId) start();
+  }, [quizId]);
+
+  const choose = async (cardId) => {
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(
+        `/games/infected/sessions/${state.session.sessionId}/choose`,
+        { method: 'POST', body: JSON.stringify({ cardId }) },
+      );
+      setState((current) => ({ ...current, question: body.question }));
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const answer = async () => {
+    if (!selectedOption) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(
+        `/games/infected/sessions/${state.session.sessionId}/answer`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ optionId: selectedOption }),
+        },
+      );
+      setFeedback(body);
+      setState((current) => ({ ...current, session: body.session }));
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const continueGame = () => {
+    setState((current) => ({
+      ...current,
+      cards: feedback.cards,
+      question: null,
+    }));
+    setFeedback(null);
+    setSelectedOption('');
+  };
+
+  if (!quizId) return <p className="empty-state">Choose a quiz first.</p>;
+  if (loading) return <p className="center-state">Preparing Infected…</p>;
+  if (error && !state)
+    return (
+      <section className="card game-error">
+        <p className="field-error">{error}</p>
+        <button className="secondary" onClick={onBack}>
+          Back to quiz
+        </button>
+      </section>
+    );
+  const session = feedback?.session || state.session;
+  const terminal = ['won', 'lost', 'exhausted'].includes(session.status);
+  return (
+    <section className="infected-game">
+      <div className="infected-topbar">
+        <button
+          className="link-button"
+          onClick={onBack}
+          aria-label="Back to quiz"
+        >
+          ← Back
+        </button>
+        <h2>INFECTED</h2>
+        <div className="game-stats">
+          <span aria-label={`${session.hearts} of 3 hearts`}>
+            {'♥'.repeat(session.hearts)}
+            {'♡'.repeat(3 - session.hearts)} {session.hearts} of 3 hearts
+          </span>
+          <b>Score {session.score}</b>
+        </div>
+      </div>
+      <div className="infected-stage">
+        <InfectedCharacter cure={session.cure} />
+        <div className="cure-copy">
+          Cure {session.cure}% · Infection {100 - session.cure}%
+        </div>
+        <div
+          className="cure-track"
+          role="progressbar"
+          aria-label="Cure progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={session.cure}
+        >
+          <span style={{ width: `${session.cure}%` }} />
+        </div>
+      </div>
+
+      {terminal ? (
+        <div className={`terminal-screen ${session.status}`} aria-live="polite">
+          <h3>
+            {session.status === 'won'
+              ? 'Cure complete — you win!'
+              : session.status === 'lost'
+                ? 'No hearts left'
+                : 'Questions exhausted'}
+          </h3>
+          <p>
+            Final cure: {session.cure}% · Final score: {session.score}
+          </p>
+          <div className="terminal-actions">
+            <button className="primary" onClick={start}>
+              Play again
+            </button>
+            <button className="secondary" onClick={onBack}>
+              Back to quiz
+            </button>
+          </div>
+        </div>
+      ) : feedback ? (
+        <div
+          className={`feedback-panel ${feedback.isCorrect ? 'correct' : 'incorrect'}`}
+          aria-live="assertive"
+        >
+          <h3>{feedback.isCorrect ? 'Correct' : 'Incorrect'}</h3>
+          <p>
+            <b>Correct answer:</b> {feedback.correctOption.optionText}
+          </p>
+          <p>{feedback.explanation}</p>
+          <button className="primary" onClick={continueGame}>
+            Continue
+          </button>
+        </div>
+      ) : state.question ? (
+        <div className="infected-question">
+          <span className={`difficulty ${state.question.difficulty}`}>
+            {difficultyMeta[state.question.difficulty].icon}{' '}
+            {difficultyMeta[state.question.difficulty].label}
+          </span>
+          <h3>{state.question.questionText}</h3>
+          <fieldset>
+            <legend>Choose one answer</legend>
+            {state.question.options.map((option) => (
+              <label key={option.optionId}>
+                <input
+                  type="radio"
+                  name="infected-answer"
+                  value={option.optionId}
+                  checked={selectedOption === option.optionId}
+                  onChange={() => setSelectedOption(option.optionId)}
+                />
+                {option.optionText}
+              </label>
+            ))}
+          </fieldset>
+          <button
+            className="primary"
+            disabled={!selectedOption || busy}
+            onClick={answer}
+          >
+            Submit answer
+          </button>
+        </div>
+      ) : state.cards?.length ? (
+        <div className="infected-cards" aria-label="Choose a question card">
+          {state.cards.map((card) => (
+            <button
+              key={card.cardId}
+              className={`infected-card ${card.difficulty}`}
+              disabled={busy}
+              onClick={() => choose(card.cardId)}
+              aria-label={`${card.difficulty} card about ${card.topic}, plus ${card.reward} or minus ${card.penalty}`}
+            >
+              <span className="card-icon" aria-hidden="true">
+                {difficultyMeta[card.difficulty].icon}
+              </span>
+              <b>{difficultyMeta[card.difficulty].label}</b>
+              <span>{card.topic}</span>
+              <strong>
+                +{card.reward} / −{card.penalty}
+              </strong>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-state">No cards are available.</p>
+      )}
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
       )}
     </section>
   );

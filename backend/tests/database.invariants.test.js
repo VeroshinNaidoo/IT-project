@@ -25,14 +25,19 @@ let client;
  * @param {unknown[]} values
  * @param {string} invariant
  */
-const expectConstraintFailure = async (query, values, invariant) => {
+const expectConstraintFailure = async (
+  query,
+  values,
+  invariant,
+  expectedCode = '23514',
+) => {
   let error;
   try {
     await client.query(query, values);
   } catch (caught) {
     error = caught;
   }
-  expect(error, invariant).toMatchObject({ code: '23514' });
+  expect(error, invariant).toMatchObject({ code: expectedCode });
   await client.end();
   client = new Client({ connectionString: databaseUrl });
   await client.connect();
@@ -361,5 +366,167 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
       }),
     ).toBe(true);
     expect(canAccessGame({ role: 'lecturer' }, quiz)).toBe(true);
+  });
+
+  it('enforces Infected state, card, option, repeat, and answer-once rules [INV-16, INV-17, INV-18, INV-19, INV-20]', async () => {
+    const lecturer = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('infected-db-lecturer@example.com','hash','lecturer','Infected DB Lecturer') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const student = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('infected-db-student@example.com','hash','student','Infected DB Student') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const moduleId = (
+      await client.query(
+        `INSERT INTO modules(lecturer_id,module_code,module_name,join_code)
+         VALUES($1,'INFDB101','Infected DB','INFECTEDDBJOIN') RETURNING module_id`,
+        [lecturer],
+      )
+    ).rows[0].module_id;
+    await client.query(
+      'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2)',
+      [student, moduleId],
+    );
+    const quizId = (
+      await client.query(
+        `INSERT INTO quizzes(module_id,created_by,title,status)
+         VALUES($1,$2,'Infected DB Quiz','published') RETURNING quiz_id`,
+        [moduleId, lecturer],
+      )
+    ).rows[0].quiz_id;
+    const question = (
+      await client.query(
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty,explanation)
+         VALUES($1,'Database game question?',1,'easy','This is the explanation.') RETURNING question_id`,
+        [quizId],
+      )
+    ).rows[0].question_id;
+    const otherQuestion = (
+      await client.query(
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty,explanation)
+         VALUES($1,'Other database question?',1,'hard','This is another explanation.') RETURNING question_id`,
+        [quizId],
+      )
+    ).rows[0].question_id;
+    const wrongOption = (
+      await client.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,'Wrong',false) RETURNING option_id`,
+        [question],
+      )
+    ).rows[0].option_id;
+    await client.query(
+      `INSERT INTO question_options(question_id,option_text,is_correct)
+       VALUES($1,'Correct',true)`,
+      [question],
+    );
+    const otherOption = (
+      await client.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,'Other correct',true) RETURNING option_id`,
+        [otherQuestion],
+      )
+    ).rows[0].option_id;
+    const gameId = (
+      await client.query(
+        `SELECT g.game_id FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id
+         WHERE g.quiz_id=$1 AND gt.key='infected'`,
+        [quizId],
+      )
+    ).rows[0].game_id;
+    const sessionId = (
+      await client.query(
+        `INSERT INTO game_sessions(game_id,student_id) VALUES($1,$2) RETURNING session_id`,
+        [gameId, student],
+      )
+    ).rows[0].session_id;
+    const turnId = (
+      await client.query(
+        `INSERT INTO game_turns(session_id,turn_number,cure_before,hearts_before)
+         VALUES($1,1,0,3) RETURNING turn_id`,
+        [sessionId],
+      )
+    ).rows[0].turn_id;
+    await client.query(
+      `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
+       VALUES($1,$2,0,$3,'easy')`,
+      [turnId, sessionId, question],
+    );
+
+    await expectConstraintFailure(
+      `INSERT INTO game_sessions(game_id,student_id,cure) VALUES($1,$2,101)`,
+      [gameId, lecturer],
+      'INV-16 cure range',
+    );
+    await expectConstraintFailure(
+      `INSERT INTO game_sessions(game_id,student_id,hearts) VALUES($1,$2,4)`,
+      [gameId, lecturer],
+      'INV-17 heart range',
+    );
+    await expectConstraintFailure(
+      'UPDATE game_turns SET chosen_question_id=$1 WHERE turn_id=$2',
+      [otherQuestion, turnId],
+      'INV-20 chosen question is a card',
+      '23503',
+    );
+    await client.query(
+      'UPDATE game_turns SET chosen_question_id=$1 WHERE turn_id=$2',
+      [question, turnId],
+    );
+    await expectConstraintFailure(
+      `UPDATE game_turns SET chosen_option_id=$1,is_correct=true,cure_after=10,
+              hearts_after=3,score_delta=10,answered_at=now() WHERE turn_id=$2`,
+      [otherOption, turnId],
+      'INV-20 option belongs to chosen question',
+      '23503',
+    );
+    await expectConstraintFailure(
+      `UPDATE game_turns SET chosen_option_id=$1,is_correct=false,cure_after=0,
+              hearts_after=3,score_delta=0,answered_at=now() WHERE turn_id=$2`,
+      [wrongOption, turnId],
+      'INV-18 wrong answer costs one heart',
+    );
+    await client.query(
+      `UPDATE game_turns SET chosen_option_id=$1,is_correct=false,cure_after=0,
+              hearts_after=2,score_delta=0,answered_at=now() WHERE turn_id=$2`,
+      [wrongOption, turnId],
+    );
+    await expectConstraintFailure(
+      'UPDATE game_turns SET cure_after=5 WHERE turn_id=$1',
+      [turnId],
+      'INV-19 answered turn is immutable',
+    );
+    const secondTurn = (
+      await client.query(
+        `INSERT INTO game_turns(session_id,turn_number,cure_before,hearts_before)
+         VALUES($1,2,0,2) RETURNING turn_id`,
+        [sessionId],
+      )
+    ).rows[0].turn_id;
+    await expectConstraintFailure(
+      `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
+       VALUES($1,$2,0,$3,'easy')`,
+      [secondTurn, sessionId, question],
+      'INV-20 question is never repeated',
+      '23505',
+    );
+
+    const catalog = await client.query(
+      `SELECT key,is_enabled FROM game_types
+       WHERE key IN ('infected','flashcards','speed_round','match_pairs')`,
+    );
+    expect(catalog.rows.find((row) => row.key === 'infected').is_enabled).toBe(
+      true,
+    );
+    expect(
+      catalog.rows
+        .filter((row) => row.key !== 'infected')
+        .every((row) => row.is_enabled === false),
+    ).toBe(true);
   });
 });

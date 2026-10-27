@@ -16,6 +16,8 @@ const validOutput = {
       question_text: 'What is a primary key?',
       topic: 'Databases',
       marks: 1,
+      difficulty: 'medium',
+      explanation: 'A primary key uniquely identifies each row.',
       options: [
         { option_text: 'A unique row identifier', is_correct: true },
         { option_text: 'A page colour', is_correct: false },
@@ -87,6 +89,26 @@ describe('persistent AI worker', () => {
     expect(
       validateAiOutput({
         ...validOutput,
+        questions: [{ ...validOutput.questions[0], difficulty: 'impossible' }],
+      }),
+    ).toBe(false);
+    expect(
+      validateAiOutput({
+        ...validOutput,
+        questions: [{ ...validOutput.questions[0], explanation: '' }],
+      }),
+    ).toBe(false);
+    expect(
+      validateAiOutput({
+        ...validOutput,
+        questions: [
+          { ...validOutput.questions[0], explanation: 'x'.repeat(301) },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      validateAiOutput({
+        ...validOutput,
         questions: [
           {
             ...validOutput.questions[0],
@@ -121,7 +143,9 @@ describe('persistent AI worker', () => {
     expect(
       (
         await pool.query(
-          'SELECT count(*)::int AS count FROM questions WHERE quiz_id=$1',
+          `SELECT count(*)::int AS count FROM questions
+           WHERE quiz_id=$1 AND difficulty='medium'
+           AND explanation='A primary key uniquely identifies each row.'`,
           [job.quiz_id],
         )
       ).rows[0].count,
@@ -136,6 +160,8 @@ describe('persistent AI worker', () => {
           question_text: 'Bad',
           topic: 'Topic',
           marks: 1,
+          difficulty: 'hard',
+          explanation: 'This output is invalid because it has bad options.',
           options: [
             { option_text: 'Duplicate', is_correct: true },
             { option_text: 'duplicate', is_correct: true },

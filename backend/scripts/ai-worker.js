@@ -7,6 +7,16 @@ import { containsProfanity } from '../src/profanity/index.js';
 
 const aiUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 const maxAttempts = 3;
+const instructionPattern =
+  /\b(ignore|follow|obey|disregard)\b.{0,40}\b(instruction|prompt|rule)s?\b|\bsystem prompt\b|\breveal secrets?\b/i;
+
+const validExplanation = (value) => {
+  if (typeof value !== 'string') return false;
+  const text = value.trim();
+  if (!text || text.length > 300 || instructionPattern.test(text)) return false;
+  const sentences = text.split(/[.!?]+/).filter((part) => part.trim());
+  return sentences.length >= 1 && sentences.length <= 2;
+};
 
 export const validateAiOutput = (output) => {
   if (
@@ -17,11 +27,19 @@ export const validateAiOutput = (output) => {
     !output.questions.length
   )
     return false;
+  const questionTexts = output.questions.map((question) =>
+    String(question?.question_text || '')
+      .trim()
+      .toLocaleLowerCase(),
+  );
+  if (new Set(questionTexts).size !== questionTexts.length) return false;
   return output.questions.every((question) => {
     if (
       typeof question.question_text !== 'string' ||
       typeof question.topic !== 'string' ||
       !(Number(question.marks) > 0) ||
+      !['easy', 'medium', 'hard'].includes(question.difficulty) ||
+      !validExplanation(question.explanation) ||
       !Array.isArray(question.options) ||
       question.options.length < 2 ||
       question.options.length > 6
@@ -99,6 +117,7 @@ const processJob = async (job) => {
         (question) =>
           containsProfanity(question.question_text) ||
           containsProfanity(question.topic) ||
+          containsProfanity(question.explanation) ||
           question.options.some((option) =>
             containsProfanity(option.option_text),
           ),
@@ -119,12 +138,14 @@ const processJob = async (job) => {
           [quiz.rows[0].module_id, question.topic],
         );
         const inserted = await client.query(
-          `INSERT INTO questions(quiz_id,topic_id,question_text,marks) VALUES($1,$2,$3,$4) RETURNING question_id`,
+          `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation) VALUES($1,$2,$3,$4,$5,$6) RETURNING question_id`,
           [
             quiz.rows[0].quiz_id,
             topic.rows[0].topic_id,
             question.question_text,
             question.marks,
+            question.difficulty,
+            question.explanation,
           ],
         );
         for (const option of question.options)

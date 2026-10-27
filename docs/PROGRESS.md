@@ -1,5 +1,13 @@
 # EduQuest progress
 
+## FR-22 Stage 1 — Infected solo — 2026-10-27
+
+- Built the deterministic practice-only engine, persisted solo sessions/turns/cards, transactional and idempotent API, access checks, aggregate lecturer activity, AI difficulty/explanation contract, editable lecturer draft fields, seeded playable quiz, and responsive accessible UI.
+- Enforced INV-16 through INV-22 in database constraints/triggers, service serialization, and isolated game persistence. Infected scores never enter attempts, leaderboards, or analytics.
+- Verification: 131 JavaScript tests, 4 AI-service tests, and 18 Playwright/axe tests passed; 0 skipped. Lint, formatting, type-check, and production frontend build passed.
+- Browser evidence covers Chromium and Firefox at 390, 768, and 1280 pixels. PGlite still cannot establish real multi-connection row-lock behavior; that remains assigned to `npm run test:db:real`.
+- Group mode is deliberately not started. Stage 2 rules require approval at the Stage 1 gate.
+
 ## Local run verification — 2026-10-09
 
 Fixed Vite API forwarding, strict login payloads, development cookie configuration,

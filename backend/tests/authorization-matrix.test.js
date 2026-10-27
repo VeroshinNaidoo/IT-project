@@ -49,7 +49,8 @@ const pathFor = (template, values = fixture) =>
     .replace(':quizId', values.quizId)
     .replace(':startQuizId', values.startQuizId)
     .replace(':jobId', values.jobId)
-    .replace(':attemptId', values.attemptId);
+    .replace(':attemptId', values.attemptId)
+    .replace(':id', values.infectedSessionId);
 
 async function login(role) {
   const agent = request.agent(app);
@@ -134,6 +135,15 @@ const bodies = {
     status: 'draft',
   }),
   'POST /api/v1/attempts/:attemptId/submit': () => ({ answers: [] }),
+  'POST /api/v1/games/infected/sessions': () => ({
+    quizId: fixture.startQuizId,
+  }),
+  'POST /api/v1/games/infected/sessions/:id/choose': () => ({
+    cardId: fixture.infectedCardId,
+  }),
+  'POST /api/v1/games/infected/sessions/:id/answer': () => ({
+    optionId: fixture.infectedOptionId,
+  }),
 };
 
 const specs = {
@@ -200,6 +210,26 @@ const specs = {
   ],
   'GET /api/v1/modules/:moduleId/analytics': [
     '/api/v1/modules/:moduleId/analytics',
+    'lecturer',
+  ],
+  'POST /api/v1/games/infected/sessions': [
+    '/api/v1/games/infected/sessions',
+    'student',
+  ],
+  'POST /api/v1/games/infected/sessions/:id/choose': [
+    '/api/v1/games/infected/sessions/:id/choose',
+    'student',
+  ],
+  'POST /api/v1/games/infected/sessions/:id/answer': [
+    '/api/v1/games/infected/sessions/:id/answer',
+    'student',
+  ],
+  'GET /api/v1/games/infected/sessions/:id': [
+    '/api/v1/games/infected/sessions/:id',
+    'student',
+  ],
+  'GET /api/v1/modules/:moduleId/games/infected/activity': [
+    '/api/v1/modules/:moduleId/games/infected/activity',
     'lecturer',
   ],
 };
@@ -294,6 +324,63 @@ async function createFixture() {
     "INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,'Matrix option',true)",
     [question.question_id],
   );
+  let infectedCardId;
+  let infectedOptionId;
+  for (let index = 0; index < 6; index += 1) {
+    const infectedQuestion = (
+      await pool.query(
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty,explanation)
+         VALUES($1,$2,1,$3,$4) RETURNING question_id`,
+        [
+          startQuiz.quiz_id,
+          `Matrix infected question ${index + 1}?`,
+          ['easy', 'medium', 'hard'][index % 3],
+          `Matrix explanation ${index + 1}.`,
+        ],
+      )
+    ).rows[0];
+    const option = (
+      await pool.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,$2,true) RETURNING option_id`,
+        [infectedQuestion.question_id, `Matrix infected correct ${index + 1}`],
+      )
+    ).rows[0];
+    await pool.query(
+      `INSERT INTO question_options(question_id,option_text,is_correct)
+       VALUES($1,$2,false)`,
+      [infectedQuestion.question_id, `Matrix infected wrong ${index + 1}`],
+    );
+    if (index === 0) {
+      infectedCardId = infectedQuestion.question_id;
+      infectedOptionId = option.option_id;
+    }
+  }
+  const infectedGame = (
+    await pool.query(
+      `SELECT g.game_id FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id
+       WHERE g.quiz_id=$1 AND gt.key='infected'`,
+      [startQuiz.quiz_id],
+    )
+  ).rows[0];
+  const infectedSession = (
+    await pool.query(
+      `INSERT INTO game_sessions(game_id,student_id) VALUES($1,$2) RETURNING session_id`,
+      [infectedGame.game_id, ids[users.student.email]],
+    )
+  ).rows[0];
+  const infectedTurn = (
+    await pool.query(
+      `INSERT INTO game_turns(session_id,turn_number,cure_before,hearts_before)
+       VALUES($1,1,0,3) RETURNING turn_id`,
+      [infectedSession.session_id],
+    )
+  ).rows[0];
+  await pool.query(
+    `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
+     SELECT $1,$2,0,question_id,difficulty FROM questions WHERE question_id=$3`,
+    [infectedTurn.turn_id, infectedSession.session_id, infectedCardId],
+  );
   const job = (
     await pool.query(
       'INSERT INTO ai_generation_jobs(requested_by,resource_id) VALUES($1,$2) RETURNING *',
@@ -316,12 +403,18 @@ async function createFixture() {
     startQuizId: startQuiz.quiz_id,
     jobId: job.job_id,
     attemptId: attempt.attempt_id,
+    infectedSessionId: infectedSession.session_id,
+    infectedCardId,
+    infectedOptionId,
   };
 }
 
-async function assertNoSensitive(result) {
+async function assertNoSensitive(result, route) {
   expect(JSON.stringify(result.body)).not.toContain('password_hash');
-  expect(JSON.stringify(result.body)).not.toContain('is_correct');
+  if (route !== 'POST /api/v1/games/infected/sessions/:id/answer')
+    expect(JSON.stringify(result.body)).not.toMatch(
+      /is_correct|isCorrect|correctOption/,
+    );
 }
 
 async function assertRoute(route, [template, successRole]) {
@@ -347,7 +440,11 @@ async function assertRoute(route, [template, successRole]) {
         (await send(await login(wrongRole), method, path, body)).status,
       );
     }
-    if (template.includes(':') || route === 'POST /api/v1/quizzes') {
+    if (
+      template.includes(':') ||
+      route === 'POST /api/v1/quizzes' ||
+      route === 'POST /api/v1/games/infected/sessions'
+    ) {
       const ownerPath = pathFor(template, {
         ...fixture,
         moduleId: uuid(),
@@ -358,9 +455,14 @@ async function assertRoute(route, [template, successRole]) {
         startQuizId: uuid(),
         jobId: uuid(),
         attemptId: uuid(),
+        infectedSessionId: uuid(),
       });
       const ownerBody =
-        route === 'POST /api/v1/quizzes' ? { ...body, moduleId: uuid() } : body;
+        route === 'POST /api/v1/quizzes'
+          ? { ...body, moduleId: uuid() }
+          : route === 'POST /api/v1/games/infected/sessions'
+            ? { quizId: uuid() }
+            : body;
       expect([403, 404], `${route} wrong owner`).toContain(
         (await send(await login(successRole), method, ownerPath, ownerBody))
           .status,
@@ -386,7 +488,11 @@ async function assertRoute(route, [template, successRole]) {
             .field('title', 'fuck')
             .attach('file', Buffer.from('%PDF-1.4 matrix'), 'matrix.pdf')
         : await send(invalidAgent, method, path, invalidBody);
-  if (method === 'GET' || route === 'GET /health')
+  if (
+    method === 'GET' &&
+    !route.startsWith('GET /api/v1/games/infected') &&
+    !route.includes('/games/infected/activity')
+  )
     expect(invalid.status).toBeGreaterThanOrEqual(200);
   else expect([400, 404, 422], `${route} validation`).toContain(invalid.status);
   const success = await send(
@@ -397,13 +503,13 @@ async function assertRoute(route, [template, successRole]) {
   );
   expect(success.status, `${route} success`).toBeGreaterThanOrEqual(200);
   expect(success.status, `${route} success`).toBeLessThan(300);
-  await assertNoSensitive(success);
+  await assertNoSensitive(success, route);
 }
 
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(26);
+    expect(routeInventory.length).toBe(31);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

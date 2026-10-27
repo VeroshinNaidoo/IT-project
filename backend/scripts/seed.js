@@ -104,28 +104,79 @@ try {
       [moduleRow.module_id, resource.resource_id, lecturer],
     )
   ).rows[0];
-  const question = (
+  let question;
+  let correct;
+  let wrong;
+  const difficulties = ['easy', 'medium', 'hard'];
+  for (let index = 0; index < 12; index += 1) {
+    const inserted = (
+      await client.query(
+        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation)
+         VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
+        [
+          quiz.quiz_id,
+          topic.topic_id,
+          `Which database principle is demonstrated in scenario ${index + 1}?`,
+          difficulties[index % difficulties.length],
+          `Scenario ${index + 1} demonstrates a core normalization or key-design principle.`,
+        ],
+      )
+    ).rows[0];
+    const correctOption = (
+      await client.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,$2,true) RETURNING option_id`,
+        [inserted.question_id, `Supported database principle ${index + 1}`],
+      )
+    ).rows[0].option_id;
+    const wrongOption = (
+      await client.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,$2,false) RETURNING option_id`,
+        [inserted.question_id, `Unrelated display choice ${index + 1}`],
+      )
+    ).rows[0].option_id;
     await client.query(
-      `INSERT INTO questions(quiz_id,topic_id,question_text,marks) VALUES($1,$2,'What does a primary key provide?',1) RETURNING question_id`,
-      [quiz.quiz_id, topic.topic_id],
-    )
-  ).rows[0];
-  const correct = (
+      `INSERT INTO question_options(question_id,option_text,is_correct) VALUES
+       ($1,$2,false),($1,$3,false)`,
+      [
+        inserted.question_id,
+        `Unsupported claim ${index + 1}`,
+        `Contradictory claim ${index + 1}`,
+      ],
+    );
+    if (index === 0) {
+      question = inserted;
+      correct = correctOption;
+      wrong = wrongOption;
+    }
+  }
+  for (let index = 0; index < 6; index += 1) {
+    const practiceQuestion = (
+      await client.query(
+        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation)
+         VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
+        [
+          practice.quiz_id,
+          topic.topic_id,
+          `Practice database question ${index + 1}?`,
+          difficulties[index % difficulties.length],
+          `The correct option follows from the supplied database notes.`,
+        ],
+      )
+    ).rows[0];
     await client.query(
-      `INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,'A unique row identity',true) RETURNING option_id`,
-      [question.question_id],
-    )
-  ).rows[0].option_id;
-  const wrong = (
-    await client.query(
-      `INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,'A display colour',false) RETURNING option_id`,
-      [question.question_id],
-    )
-  ).rows[0].option_id;
-  await client.query(
-    `INSERT INTO questions(quiz_id,topic_id,question_text,marks) VALUES($1,$2,'What is a practice activity?',1)`,
-    [practice.quiz_id, topic.topic_id],
-  );
+      `INSERT INTO question_options(question_id,option_text,is_correct) VALUES
+       ($1,$2,true),($1,$3,false),($1,$4,false),($1,$5,false)`,
+      [
+        practiceQuestion.question_id,
+        `Practice answer ${index + 1}`,
+        `Practice distractor A${index + 1}`,
+        `Practice distractor B${index + 1}`,
+        `Practice distractor C${index + 1}`,
+      ],
+    );
+  }
   for (const [index, student] of students.slice(0, 3).entries()) {
     const attempt = (
       await client.query(

@@ -8,7 +8,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App, QuizTaking, ResourceRow } from './main.jsx';
+import { App, InfectedGame, QuizTaking, ResourceRow } from './main.jsx';
 
 const response = (body, ok = true) => ({
   ok,
@@ -116,7 +116,13 @@ describe('frontend authentication and role routing', () => {
             title: 'Draft quiz',
             is_competitive: false,
             questions: [
-              { questionId: 'q-1', questionText: 'Question', topic: 'Topic' },
+              {
+                questionId: 'q-1',
+                questionText: 'Question',
+                topic: 'Topic',
+                difficulty: 'medium',
+                explanation: 'This is the explanation.',
+              },
             ],
           },
         }),
@@ -128,7 +134,13 @@ describe('frontend authentication and role routing', () => {
             title: 'Published draft',
             is_competitive: true,
             questions: [
-              { questionId: 'q-1', questionText: 'Question', topic: 'Topic' },
+              {
+                questionId: 'q-1',
+                questionText: 'Question',
+                topic: 'Topic',
+                difficulty: 'medium',
+                explanation: 'This is the explanation.',
+              },
             ],
           },
         }),
@@ -202,5 +214,253 @@ describe('frontend authentication and role routing', () => {
     await waitFor(() =>
       expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3),
     );
+  });
+
+  it('renders Infected cards without answers, then chooses and answers correctly', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          session: {
+            sessionId: 'session-1',
+            cure: 0,
+            hearts: 3,
+            score: 0,
+            status: 'in_progress',
+          },
+          cards: [
+            {
+              cardId: 'card-1',
+              difficulty: 'hard',
+              topic: 'Normalization',
+              reward: 30,
+              penalty: 15,
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          question: {
+            questionId: 'card-1',
+            questionText: 'Which form removes transitive dependencies?',
+            difficulty: 'hard',
+            topic: 'Normalization',
+            options: [
+              { optionId: 'option-1', optionText: 'Third normal form' },
+              { optionId: 'option-2', optionText: 'First normal form' },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          isCorrect: true,
+          correctOption: {
+            optionId: 'option-1',
+            optionText: 'Third normal form',
+          },
+          explanation: 'Third normal form removes transitive dependencies.',
+          session: {
+            sessionId: 'session-1',
+            cure: 30,
+            hearts: 3,
+            score: 30,
+            status: 'in_progress',
+          },
+          cards: [
+            {
+              cardId: 'card-2',
+              difficulty: 'easy',
+              topic: 'Keys',
+              reward: 10,
+              penalty: 5,
+            },
+          ],
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<InfectedGame quizId="quiz-1" onBack={() => {}} />);
+    const card = await screen.findByRole('button', {
+      name: /hard card about normalization/i,
+    });
+    expect(screen.queryByText('Third normal form')).toBeNull();
+    fireEvent.click(card);
+    await screen.findByText('Which form removes transitive dependencies?');
+    fireEvent.click(screen.getByLabelText('Third normal form'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    await screen.findByText('Correct');
+    expect(screen.getByText(/Cure 30% · Infection 70%/)).toBeTruthy();
+    expect(screen.getByText(/3 of 3 hearts/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(
+      screen.getByRole('button', { name: /easy card about keys/i }),
+    ).toBeTruthy();
+  });
+
+  it('announces an incorrect answer and updates cure and hearts', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          response({
+            session: {
+              sessionId: 'session-2',
+              cure: 40,
+              hearts: 3,
+              score: 20,
+              status: 'in_progress',
+            },
+            cards: [
+              {
+                cardId: 'card-2',
+                difficulty: 'hard',
+                topic: 'Queries',
+                reward: 30,
+                penalty: 15,
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          response({
+            question: {
+              questionId: 'card-2',
+              questionText: 'Choose the query result.',
+              difficulty: 'hard',
+              options: [
+                { optionId: 'wrong', optionText: 'Wrong result' },
+                { optionId: 'right', optionText: 'Correct result' },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          response({
+            isCorrect: false,
+            correctOption: {
+              optionId: 'right',
+              optionText: 'Correct result',
+            },
+            explanation: 'The correct result follows the WHERE clause.',
+            session: {
+              sessionId: 'session-2',
+              cure: 25,
+              hearts: 2,
+              score: 20,
+              status: 'in_progress',
+            },
+            cards: [],
+          }),
+        ),
+    );
+    render(<InfectedGame quizId="quiz-2" onBack={() => {}} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: /hard card about queries/i }),
+    );
+    fireEvent.click(await screen.findByLabelText('Wrong result'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    await screen.findByText('Incorrect');
+    expect(screen.getByText(/Cure 25% · Infection 75%/)).toBeTruthy();
+    expect(screen.getByText(/2 of 3 hearts/)).toBeTruthy();
+    expect(screen.getByText(/Correct answer:/)).toBeTruthy();
+  });
+
+  it.each([
+    ['won', 'Cure complete — you win!'],
+    ['lost', 'No hearts left'],
+    ['exhausted', 'Questions exhausted'],
+  ])('renders the %s terminal screen', async (status, heading) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          session: {
+            sessionId: `session-${status}`,
+            cure: status === 'won' ? 100 : 40,
+            hearts: status === 'lost' ? 0 : 2,
+            score: 60,
+            status,
+          },
+          cards: [],
+        }),
+      ),
+    );
+    render(<InfectedGame quizId={`quiz-${status}`} onBack={() => {}} />);
+    expect(await screen.findByText(heading)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play again' })).toBeTruthy();
+    cleanup();
+  });
+
+  it('restores a pending question when a session resumes after reload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          resumed: true,
+          session: {
+            sessionId: 'session-resume',
+            cure: 20,
+            hearts: 2,
+            score: 20,
+            status: 'in_progress',
+          },
+          cards: [],
+          question: {
+            questionId: 'question-resume',
+            questionText: 'Pending question after refresh?',
+            difficulty: 'medium',
+            options: [
+              { optionId: 'a', optionText: 'Answer A' },
+              { optionId: 'b', optionText: 'Answer B' },
+            ],
+          },
+        }),
+      ),
+    );
+    render(<InfectedGame quizId="quiz-resume" onBack={() => {}} />);
+    expect(
+      await screen.findByText('Pending question after refresh?'),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Answer A')).toBeTruthy();
+  });
+
+  it('shows friendly error and empty states', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response(
+          {
+            error: {
+              message: 'Not enough questions for this game yet.',
+            },
+          },
+          false,
+        ),
+      ),
+    );
+    const view = render(<InfectedGame quizId="quiz-error" onBack={() => {}} />);
+    expect(
+      await screen.findByText('Not enough questions for this game yet.'),
+    ).toBeTruthy();
+    view.unmount();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          session: {
+            sessionId: 'session-empty',
+            cure: 0,
+            hearts: 3,
+            score: 0,
+            status: 'in_progress',
+          },
+          cards: [],
+        }),
+      ),
+    );
+    render(<InfectedGame quizId="quiz-empty" onBack={() => {}} />);
+    expect(await screen.findByText('No cards are available.')).toBeTruthy();
   });
 });

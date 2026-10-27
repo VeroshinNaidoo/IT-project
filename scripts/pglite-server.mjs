@@ -78,7 +78,9 @@ async function daemon(role) {
     db,
     host: '127.0.0.1',
     port: config.port,
-    maxConnections: 10,
+    // Test files each own a pg Pool; accept enough socket clients while PGlite
+    // continues to serialize execution internally.
+    maxConnections: 50,
   });
   await server.start();
   await writeFile(config.pid, String(process.pid), 'utf8');
