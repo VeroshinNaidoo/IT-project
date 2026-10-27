@@ -146,7 +146,7 @@ Not ready: one or more runnable checks failed.
 - Python suite: 19 passed, 0 skipped.
 - JavaScript suite: 177 passed, 0 skipped.
 - Lint, format check, type-check, and frontend build: passed.
-- Browser/axe suite: the full run reached 19 passed and 5 connection-refused failures as the local dev server became unavailable; a targeted rerun of the 8 Firefox tablet/desktop tests passed 8/8. No browser assertion or axe violation failed.
+- Browser/axe suite: final full run passed 24/24, 0 skipped, across Chromium and Firefox at 390, 768, and 1280px. The earlier connection-refused run was transient; the targeted rerun also passed 8/8.
 - Vite development and preview hosts are configured as `127.0.0.1`; npm scripts contain no host flag, no `0.0.0.0`, and no Vitest UI configuration. API CORS is fixed to `http://localhost:5173`.
 - The root `npm run build` command was added because it was missing; it passed.
 
