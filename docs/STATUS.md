@@ -60,13 +60,13 @@ FR-28 solo is green: 177 JavaScript tests, 4 Python tests, and 24 Chromium/Firef
 
 Stage 0 is done and tested: `DifficultyLevel smallint CHECK (1..5)`, shared `tierOf()`, generic `game_plays` and append-only `game_play_moves`, catalog rows for `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer`, and Infected’s use of `tierOf()` are covered by `backend/tests/game-foundation.test.js`, `backend/tests/database.invariants.test.js`, and the existing Infected engine/API tests.
 
-| Game | Status | Evidence |
-| --- | --- | --- |
-| Infected | built and tested | `backend/tests/infected-engine.test.js`, `backend/tests/infected-api.test.js`, DB invariants, frontend component tests, and Playwright/axe flow |
-| Memory Match | not built | No game module, route, frontend flow, or game-specific tests exist |
-| Timer Trivia | not built | No game module, route, frontend flow, or game-specific tests exist |
-| Boss Battle | not built | No game module, route, frontend flow, or game-specific tests exist |
-| Pixel Car Racer | not built | No game module, route, frontend flow, or game-specific tests exist |
-| Island Escape | built and tested | `backend/tests/island-escape-engine.test.js`, `backend/tests/island-escape-api.test.js`, DB invariants, frontend component tests, and Playwright/axe flow |
+| Game            | Status           | Evidence                                                                                                                                                  |
+| --------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Infected        | built and tested | `backend/tests/infected-engine.test.js`, `backend/tests/infected-api.test.js`, DB invariants, frontend component tests, and Playwright/axe flow           |
+| Memory Match    | not built        | No game module, route, frontend flow, or game-specific tests exist                                                                                        |
+| Timer Trivia    | not built        | No game module, route, frontend flow, or game-specific tests exist                                                                                        |
+| Boss Battle     | not built        | No game module, route, frontend flow, or game-specific tests exist                                                                                        |
+| Pixel Car Racer | not built        | No game module, route, frontend flow, or game-specific tests exist                                                                                        |
+| Island Escape   | built and tested | `backend/tests/island-escape-engine.test.js`, `backend/tests/island-escape-api.test.js`, DB invariants, frontend component tests, and Playwright/axe flow |
 
 Multiplayer rooms and multiplayer modes are not built and remain not verified.
