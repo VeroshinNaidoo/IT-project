@@ -120,7 +120,10 @@ def test_compatible_parses_code_fenced_plain_fallback():
         def __init__(self): self.calls = 0
         def create(self, **kwargs):
             self.calls += 1
-            if "response_format" in kwargs: raise RuntimeError("unsupported")
+            if "response_format" in kwargs:
+                error = RuntimeError("unsupported")
+                error.status_code = 400
+                raise error
             return type("R", (), {"choices": [type("C", (), {"message": type("M", (), {"content": "```json\n" + valid() + "\n```"})()})()]})()
     client = type("C", (), {"chat": type("H", (), {"completions": Completions()})()})()
     result = OpenAICompatibleProvider(client, base_url="https://free.example", api_key="k", model="m", sleep=lambda _: None).generate_quiz(request())
