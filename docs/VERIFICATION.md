@@ -92,6 +92,18 @@ Updated verdict: ready with caveats. Offline verification and security spot chec
 
 Ready with caveats: all credential-free suites passed with zero skips, but real PostgreSQL concurrency, live AI, the requested end-to-end generated-quiz journey, native backup, and the audit vulnerabilities remain unverified.
 
+## npm audit remediation — 2026-10-27
+
+| Stage                                          | Moderate | High | Critical | Total |
+| ---------------------------------------------- | -------: | ---: | -------: | ----: |
+| Before fixes                                   |        5 |    5 |        2 |    12 |
+| After non-breaking `npm audit fix` (`544bd3d`) |        3 |    1 |        2 |     6 |
+| Final                                          |        3 |    1 |        2 |     6 |
+
+The six remaining findings are dev-only Vitest/Vite tooling issues. A deliberate major upgrade attempt was reverted because Vitest 5 broke `describe.sequential` and the existing authorization-matrix executable-assertion guard. No test was changed or weakened. See `docs/DECISIONS.md` for package-by-package advisory details and mitigations. `pip-audit` was unavailable (`pip-audit` is not installed), so Python audit remains not verified.
+
+Final quality rerun after the compatible dependency state: 177 JavaScript tests passed, 19 Python tests passed, 24 Playwright/axe tests passed, zero skipped; lint, formatting, type-check, frontend build, and DB reset/invariants passed.
+
 ## Google AI Studio smoke check — 2026-10-27
 
 - `.env`: exists; `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL` are missing. No values were printed.
