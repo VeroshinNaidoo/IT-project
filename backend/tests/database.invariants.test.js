@@ -401,15 +401,15 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
     ).rows[0].quiz_id;
     const question = (
       await client.query(
-        `INSERT INTO questions(quiz_id,question_text,marks,difficulty,explanation)
-         VALUES($1,'Database game question?',1,'easy','This is the explanation.') RETURNING question_id`,
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level,explanation)
+         VALUES($1,'Database game question?',1,1,'This is the explanation.') RETURNING question_id`,
         [quizId],
       )
     ).rows[0].question_id;
     const otherQuestion = (
       await client.query(
-        `INSERT INTO questions(quiz_id,question_text,marks,difficulty,explanation)
-         VALUES($1,'Other database question?',1,'hard','This is another explanation.') RETURNING question_id`,
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level,explanation)
+         VALUES($1,'Other database question?',1,5,'This is another explanation.') RETURNING question_id`,
         [quizId],
       )
     ).rows[0].question_id;
@@ -453,8 +453,8 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
       )
     ).rows[0].turn_id;
     await client.query(
-      `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
-       VALUES($1,$2,0,$3,'easy')`,
+      `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty_level)
+       VALUES($1,$2,0,$3,1)`,
       [turnId, sessionId, question],
     );
 
@@ -509,8 +509,8 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
       )
     ).rows[0].turn_id;
     await expectConstraintFailure(
-      `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
-       VALUES($1,$2,0,$3,'easy')`,
+      `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty_level)
+       VALUES($1,$2,0,$3,1)`,
       [secondTurn, sessionId, question],
       'INV-20 question is never repeated',
       '23505',
@@ -518,7 +518,7 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
 
     const catalog = await client.query(
       `SELECT key,is_enabled FROM game_types
-       WHERE key IN ('infected','flashcards','speed_round','match_pairs')`,
+       WHERE key IN ('infected','flashcards','memory_match','timer_trivia','boss_battle','pixel_racer')`,
     );
     expect(catalog.rows.find((row) => row.key === 'infected').is_enabled).toBe(
       true,
@@ -528,5 +528,111 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
         .filter((row) => row.key !== 'infected')
         .every((row) => row.is_enabled === false),
     ).toBe(true);
+    expect(
+      (
+        await client.query(
+          `SELECT count(*)::int AS count FROM game_types
+           WHERE key IN ('speed_round','match_pairs')`,
+        )
+      ).rows[0].count,
+    ).toBe(0);
+  });
+
+  it('enforces generic game play storage and terminal move rules [INV-24, INV-25, INV-26, INV-27, INV-28]', async () => {
+    const lecturer = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('generic-game-lecturer@example.com','hash','lecturer','Generic Lecturer') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const student = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('generic-game-student@example.com','hash','student','Generic Student') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const outsider = (
+      await client.query(
+        `INSERT INTO users(email,password_hash,role,full_name)
+         VALUES('generic-game-outsider@example.com','hash','student','Generic Outsider') RETURNING user_id`,
+      )
+    ).rows[0].user_id;
+    const moduleId = (
+      await client.query(
+        `INSERT INTO modules(lecturer_id,module_code,module_name,join_code)
+         VALUES($1,'GAMEPLAT','Game Platform','GAMEPLATFORM') RETURNING module_id`,
+        [lecturer],
+      )
+    ).rows[0].module_id;
+    await client.query(
+      'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2)',
+      [student, moduleId],
+    );
+    const quizId = (
+      await client.query(
+        `INSERT INTO quizzes(module_id,created_by,title,status)
+         VALUES($1,$2,'Generic Game Quiz','published') RETURNING quiz_id`,
+        [moduleId, lecturer],
+      )
+    ).rows[0].quiz_id;
+    const typeId = (
+      await client.query(
+        `SELECT game_type_id FROM game_types WHERE key='memory_match'`,
+      )
+    ).rows[0].game_type_id;
+    await expectConstraintFailure(
+      `INSERT INTO game_plays(game_type_id,student_id,quiz_id,state)
+       VALUES($1,$2,$3,'{"version":1}'::jsonb)`,
+      [typeId, outsider, quizId],
+      'INV-24 play module scope',
+    );
+    await expectConstraintFailure(
+      `INSERT INTO game_plays(game_type_id,student_id,quiz_id,state)
+       VALUES($1,$2,$3,'{}'::jsonb)`,
+      [typeId, student, quizId],
+      'INV-25 state version',
+    );
+    const playId = (
+      await client.query(
+        `INSERT INTO game_plays(game_type_id,student_id,quiz_id,state)
+         VALUES($1,$2,$3,'{"version":1,"matches":0}'::jsonb) RETURNING play_id`,
+        [typeId, student, quizId],
+      )
+    ).rows[0].play_id;
+    await expectConstraintFailure(
+      `INSERT INTO game_plays(game_type_id,student_id,quiz_id,state)
+       VALUES($1,$2,$3,'{"version":1}'::jsonb)`,
+      [typeId, student, quizId],
+      'INV-26 one active solo play',
+      '23505',
+    );
+    const moveId = (
+      await client.query(
+        `INSERT INTO game_play_moves(play_id,move_number,move_type,payload,state_after)
+         VALUES($1,1,'flip','{}','{"version":1,"matches":0}') RETURNING move_id`,
+        [playId],
+      )
+    ).rows[0].move_id;
+    await expectConstraintFailure(
+      `UPDATE game_play_moves SET move_type='changed' WHERE move_id=$1`,
+      [moveId],
+      'INV-27 moves append-only',
+    );
+    await client.query(
+      `UPDATE game_plays SET status='finished',completed_at=now() WHERE play_id=$1`,
+      [playId],
+    );
+    await expectConstraintFailure(
+      `INSERT INTO game_play_moves(play_id,move_number,move_type,payload,state_after)
+       VALUES($1,2,'flip','{}','{"version":1,"matches":1}')`,
+      [playId],
+      'INV-28 terminal play rejects moves',
+    );
+    await expectConstraintFailure(
+      `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level)
+       VALUES($1,'Invalid level',1,6)`,
+      [quizId],
+      'INV-11 invalid difficulty level',
+    );
   });
 });

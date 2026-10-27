@@ -1,4 +1,6 @@
 // @ts-nocheck - pure runtime engine is covered by transition and property tests.
+import { tierOf } from '../difficulty.js';
+
 const transitions = Object.freeze({
   easy: Object.freeze({ reward: 10, penalty: 5 }),
   medium: Object.freeze({ reward: 20, penalty: 10 }),
@@ -8,8 +10,8 @@ const transitions = Object.freeze({
 const clamp = (value, minimum, maximum) =>
   Math.min(maximum, Math.max(minimum, value));
 
-export const rewardFor = (difficulty) => {
-  const transition = transitions[difficulty];
+export const rewardFor = (difficultyLevel) => {
+  const transition = transitions[tierOf(difficultyLevel)];
   if (!transition) throw new Error('INVALID_GAME_DIFFICULTY');
   return transition;
 };
@@ -17,9 +19,9 @@ export const rewardFor = (difficulty) => {
 export const isTerminal = (state) =>
   ['won', 'lost', 'exhausted'].includes(state.status);
 
-export function applyAnswer(state, difficulty, isCorrect) {
+export function applyAnswer(state, difficultyLevel, isCorrect) {
   if (isTerminal(state)) throw new Error('GAME_SESSION_FINISHED');
-  const { reward, penalty } = rewardFor(difficulty);
+  const { reward, penalty } = rewardFor(difficultyLevel);
   const cure = clamp(state.cure + (isCorrect ? reward : -penalty), 0, 100);
   const hearts = clamp(state.hearts - (isCorrect ? 0 : 1), 0, 3);
   const score = state.score + (isCorrect ? reward : 0);
@@ -41,7 +43,7 @@ export function selectCards(unusedQuestions, rng = Math.random) {
   const selected = [];
   for (const difficulty of ['easy', 'medium', 'hard']) {
     const candidates = remaining.filter(
-      (question) => question.difficulty === difficulty,
+      (question) => tierOf(question.difficulty_level) === difficulty,
     );
     if (!candidates.length) continue;
     const choice = shuffled(candidates, rng)[0];

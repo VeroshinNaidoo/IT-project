@@ -16,7 +16,7 @@ const validOutput = {
       question_text: 'What is a primary key?',
       topic: 'Databases',
       marks: 1,
-      difficulty: 'medium',
+      difficulty_level: 3,
       explanation: 'A primary key uniquely identifies each row.',
       options: [
         { option_text: 'A unique row identifier', is_correct: true },
@@ -89,8 +89,13 @@ describe('persistent AI worker', () => {
     expect(
       validateAiOutput({
         ...validOutput,
-        questions: [{ ...validOutput.questions[0], difficulty: 'impossible' }],
+        questions: [{ ...validOutput.questions[0], difficulty_level: 6 }],
       }),
+    ).toBe(false);
+    const { difficulty_level: _omitted, ...missingLevel } =
+      validOutput.questions[0];
+    expect(
+      validateAiOutput({ ...validOutput, questions: [missingLevel] }),
     ).toBe(false);
     expect(
       validateAiOutput({
@@ -144,7 +149,7 @@ describe('persistent AI worker', () => {
       (
         await pool.query(
           `SELECT count(*)::int AS count FROM questions
-           WHERE quiz_id=$1 AND difficulty='medium'
+           WHERE quiz_id=$1 AND difficulty_level=3
            AND explanation='A primary key uniquely identifies each row.'`,
           [job.quiz_id],
         )
@@ -160,7 +165,7 @@ describe('persistent AI worker', () => {
           question_text: 'Bad',
           topic: 'Topic',
           marks: 1,
-          difficulty: 'hard',
+          difficulty_level: 5,
           explanation: 'This output is invalid because it has bad options.',
           options: [
             { option_text: 'Duplicate', is_correct: true },

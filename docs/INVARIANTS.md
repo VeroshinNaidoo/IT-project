@@ -25,5 +25,11 @@
 | INV-21 | Infected correctness is never exposed before answer submission               | Card/question response serializers omit correctness        | API and frontend pre-answer disclosure tests                    |
 | INV-22 | Infected results never affect scored attempts, leaderboards, or analytics    | Separate game tables and practice-only service             | API isolation test                                              |
 | INV-23 | Game types are catalogued data; unapproved game types remain disabled        | `game_types` FK and enabled flag                           | Raw SQL catalog test                                            |
+| INV-24 | Question difficulty is an integer level from 1 through 5                     | Database check, Zod/Pydantic bounds, shared `tierOf`       | Raw SQL, API, AI-worker, and tier-mapping tests                 |
+| INV-25 | Every generic game state has a positive schema version and game-owned schema | JSONB check plus per-game Zod schema registry              | Raw SQL and game-foundation unit tests                          |
+| INV-26 | A user has at most one in-progress solo play per game type and quiz          | Partial unique index                                       | Raw SQL constraint test                                         |
+| INV-27 | Generic game moves are append-only and uniquely ordered per play             | Immutable trigger and `(PlayID, MoveNumber)` uniqueness    | Raw SQL constraint test                                         |
+| INV-28 | A terminal generic game play accepts no further moves                        | Move-insert trigger and future transactional handlers      | Raw SQL terminal-play test                                      |
+| INV-29 | Lecturer game progress exposes aggregate counts only                         | Owned-module aggregate projection                          | Behavioral authorization-matrix response-shape test             |
 
-Game access policy is centralized in `canAccessGame`: lecturers always have access; students on competitive quizzes require their own completed scored attempt. The three seeded game types are disabled placeholders only.
+Game access policy is centralized in `canAccessGame`: lecturers always have access; students on competitive quizzes require their own completed scored attempt. Infected is enabled. Flashcards and the four future game types remain disabled until their individual implementation gates pass.

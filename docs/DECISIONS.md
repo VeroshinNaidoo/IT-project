@@ -8,8 +8,8 @@
 - Modules use a random unique `join_code` for student self-enrolment; `module_code` remains an academic identifier only.
 - Add quiz `title` and optional `closes_at`; the service rejects starts and submissions after the close time with HTTP 409.
 - Mini-scope is a short per-topic revision summary from one resource. Analysis is lecturer-facing and receives only aggregate topic statistics; no student names, emails, or IDs are sent to AI.
-- Allowed game types are `flashcards`, `speed_round`, and `match_pairs`. Games are practice-only and reuse quiz questions. Competitive games are gated until the student's scored attempt is complete; lecturers always have access.
-- Game mechanics are frozen pending team decision. The three keys are disabled placeholders in the `game_types` lookup table; adding a future type is a data change, not a migration. The implemented rule is: lecturers can access games, while students can access games for a competitive quiz only after their own scored attempt is completed. The earlier database test name suggesting that all competitive games were forbidden was corrected; the service policy is the authoritative access boundary.
+- The original catalog used `flashcards`, `speed_round`, and `match_pairs`; the 2026-10-27 Stage 0 decision below supersedes the latter two. Games remain practice-only and reuse quiz questions. Competitive games are gated until the student's scored attempt is complete; lecturers always have access.
+- Game mechanics remain disabled until their named feature stage passes. Adding or enabling a catalogued type is a data change. The implemented rule is: lecturers can access games, while students can access games for a competitive quiz only after their own scored attempt is completed. The earlier database test name suggesting that all competitive games were forbidden was corrected; the service policy is the authoritative access boundary.
 - Future game modules must implement `{ key, buildFromQuiz(quiz), validate(gameData), scoring: 'none' | 'practice' }`. No game score is eligible for leaderboard records without explicit future approval.
 - Unanswered questions score zero and do not create `student_answers` rows. Results report the unanswered count.
 - Upload maximum defaults to 20 MiB and is configurable through environment configuration.
@@ -23,7 +23,7 @@
 
 ## 2026-10-27 — FR-22 Infected solo mode
 
-- Infected is the only enabled playable game. `flashcards`, `speed_round`, and `match_pairs` remain disabled placeholders and their mechanics remain frozen.
+- Infected is the only enabled playable game. The later Stage 0 decision removes the superseded `speed_round` and `match_pairs` rows; every replacement game remains disabled until its own gate passes.
 - Each turn aims to offer one Easy, one Medium, and one Hard card. Missing difficulty slots are filled from any remaining unused questions. Fewer than three remaining questions produces fewer cards; no remaining questions ends the session as `exhausted` without a win or loss.
 - Every question placed on a turn is considered offered, including unchosen cards, and can never be offered again in that session.
 - `GAME_MIN_QUESTIONS` defaults to 6. An enabled Infected game below the threshold is listed as unavailable with the reason “Not enough questions for this game yet.”
@@ -35,3 +35,13 @@
 - AI explanations must contain one or two sentences, be at most 300 characters, contain no instruction-like text, and pass the shared profanity check. The backend remains the final validation authority.
 - The pre-existing game-catalog invariant was renumbered from `INV-16` to `INV-23` so the approved Infected invariants occupy `INV-16` through `INV-22` exactly.
 - Stage 2 group mode is not part of the solo implementation or this decision. Its rules must be recorded separately before implementation begins.
+
+## 2026-10-27 — FR-23–FR-27 Stage 0 game platform
+
+- Persist question difficulty as `DifficultyLevel` 1–5. The one shared `tierOf(level)` mapping is 1–2 Easy, 3 Medium, and 4–5 Hard. Infected keeps its approved Easy/Medium/Hard behavior by deriving those labels and transitions from the numeric level.
+- AI quiz output must contain `difficulty_level` from 1 through 5. Missing, fractional, or out-of-range levels are invalid AI output under INV-11 and are never persisted. The deterministic MockProvider cycles through all five levels.
+- `speed_round` and `match_pairs` are superseded and removed from the catalog. `flashcards` remains disabled. `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer` are seeded disabled and may be enabled only after their own stage is green.
+- Infected retains its dedicated session tables. New solo games use versioned JSONB state in `game_plays` plus append-only `game_play_moves`; each game owns a strict Zod state schema so mechanics can evolve without changing the shared storage shape.
+- Generic play moves store the accepted move payload and resulting versioned state. The ordered move log is the rebuild source; terminal plays reject later moves at the database boundary.
+- A lecturer’s shared game-progress view returns only game type, play count, and completion count for modules they own. It never returns user identity, state, questions, or options.
+- The demo competitive quiz now has 25 questions distributed across five topics and all five levels so later game stages can share one stable fixture.

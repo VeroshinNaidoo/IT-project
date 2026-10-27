@@ -19,6 +19,7 @@ All endpoints use the existing session cookie, generic error shape, strict unkno
 - `POST /games/infected/sessions/:id/answer` with `{ "optionId": "uuid" }` applies one locked transition and returns `isCorrect`, `correctOption`, `explanation`, updated state, and next cards or a terminal outcome. Replaying the same answer returns the stored result without applying it twice.
 - `GET /games/infected/sessions/:id` restores the owner’s current state and pending question without correctness.
 - `GET /modules/:moduleId/games/infected/activity` returns aggregate status/count/average data to the module’s lecturer. It never returns a student’s live question or options.
+- `GET /modules/:moduleId/games/activity` returns generic per-game-type play and completion counts for the owning lecturer. No player identity, state, question, or option data is returned.
 - `GET /quizzes/:quizId/games` lists enabled catalog games with `available` and a friendly `reason` when competitive access is locked or the quiz has fewer than `GAME_MIN_QUESTIONS` questions.
 
 Client-supplied `cure`, `hearts`, `score`, `difficulty`, `isCorrect`, or `status` fields are rejected with HTTP 422. Another user’s session is hidden with 404. Finished sessions reject new moves with 409.
@@ -30,10 +31,10 @@ Generated quiz questions include:
   "question_text": "Question text",
   "topic": "Topic",
   "marks": 1,
-  "difficulty": "easy | medium | hard",
+  "difficulty_level": 3,
   "explanation": "One or two sentences, at most 300 characters.",
   "options": [{ "option_text": "Answer", "is_correct": true }]
 }
 ```
 
-The backend rejects missing/invalid difficulty, empty/oversize or instruction-like explanations, duplicate questions/options, invalid correct-option counts, and profanity before persistence.
+`difficulty_level` is a required integer from 1 through 5. The backend rejects missing, fractional, or out-of-range levels, empty/oversize or instruction-like explanations, duplicate questions/options, invalid correct-option counts, and profanity before persistence.

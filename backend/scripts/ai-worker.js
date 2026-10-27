@@ -38,7 +38,9 @@ export const validateAiOutput = (output) => {
       typeof question.question_text !== 'string' ||
       typeof question.topic !== 'string' ||
       !(Number(question.marks) > 0) ||
-      !['easy', 'medium', 'hard'].includes(question.difficulty) ||
+      !Number.isInteger(question.difficulty_level) ||
+      question.difficulty_level < 1 ||
+      question.difficulty_level > 5 ||
       !validExplanation(question.explanation) ||
       !Array.isArray(question.options) ||
       question.options.length < 2 ||
@@ -138,13 +140,13 @@ const processJob = async (job) => {
           [quiz.rows[0].module_id, question.topic],
         );
         const inserted = await client.query(
-          `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation) VALUES($1,$2,$3,$4,$5,$6) RETURNING question_id`,
+          `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation) VALUES($1,$2,$3,$4,$5,$6) RETURNING question_id`,
           [
             quiz.rows[0].quiz_id,
             topic.rows[0].topic_id,
             question.question_text,
             question.marks,
-            question.difficulty,
+            question.difficulty_level,
             question.explanation,
           ],
         );

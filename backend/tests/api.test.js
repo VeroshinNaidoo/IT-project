@@ -103,6 +103,7 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
           questionText: 'fuck',
           topic: 'fuck',
           marks: 1,
+          difficultyLevel: 3,
           options: [
             { optionText: 'A', isCorrect: true },
             { optionText: 'B', isCorrect: false },
@@ -127,6 +128,7 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
         {
           questionText: 'Valid question',
           marks: 1,
+          difficultyLevel: 3,
           options: [
             { optionText: 'fuck', isCorrect: true },
             { optionText: 'B', isCorrect: false },
@@ -154,6 +156,44 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     ).toBe(true);
   });
 
+  it('rejects missing or invalid question difficulty levels without persistence [INV-11]', async () => {
+    const before = Number(
+      (
+        await pool.query(
+          `SELECT count(*) AS count FROM quizzes WHERE module_id=$1`,
+          [moduleRecord.module_id],
+        )
+      ).rows[0].count,
+    );
+    for (const difficultyLevel of [undefined, 0, 6, 2.5]) {
+      const question = {
+        questionText: 'Difficulty validation question',
+        marks: 1,
+        options: [
+          { optionText: 'Correct', isCorrect: true },
+          { optionText: 'Wrong', isCorrect: false },
+        ],
+      };
+      if (difficultyLevel !== undefined)
+        question.difficultyLevel = difficultyLevel;
+      const response = await lecturerAgent.post('/api/v1/quizzes').send({
+        moduleId: moduleRecord.module_id,
+        title: 'Invalid difficulty quiz',
+        questions: [question],
+      });
+      expect(response.status).toBe(400);
+    }
+    const after = Number(
+      (
+        await pool.query(
+          `SELECT count(*) AS count FROM quizzes WHERE module_id=$1`,
+          [moduleRecord.module_id],
+        )
+      ).rows[0].count,
+    );
+    expect(after).toBe(before);
+  });
+
   it('creates a competitive quiz for quiz-engine tests', async () => {
     const response = await lecturerAgent.post('/api/v1/quizzes').send({
       moduleId: moduleRecord.module_id,
@@ -163,6 +203,7 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
         {
           questionText: 'Which layer stores data?',
           marks: 1,
+          difficultyLevel: 2,
           options: [
             { optionText: 'Database', isCorrect: true },
             { optionText: 'Presentation', isCorrect: false },
@@ -171,6 +212,7 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
         {
           questionText: 'Which command reads rows?',
           marks: 1,
+          difficultyLevel: 4,
           options: [
             { optionText: 'SELECT', isCorrect: true },
             { optionText: 'DROP', isCorrect: false },
@@ -274,6 +316,7 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
         {
           questionText: 'Late question',
           marks: 1,
+          difficultyLevel: 3,
           options: [
             { optionText: 'Yes', isCorrect: true },
             { optionText: 'No', isCorrect: false },

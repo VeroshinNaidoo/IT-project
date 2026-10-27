@@ -24,21 +24,32 @@ erDiagram
   QUESTIONS ||--o{ STUDENT_ANSWERS : answers
   QUESTION_OPTIONS ||--o{ STUDENT_ANSWERS : selects
   QUIZZES ||--o{ GAMES : supports
+  GAME_TYPES ||--o{ GAMES : classifies
   GAMES ||--o{ GAME_SESSIONS : runs
   USERS ||--o{ GAME_SESSIONS : plays
   GAME_SESSIONS ||--o{ GAME_TURNS : records
   GAME_TURNS ||--o{ GAME_TURN_CARDS : offers
   QUESTIONS ||--o{ GAME_TURN_CARDS : appears
+  GAME_TYPES ||--o{ GAME_PLAYS : classifies
+  USERS ||--o{ GAME_PLAYS : starts
+  QUIZZES ||--o{ GAME_PLAYS : supplies
+  GAME_PLAYS ||--o{ GAME_PLAY_MOVES : records
   USERS ||--o{ AI_GENERATION_JOBS : requests
   RESOURCES ||--o{ AI_GENERATION_JOBS : processes
   QUIZZES o|--o{ AI_GENERATION_JOBS : creates
 ```
 
-`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. The seeded keys `flashcards`, `speed_round`, and `match_pairs` are disabled placeholders; `infected` is enabled. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
+`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected` is enabled; `flashcards`, `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer` are disabled until their implementation gates pass. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
 
-Infected extends `questions` with required `Difficulty` (`easy|medium|hard`, default `medium`) and nullable `Explanation` (1–300 characters).
+Questions use required `DifficultyLevel smallint` (1–5, default 3) and nullable `Explanation` (1–300 characters). The shared mapping is levels 1–2 Easy, 3 Medium, and 4–5 Hard.
 
 - `game_sessions(SessionID PK, GameID FK, StudentID FK, Mode, Cure, Hearts, Score, Status, CreatedAt, UpdatedAt, CompletedAt)` stores practice-only state. A partial unique index permits one in-progress solo session per game/user.
 - `game_turns(TurnID PK, SessionID FK, TurnNumber, ChosenQuestionID FK, ChosenOptionID FK, IsCorrect, CureBefore, CureAfter, HeartsBefore, HeartsAfter, ScoreDelta, CreatedAt, AnsweredAt)` records an immutable answered transition.
-- `game_turn_cards(TurnID FK, SessionID FK, CardIndex, QuestionID FK, Difficulty)` records offered cards. `(TurnID, CardIndex)` is the primary key and `(SessionID, QuestionID)` is unique.
+- `game_turn_cards(TurnID FK, SessionID FK, CardIndex, QuestionID FK, DifficultyLevel)` records offered cards. `(TurnID, CardIndex)` is the primary key and `(SessionID, QuestionID)` is unique.
 - Composite foreign keys enforce that the chosen question was offered and the chosen option belongs to it. Triggers enforce quiz scope, stored difficulty, one-heart wrong-answer loss, and answer-once behavior.
+
+Generic solo-game storage introduced by migration 007:
+
+- `game_plays(PlayID PK, GameTypeID FK, StudentID FK, QuizID FK, Mode, Status, State jsonb, Score, CreatedAt, UpdatedAt, CompletedAt)` stores versioned game-owned state. A partial unique index permits one in-progress solo play per game type, user, and quiz.
+- `game_play_moves(MoveID PK, PlayID FK, MoveNumber, MoveType, Payload jsonb, StateAfter jsonb, CreatedAt)` is append-only and uniquely ordered within a play.
+- Checks require object-shaped versioned state and non-negative scores. Triggers enforce module scope, append-only moves, and terminal-state finality.

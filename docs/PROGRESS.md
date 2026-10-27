@@ -1,5 +1,13 @@
 # EduQuest progress
 
+## FR-23–FR-27 Stage 0 — Shared game foundation — 2026-10-27
+
+- Replaced three-value question difficulty storage with checked levels 1–5 and one shared Easy/Medium/Hard tier mapper. Infected behavior remains unchanged through that mapper.
+- Added versioned generic `game_plays` state, append-only `game_play_moves`, active-play uniqueness, terminal guards, module-scope enforcement, per-game Zod state registration, and aggregate-only lecturer progress.
+- Removed superseded catalog placeholders and added Memory Match, Timer Trivia, Boss Battle, and Pixel Car Racer as disabled rows. No new game mechanics are enabled yet.
+- Updated AI contracts, worker validation, lecturer draft editing, seed data, authorization inventory, ERD, invariants, status, and traceability.
+- Gate: 141 JavaScript tests, 4 Python tests, and 18 Chromium/Firefox browser tests passed with zero skips. Lint, formatting, type-check, and production frontend build passed. The dev migration and seed completed; the demo competitive quiz has 25 questions across five topics and all five levels.
+
 ## FR-22 Stage 1 — Infected solo — 2026-10-27
 
 - Built the deterministic practice-only engine, persisted solo sessions/turns/cards, transactional and idempotent API, access checks, aggregate lecturer activity, AI difficulty/explanation contract, editable lecturer draft fields, seeded playable quiz, and responsive accessible UI.

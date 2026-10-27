@@ -116,6 +116,7 @@ const bodies = {
       {
         questionText: 'Matrix question',
         marks: 1,
+        difficultyLevel: 3,
         topic: 'Matrix topic',
         options: [
           { optionText: 'Correct', isCorrect: true },
@@ -232,6 +233,10 @@ const specs = {
     '/api/v1/modules/:moduleId/games/infected/activity',
     'lecturer',
   ],
+  'GET /api/v1/modules/:moduleId/games/activity': [
+    '/api/v1/modules/:moduleId/games/activity',
+    'lecturer',
+  ],
 };
 
 async function createFixture() {
@@ -329,12 +334,12 @@ async function createFixture() {
   for (let index = 0; index < 6; index += 1) {
     const infectedQuestion = (
       await pool.query(
-        `INSERT INTO questions(quiz_id,question_text,marks,difficulty,explanation)
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level,explanation)
          VALUES($1,$2,1,$3,$4) RETURNING question_id`,
         [
           startQuiz.quiz_id,
           `Matrix infected question ${index + 1}?`,
-          ['easy', 'medium', 'hard'][index % 3],
+          [1, 3, 5][index % 3],
           `Matrix explanation ${index + 1}.`,
         ],
       )
@@ -377,8 +382,8 @@ async function createFixture() {
     )
   ).rows[0];
   await pool.query(
-    `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
-     SELECT $1,$2,0,question_id,difficulty FROM questions WHERE question_id=$3`,
+    `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty_level)
+     SELECT $1,$2,0,question_id,difficulty_level FROM questions WHERE question_id=$3`,
     [infectedTurn.turn_id, infectedSession.session_id, infectedCardId],
   );
   const job = (
@@ -415,6 +420,15 @@ async function assertNoSensitive(result, route) {
     expect(JSON.stringify(result.body)).not.toMatch(
       /is_correct|isCorrect|correctOption/,
     );
+  if (route === 'GET /api/v1/modules/:moduleId/games/activity') {
+    expect(JSON.stringify(result.body)).not.toMatch(
+      /student|question|option|state/i,
+    );
+    for (const row of result.body.data)
+      expect(Object.keys(row).sort()).toEqual(
+        ['completions', 'display_name', 'key', 'plays'].sort(),
+      );
+  }
 }
 
 async function assertRoute(route, [template, successRole]) {
@@ -491,7 +505,7 @@ async function assertRoute(route, [template, successRole]) {
   if (
     method === 'GET' &&
     !route.startsWith('GET /api/v1/games/infected') &&
-    !route.includes('/games/infected/activity')
+    !route.includes('/games/')
   )
     expect(invalid.status).toBeGreaterThanOrEqual(200);
   else expect([400, 404, 422], `${route} validation`).toContain(invalid.status);
@@ -509,7 +523,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(31);
+    expect(routeInventory.length).toBe(32);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

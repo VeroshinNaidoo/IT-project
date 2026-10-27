@@ -86,12 +86,23 @@ try {
       [lecturer, moduleRow.module_id, resourcePath, 58],
     )
   ).rows[0];
-  const topic = (
-    await client.query(
-      `INSERT INTO topics(module_id,name) VALUES($1,'Normalization') ON CONFLICT(module_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING topic_id`,
-      [moduleRow.module_id],
-    )
-  ).rows[0];
+  const topics = [];
+  for (const name of [
+    'Normalization',
+    'Keys',
+    'SQL',
+    'Transactions',
+    'Data modelling',
+  ])
+    topics.push(
+      (
+        await client.query(
+          `INSERT INTO topics(module_id,name) VALUES($1,$2)
+           ON CONFLICT(module_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING topic_id`,
+          [moduleRow.module_id, name],
+        )
+      ).rows[0],
+    );
   const quiz = (
     await client.query(
       `INSERT INTO quizzes(module_id,resource_id,created_by,title,is_competitive,status) VALUES($1,$2,$3,'Demo competitive quiz',true,'published') RETURNING quiz_id`,
@@ -107,17 +118,17 @@ try {
   let question;
   let correct;
   let wrong;
-  const difficulties = ['easy', 'medium', 'hard'];
-  for (let index = 0; index < 12; index += 1) {
+  const difficultyLevels = [1, 2, 3, 4, 5];
+  for (let index = 0; index < 25; index += 1) {
     const inserted = (
       await client.query(
-        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation)
+        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
          VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
         [
           quiz.quiz_id,
-          topic.topic_id,
+          topics[index % topics.length].topic_id,
           `Which database principle is demonstrated in scenario ${index + 1}?`,
-          difficulties[index % difficulties.length],
+          difficultyLevels[index % difficultyLevels.length],
           `Scenario ${index + 1} demonstrates a core normalization or key-design principle.`,
         ],
       )
@@ -154,13 +165,13 @@ try {
   for (let index = 0; index < 6; index += 1) {
     const practiceQuestion = (
       await client.query(
-        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation)
+        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
          VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
         [
           practice.quiz_id,
-          topic.topic_id,
+          topics[index % topics.length].topic_id,
           `Practice database question ${index + 1}?`,
-          difficulties[index % difficulties.length],
+          difficultyLevels[index % difficultyLevels.length],
           `The correct option follows from the supplied database notes.`,
         ],
       )

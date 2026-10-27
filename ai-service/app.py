@@ -1,7 +1,5 @@
 from fastapi import FastAPI
 import re
-from typing import Literal
-
 from pydantic import BaseModel, Field, field_validator
 
 app = FastAPI(title="EduQuest Mock AI Service")
@@ -16,7 +14,7 @@ class Question(BaseModel):
     question_text: str = Field(min_length=1)
     topic: str = Field(min_length=1)
     marks: float = Field(gt=0)
-    difficulty: Literal["easy", "medium", "hard"]
+    difficulty_level: int = Field(ge=1, le=5)
     explanation: str = Field(min_length=1, max_length=300)
     options: list[Option] = Field(min_length=2, max_length=6)
 
@@ -72,8 +70,7 @@ class AnalysisResponse(BaseModel):
 @app.post("/generate-quiz", response_model=QuizResponse)
 def generate_quiz(request: QuizRequest) -> QuizResponse:
     # MockProvider is deterministic and treats extracted text as data, never instructions.
-    difficulties = ["easy", "medium", "hard"]
-    return QuizResponse(title="Revision quiz", questions=[Question(question_text=f"What is key idea {index + 1} from the supplied material?", topic="General", marks=1, difficulty=difficulties[index % 3], explanation="The main concept is the idea supported directly by the supplied material.", options=[Option(option_text=f"Supported concept {index + 1}", is_correct=True), Option(option_text=f"Unrelated concept {index + 1}", is_correct=False), Option(option_text=f"Unsupported detail {index + 1}", is_correct=False), Option(option_text=f"Contradictory claim {index + 1}", is_correct=False)]) for index in range(request.question_count)])
+    return QuizResponse(title="Revision quiz", questions=[Question(question_text=f"What is key idea {index + 1} from the supplied material?", topic="General", marks=1, difficulty_level=(index % 5) + 1, explanation="The main concept is the idea supported directly by the supplied material.", options=[Option(option_text=f"Supported concept {index + 1}", is_correct=True), Option(option_text=f"Unrelated concept {index + 1}", is_correct=False), Option(option_text=f"Unsupported detail {index + 1}", is_correct=False), Option(option_text=f"Contradictory claim {index + 1}", is_correct=False)]) for index in range(request.question_count)])
 
 
 @app.post("/generate-mini-scope", response_model=MiniScopeResponse)

@@ -37,13 +37,18 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-20          | Module/topic analytics                                            | automated: lecturer weak-topic API test                                                                                                       |
 | FR-21          | `backend/src/profanity/` and visible-text schemas                 | automated: field matrix API tests and worker re-checks                                                                                        |
 | FR-22          | Infected solo engine, persistent sessions, API, and responsive UI | automated: engine property tests, DB invariants, API win/loss/exhaustion/access tests, frontend flow tests, Playwright/axe flow               |
+| FR-23          | Memory Match                                                      | not started; disabled catalog row and generic storage foundation only                                                                         |
+| FR-24          | Timer Trivia                                                      | not started; disabled catalog row and generic storage foundation only                                                                         |
+| FR-25          | Boss Battle                                                       | not started; disabled catalog row and generic storage foundation only                                                                         |
+| FR-26          | Pixel Car Racer                                                   | not started; disabled catalog row and generic storage foundation only                                                                         |
+| FR-27          | Multiplayer room layer                                            | not started; no room persistence, SSE, or multiplayer behavior                                                                                |
 | NFR01          | Async AI job architecture                                         | automated: `backend/tests/ai-worker.test.js`                                                                                                  |
 | NFR02          | bcrypt and secure session cookies                                 | API implementation present                                                                                                                    |
 | NFR03          | RBAC middleware                                                   | API implementation present                                                                                                                    |
 | NFR04          | React design system                                               | automated: login axe passes in six browser/viewports; manual and remaining screens pending                                                    |
 | NFR05          | Responsive CSS                                                    | automated: generation smoke passes at 390/768/1280 in both browsers; full-screen manual review pending                                        |
 | NFR06          | Transactional submission                                          | API transaction path; real concurrency pending                                                                                                |
-| NFR07          | Database constraints/triggers                                     | 9 DB invariant tests passed                                                                                                                   |
+| NFR07          | Database constraints/triggers                                     | 10 DB invariant tests passed                                                                                                                  |
 | NFR08          | Zod/Pydantic validation                                           | Current API/AI schemas implemented                                                                                                            |
 | NFR09          | Upload size limit                                                 | Size limit implemented; magic-byte tests pending                                                                                              |
 | NFR10          | Browser compatibility                                             | automated: 18 browser tests pass (9 Chromium, 9 Firefox), zero skips at 390/768/1280; complete product coverage pending                       |
@@ -56,11 +61,11 @@ The backend never echoes the matched term or logs offending text. The filter has
 | NFR17          | Profanity, generic rejection, cooldown                            | 25 profanity tests passed; API/AI integration pending                                                                                         |
 | INV-01, INV-13 | Competitive uniqueness and atomic submission                      | PGlite passes; `npm run test:db:real` required for full row-lock verification                                                                 |
 
-Game mechanics other than Infected remain frozen. The three placeholder catalog entries stay disabled. Infected is enabled and practice-only; its score is isolated from quiz attempts, leaderboards, and scored analytics.
+Infected remains enabled and practice-only. Flashcards and the four new game catalog entries stay disabled until their individual gates pass; `speed_round` and `match_pairs` are removed. All game results remain isolated from quiz attempts, leaderboards, and scored analytics.
 
 Automated axe/Playwright and the manual checklist remain required before NFR04/NFR05/NFR10 can be marked done. `npm run test:db:real` fails loudly unless `REAL_TEST_DATABASE_URL` is supplied; concurrency evidence is therefore marked “needs real PostgreSQL” under PGlite.
 
-The matrix derives 31 Express routes and executes shared assertions, including all five Infected routes. Dedicated Infected integration fixtures additionally prove real session ownership, module ownership, exact 422 unknown-field rejection, pre-answer response secrecy, and success shapes. Older routes retain the limitations documented by their existing matrix assertions, so NFR14 remains partial overall.
+The matrix derives 32 Express routes and executes shared assertions, including all five Infected routes and the aggregate generic-game activity route. Dedicated Infected integration fixtures additionally prove real session ownership, module ownership, exact 422 unknown-field rejection, pre-answer response secrecy, and success shapes. The generic activity response is asserted to contain no student, state, question, or option data. Older routes retain the limitations documented by their existing matrix assertions, so NFR14 remains partial overall.
 
 ## Infected invariant evidence
 
@@ -75,4 +80,17 @@ The matrix derives 31 Express routes and executes shared assertions, including a
 | INV-22    | Separate game persistence                           | leaderboard/attempt isolation API test                   |
 | INV-23    | Catalog lookup and enabled flag                     | raw SQL catalog assertion                                |
 
+## Shared game-platform foundation evidence
+
+| Invariant | Enforcement                                           | Automated evidence                                      |
+| --------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| INV-24    | Difficulty level check and shared tier mapping        | DB, API, AI worker, and `game-foundation.test.js`       |
+| INV-25    | Versioned JSONB plus game-owned Zod state schema      | DB and `game-foundation.test.js`                        |
+| INV-26    | One in-progress solo play per game/user/quiz          | DB partial-unique test                                  |
+| INV-27    | Uniquely ordered append-only move log                 | DB trigger/constraint test                              |
+| INV-28    | Terminal generic plays reject moves                   | DB trigger test                                         |
+| INV-29    | Lecturer progress is owned-module aggregate data only | Authorization-matrix ownership and response-shape tests |
+
 FR-22 Stage 1 gate evidence: 131 JavaScript tests, 4 Python tests, and 18 browser tests passed with zero skips. Lint, Prettier, TypeScript, and the production frontend build also pass. Earlier assertion totals were manually estimated and are not treated as verified behavioral evidence.
+
+FR-23–FR-27 Stage 0 gate evidence: 141 JavaScript tests, 4 Python tests, and 18 Chromium/Firefox browser tests passed with zero skips. Lint, Prettier, TypeScript, and the production frontend build pass. The four solo game features and multiplayer room layer remain not started.

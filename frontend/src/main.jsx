@@ -504,7 +504,7 @@ export function ResourceRow({ resource, lecturer }) {
           status: 'published',
           questions: (quiz.questions || []).map((question) => ({
             questionId: question.questionId,
-            difficulty: question.difficulty || 'medium',
+            difficultyLevel: question.difficultyLevel,
             explanation: question.explanation,
           })),
         }),
@@ -609,21 +609,26 @@ export function ResourceRow({ resource, lecturer }) {
                 <label>
                   Difficulty
                   <select
-                    value={question.difficulty || 'medium'}
+                    value={question.difficultyLevel}
                     onChange={(event) =>
                       setQuiz({
                         ...quiz,
                         questions: quiz.questions.map((item) =>
                           item.questionId === question.questionId
-                            ? { ...item, difficulty: event.target.value }
+                            ? {
+                                ...item,
+                                difficultyLevel: Number(event.target.value),
+                              }
                             : item,
                         ),
                       })
                     }
                   >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
+                    <option value="1">Level 1 — Easy</option>
+                    <option value="2">Level 2 — Easy</option>
+                    <option value="3">Level 3 — Medium</option>
+                    <option value="4">Level 4 — Hard</option>
+                    <option value="5">Level 5 — Hard</option>
                   </select>
                 </label>
                 <label>

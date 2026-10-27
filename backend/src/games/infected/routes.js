@@ -1,6 +1,7 @@
 // @ts-nocheck - Express and pg records are validated at runtime with Zod and SQL constraints.
 import { z } from 'zod';
 import { canAccessGame } from '../access.js';
+import { tierOf } from '../difficulty.js';
 import { applyAnswer, rewardFor, selectCards } from './engine.js';
 
 const emptySchema = z.object({}).strict();
@@ -67,7 +68,7 @@ export function registerInfectedRoutes({
   const cardsForTurn = async (client, turnId) => {
     if (!turnId) return [];
     const result = await client.query(
-      `SELECT c.question_id,c.card_index,c.difficulty,t.name AS topic
+      `SELECT c.question_id,c.card_index,c.difficulty_level,t.name AS topic
        FROM game_turn_cards c
        JOIN questions q ON q.question_id=c.question_id
        LEFT JOIN topics t ON t.topic_id=q.topic_id
@@ -75,10 +76,12 @@ export function registerInfectedRoutes({
       [turnId],
     );
     return result.rows.map((card) => {
-      const transition = rewardFor(card.difficulty);
+      const difficulty = tierOf(card.difficulty_level);
+      const transition = rewardFor(card.difficulty_level);
       return {
         cardId: card.question_id,
-        difficulty: card.difficulty,
+        difficulty,
+        difficultyLevel: card.difficulty_level,
         topic: card.topic || 'General',
         reward: transition.reward,
         penalty: transition.penalty,
@@ -90,7 +93,7 @@ export function registerInfectedRoutes({
     if (!turn?.chosen_question_id) return null;
     const question = (
       await client.query(
-        `SELECT q.question_id,q.question_text,q.difficulty,t.name AS topic
+        `SELECT q.question_id,q.question_text,q.difficulty_level,t.name AS topic
          FROM questions q LEFT JOIN topics t ON t.topic_id=q.topic_id
          WHERE q.question_id=$1`,
         [turn.chosen_question_id],
@@ -104,7 +107,8 @@ export function registerInfectedRoutes({
     return {
       questionId: question.question_id,
       questionText: question.question_text,
-      difficulty: question.difficulty,
+      difficulty: tierOf(question.difficulty_level),
+      difficultyLevel: question.difficulty_level,
       topic: question.topic || 'General',
       options: options.rows.map((option) => ({
         optionId: option.option_id,
@@ -115,7 +119,7 @@ export function registerInfectedRoutes({
 
   const createTurn = async (client, session) => {
     const unused = await client.query(
-      `SELECT q.question_id,q.difficulty,t.name AS topic
+      `SELECT q.question_id,q.difficulty_level,t.name AS topic
        FROM questions q LEFT JOIN topics t ON t.topic_id=q.topic_id
        WHERE q.quiz_id=$1 AND NOT EXISTS (
          SELECT 1 FROM game_turn_cards c
@@ -150,14 +154,14 @@ export function registerInfectedRoutes({
     ).rows[0];
     for (const [index, question] of selected.entries())
       await client.query(
-        `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty)
+        `INSERT INTO game_turn_cards(turn_id,session_id,card_index,question_id,difficulty_level)
          VALUES($1,$2,$3,$4,$5)`,
         [
           turn.turn_id,
           session.session_id,
           index,
           question.question_id,
-          question.difficulty,
+          question.difficulty_level,
         ],
       );
     return turn;
@@ -495,7 +499,7 @@ export function registerInfectedRoutes({
         }
         const selected = (
           await client.query(
-            `SELECT o.option_id,o.is_correct,q.difficulty
+            `SELECT o.option_id,o.is_correct,q.difficulty_level
              FROM question_options o JOIN questions q ON q.question_id=o.question_id
              WHERE o.option_id=$1 AND o.question_id=$2`,
             [data.optionId, turn.chosen_question_id],
@@ -513,7 +517,7 @@ export function registerInfectedRoutes({
         }
         const nextState = applyAnswer(
           sessionState(session),
-          selected.difficulty,
+          selected.difficulty_level,
           selected.is_correct,
         );
         const scoreDelta = nextState.score - session.score;

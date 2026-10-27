@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
+import { tierOf } from '../src/games/difficulty.js';
 import {
   applyAnswer,
   finalizeIfExhausted,
@@ -17,12 +18,12 @@ const initial = (overrides = {}) => ({
 
 describe('Infected pure engine', () => {
   it.each([
-    ['easy', true, 50, 3, 10],
-    ['easy', false, 35, 2, 0],
-    ['medium', true, 60, 3, 20],
-    ['medium', false, 30, 2, 0],
-    ['hard', true, 70, 3, 30],
-    ['hard', false, 25, 2, 0],
+    [1, true, 50, 3, 10],
+    [1, false, 35, 2, 0],
+    [3, true, 60, 3, 20],
+    [3, false, 30, 2, 0],
+    [5, true, 70, 3, 30],
+    [5, false, 25, 2, 0],
   ])(
     'applies the %s/%s transition',
     (difficulty, correct, cure, hearts, score) => {
@@ -36,19 +37,19 @@ describe('Infected pure engine', () => {
   );
 
   it('clamps an Easy wrong answer at zero and still removes a heart', () => {
-    expect(applyAnswer(initial({ cure: 5 }), 'easy', false)).toMatchObject({
+    expect(applyAnswer(initial({ cure: 5 }), 1, false)).toMatchObject({
       cure: 0,
       hearts: 2,
     });
-    expect(applyAnswer(initial({ cure: 0 }), 'hard', false)).toMatchObject({
+    expect(applyAnswer(initial({ cure: 0 }), 5, false)).toMatchObject({
       cure: 0,
       hearts: 2,
     });
   });
 
   it.each([
-    [80, 'hard'],
-    [90, 'easy'],
+    [80, 5],
+    [90, 1],
   ])('clamps %s cure with a %s answer to a win', (cure, difficulty) => {
     expect(applyAnswer(initial({ cure }), difficulty, true)).toMatchObject({
       cure: 100,
@@ -58,7 +59,7 @@ describe('Infected pure engine', () => {
 
   it('detects a loss at zero hearts', () => {
     expect(
-      applyAnswer(initial({ cure: 60, hearts: 1 }), 'medium', false),
+      applyAnswer(initial({ cure: 60, hearts: 1 }), 3, false),
     ).toMatchObject({ hearts: 0, status: 'lost' });
   });
 
@@ -66,7 +67,7 @@ describe('Infected pure engine', () => {
     for (const status of ['won', 'lost', 'exhausted']) {
       const state = initial({ status });
       expect(isTerminal(state)).toBe(true);
-      expect(() => applyAnswer(state, 'easy', true)).toThrow(
+      expect(() => applyAnswer(state, 1, true)).toThrow(
         'GAME_SESSION_FINISHED',
       );
     }
@@ -74,13 +75,13 @@ describe('Infected pure engine', () => {
 
   it('selects one card per difficulty and never duplicates a question', () => {
     const questions = [
-      { question_id: 'e1', difficulty: 'easy' },
-      { question_id: 'e2', difficulty: 'easy' },
-      { question_id: 'm1', difficulty: 'medium' },
-      { question_id: 'h1', difficulty: 'hard' },
+      { question_id: 'e1', difficulty_level: 1 },
+      { question_id: 'e2', difficulty_level: 2 },
+      { question_id: 'm1', difficulty_level: 3 },
+      { question_id: 'h1', difficulty_level: 5 },
     ];
     const cards = selectCards(questions, () => 0);
-    expect(cards.map((card) => card.difficulty).sort()).toEqual([
+    expect(cards.map((card) => tierOf(card.difficulty_level)).sort()).toEqual([
       'easy',
       'hard',
       'medium',
@@ -92,8 +93,8 @@ describe('Infected pure engine', () => {
     expect(
       selectCards(
         [
-          { question_id: 'e1', difficulty: 'easy' },
-          { question_id: 'e2', difficulty: 'easy' },
+          { question_id: 'e1', difficulty_level: 1 },
+          { question_id: 'e2', difficulty_level: 2 },
         ],
         () => 0,
       ),
@@ -110,7 +111,7 @@ describe('Infected pure engine', () => {
       fc.property(
         fc.array(
           fc.record({
-            difficulty: fc.constantFrom('easy', 'medium', 'hard'),
+            difficulty: fc.integer({ min: 1, max: 5 }),
             correct: fc.boolean(),
           }),
           { maxLength: 100 },

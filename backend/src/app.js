@@ -555,9 +555,7 @@ app.post(
                     .min(1)
                     .refine(noProfanity(), { message: profanityMessage }),
                   marks: z.number().positive(),
-                  difficulty: z
-                    .enum(['easy', 'medium', 'hard'])
-                    .default('medium'),
+                  difficultyLevel: z.number().int().min(1).max(5),
                   explanation: z
                     .string()
                     .trim()
@@ -647,13 +645,13 @@ app.post(
             ).rows[0].topic_id;
           }
           const q = await tx.query(
-            `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation) VALUES($1,$2,$3,$4,$5,$6) RETURNING question_id`,
+            `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation) VALUES($1,$2,$3,$4,$5,$6) RETURNING question_id`,
             [
               quiz.rows[0].quiz_id,
               topicId,
               question.questionText,
               question.marks,
-              question.difficulty,
+              question.difficultyLevel,
               question.explanation || null,
             ],
           );
@@ -772,7 +770,7 @@ app.get(
   async (req, res, next) => {
     try {
       const result = await pool.query(
-        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'difficulty',q.difficulty,'explanation',q.explanation,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FROM question_options o WHERE o.question_id=q.question_id))) FILTER (WHERE q.question_id IS NOT NULL) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
+        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'difficultyLevel',q.difficulty_level,'explanation',q.explanation,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FROM question_options o WHERE o.question_id=q.question_id))) FILTER (WHERE q.question_id IS NOT NULL) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
         [req.params.quizId, req.user.userId],
       );
       if (!result.rowCount)
@@ -801,7 +799,7 @@ app.put(
               z
                 .object({
                   questionId: z.string().uuid(),
-                  difficulty: z.enum(['easy', 'medium', 'hard']),
+                  difficultyLevel: z.number().int().min(1).max(5),
                   explanation: z
                     .string()
                     .trim()
@@ -845,10 +843,10 @@ app.put(
         }
         for (const question of data.questions || []) {
           const updated = await client.query(
-            `UPDATE questions SET difficulty=$1,explanation=$2
+            `UPDATE questions SET difficulty_level=$1,explanation=$2
              WHERE question_id=$3 AND quiz_id=$4 RETURNING question_id`,
             [
-              question.difficulty,
+              question.difficultyLevel,
               question.explanation,
               question.questionId,
               req.params.quizId,
@@ -1321,6 +1319,45 @@ app.get(
       res.json({ weakTopics: topics.rows });
     } catch (e) {
       next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/modules/:moduleId/games/activity',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const valid = parse(z.object({}).strict(), req.body || {}, req, res);
+      if (!valid) return;
+      const owned = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [req.params.moduleId, req.user.userId],
+      );
+      if (!owned.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      const activity = await pool.query(
+        `SELECT gt.key,gt.display_name,
+                count(p.play_id)::int AS plays,
+                count(p.play_id) FILTER (WHERE p.status<>'in_progress')::int AS completions
+         FROM game_types gt
+         LEFT JOIN game_plays p ON p.game_type_id=gt.game_type_id
+           AND p.quiz_id IN (SELECT quiz_id FROM quizzes WHERE module_id=$1)
+         WHERE gt.key<>'infected'
+         GROUP BY gt.game_type_id,gt.key,gt.display_name
+         ORDER BY gt.key`,
+        [req.params.moduleId],
+      );
+      res.json({ data: activity.rows });
+    } catch (caught) {
+      next(caught);
     }
   },
 );

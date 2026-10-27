@@ -40,7 +40,7 @@ async function addQuiz({
   title,
   count = 12,
   competitive = false,
-  difficulties = ['easy', 'medium', 'hard'],
+  difficultyLevels = [1, 3, 5],
 }) {
   const quiz = (
     await pool.query(
@@ -59,17 +59,17 @@ async function addQuiz({
       )
     ).rows[0].topic_id;
   for (let index = 0; index < count; index += 1) {
-    const difficulty = difficulties[index % difficulties.length];
+    const difficultyLevel = difficultyLevels[index % difficultyLevels.length];
     const topic = ['Foundations', 'Design', 'Queries'][index % 3];
     const question = (
       await pool.query(
-        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty,explanation)
+        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
          VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
         [
           quiz.quiz_id,
           topicIds[topic],
           `${title} question ${index + 1}?`,
-          difficulty,
+          difficultyLevel,
           `Explanation for ${title} question ${index + 1}.`,
         ],
       )
@@ -193,7 +193,7 @@ beforeAll(async () => {
     lecturerId: fixture.lecturer,
     title: 'Infected Exhaustion',
     count: 6,
-    difficulties: ['easy'],
+    difficultyLevels: [1],
   });
   fixture.shortQuiz = await addQuiz({
     moduleId: fixture.module,

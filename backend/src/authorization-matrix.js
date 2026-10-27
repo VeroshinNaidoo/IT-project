@@ -43,6 +43,7 @@ const routePolicies = {
   'GET /api/v1/modules/:moduleId/games/infected/activity': {
     auth: 'lecturer',
   },
+  'GET /api/v1/modules/:moduleId/games/activity': { auth: 'lecturer' },
 };
 
 const caseNames = [
