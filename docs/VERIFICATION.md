@@ -56,6 +56,17 @@ The project `.env` was rechecked by variable name only. `REAL_TEST_DATABASE_URL`
 
 Updated verdict: ready with caveats. Offline verification and security spot checks pass, but real PostgreSQL concurrency, live Anthropic verification, real-AI screenshots, and native PostgreSQL backup/restore remain unverified.
 
+## Google AI Studio smoke check — 2026-10-27
+
+- `.env`: exists; `AI_PROVIDER`, `AI_BASE_URL`, `AI_API_KEY`, and `AI_MODEL` are missing. No values were printed.
+- `.env` ignore check: passed; `git check-ignore .env` returned `.env`.
+- Provider implementation: present. `OpenAICompatibleProvider` validates the required variables, accepts HTTPS (and localhost HTTP), falls back from rejected JSON mode to plain JSON prompting, strips code fences, validates the strict Pydantic schema, handles 429/Retry-After, applies request delays and caps, and keeps secrets out of logs/errors.
+- Package: `openai` is declared in `ai-service/requirements.txt` and installed (`2.30.0`).
+- Offline checks: lint passed; type-check passed; Python suite passed with 19 tests and 0 skips.
+- Live smoke: not run because the four Google configuration variables are missing. No network request was attempted.
+
+Verdict: not working yet for Google AI Studio because configuration is absent. Single next action: add `AI_PROVIDER=openai_compatible`, `AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`, `AI_API_KEY=<Google key>`, and `AI_MODEL=<current Gemini model>` to `.env`, then rerun the smoke check.
+
 # Verification run
 
 Generated: 2026-10-27T21:15:54.650Z
