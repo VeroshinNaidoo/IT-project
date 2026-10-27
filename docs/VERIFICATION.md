@@ -140,6 +140,16 @@ Generated: 2026-10-27T21:15:54.650Z
 
 Not ready: one or more runnable checks failed.
 
+## 2026-10-28 — Dependency and dev-tooling safety verification
+
+- `pip-audit -r ai-service/requirements.txt`: 12 records remain after the compatible FastAPI/Starlette update; 10 records are Starlette runtime advisories with fixed versions outside the supported dependency line, and 2 records are the pytest 8.3.4 development-only advisory fixed by pytest 9.0.3. No compatible non-breaking fix was available for the remaining records.
+- Python suite: 19 passed, 0 skipped.
+- JavaScript suite: 177 passed, 0 skipped.
+- Lint, format check, type-check, and frontend build: passed.
+- Browser/axe suite: the full run reached 19 passed and 5 connection-refused failures as the local dev server became unavailable; a targeted rerun of the 8 Firefox tablet/desktop tests passed 8/8. No browser assertion or axe violation failed.
+- Vite development and preview hosts are configured as `127.0.0.1`; npm scripts contain no host flag, no `0.0.0.0`, and no Vitest UI configuration. API CORS is fixed to `http://localhost:5173`.
+- The root `npm run build` command was added because it was missing; it passed.
+
 # Verification run
 
 Generated: 2026-10-27T21:16:03.803Z

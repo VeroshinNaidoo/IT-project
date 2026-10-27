@@ -6,13 +6,13 @@ export default defineConfig({
   root: path.dirname(fileURLToPath(import.meta.url)),
   plugins: [react()],
   server: {
-    allowedHosts: [
-      '.loca.lt',
-      '.lhr.life',
-      '.serveousercontent.com',
-      '.run.pinggy-free.link',
-      '.free.pinggy.net',
-    ],
+    host: '127.0.0.1',
+    port: 5173,
+    allowedHosts: ['localhost', '127.0.0.1'],
     proxy: { '/api': 'http://127.0.0.1:4000' },
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 4173,
   },
 });

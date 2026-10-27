@@ -24,6 +24,12 @@ npm run dev
 
 `npm test` requires `TEST_DATABASE_URL` (or `DATABASE_URL`) in the EduQuest `.env`, resets the test database schema, reapplies all migrations, and then runs the raw SQL invariant tests. To explicitly opt out, set `EDUQUEST_SKIP_DB_TESTS=true`; this prints a warning and is not a passing database gate.
 
+### Dev tooling safety
+
+Vite's development and preview servers bind to `127.0.0.1` in `frontend/vite.config.js`; the npm scripts do not expose a host flag. API CORS accepts only `http://localhost:5173`, and Vitest UI is not enabled. Keep these tools local and do not expose them through a tunnel.
+
+Audit Python dependencies with `pip-audit -r ai-service/requirements.txt`.
+
 Install the Playwright browsers before the browser gate:
 
 ```powershell
