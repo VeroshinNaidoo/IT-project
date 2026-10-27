@@ -1,4 +1,8 @@
-from fastapi import FastAPI, HTTPException
+import asyncio
+import hmac
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 import json
 import logging
 import os
@@ -6,10 +10,36 @@ import re
 import time
 from urllib.parse import urlparse
 from typing import Protocol
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
-app = FastAPI(title="EduQuest AI Service")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+_development = os.environ.get("NODE_ENV", "development").lower() == "development"
+app = FastAPI(
+    title="EduQuest AI Service",
+    docs_url="/docs" if _development else None,
+    redoc_url="/redoc" if _development else None,
+    openapi_url="/openapi.json" if _development else None,
+)
 logger = logging.getLogger("eduquest.ai")
+
+
+@app.middleware("http")
+async def protect_service(request: Request, call_next):
+    expected = os.environ.get("AI_SERVICE_TOKEN", "")
+    supplied = request.headers.get("x-ai-service-token", "")
+    if not expected or not hmac.compare_digest(supplied, expected):
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    content_length = request.headers.get("content-length")
+    max_body = int(os.environ.get("AI_MAX_BODY_BYTES", str(2 * 1024 * 1024)))
+    if content_length and int(content_length) > max_body:
+        return JSONResponse(status_code=413, content={"detail": "Request body is too large"})
+    timeout = float(os.environ.get("AI_REQUEST_TIMEOUT_SECONDS", "45"))
+    try:
+        return await asyncio.wait_for(call_next(request), timeout=timeout)
+    except asyncio.TimeoutError:
+        return JSONResponse(status_code=504, content={"detail": "AI request timed out"})
 
 
 class LLMProvider(Protocol):

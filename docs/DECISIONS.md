@@ -67,3 +67,10 @@
 ## 2026-10-27 — Scheduled test-toolchain upgrade
 
 - The remaining Vite/Vitest audit findings require a coordinated upgrade task. That task must refactor the existing `describe.sequential` usage and the authorization-matrix source guard while preserving exactly 177 tests and the same assertions. It is a separate task and must not be started without explicit approval.
+
+## 2026-10-28 — AI service exposure hardening
+
+- The AI service binds to `127.0.0.1` by default through `ai-service/run.py`. Binding to `0.0.0.0` requires the explicit `AI_ALLOW_PUBLIC_BIND=true` opt-in. The backend worker is the only application caller; the frontend uses backend `/api` routes and never calls the AI service directly.
+- Backend-to-AI requests carry `AI_SERVICE_TOKEN`. The service compares it with a constant-time comparison, rejects missing or incorrect tokens with 401, and never includes the token in logs or error responses. `npm run db:setup-check` generates a random token in `.env` when it is missing.
+- The service enforces `AI_MAX_BODY_BYTES` (default 2 MiB) and `AI_REQUEST_TIMEOUT_SECONDS` (default 45). FastAPI docs and OpenAPI are disabled outside development. These controls mitigate the remaining Starlette advisories while the FastAPI dependency line does not support their patched major versions.
+- Revisit this decision when FastAPI supports a patched Starlette release: run `pip-audit -r ai-service/requirements.txt`, review the Starlette fixed versions and changelog, then rerun all AI and full application gates before any upgrade.

@@ -6,6 +6,7 @@ import { pool } from '../db.js';
 import { containsProfanity } from '../src/profanity/index.js';
 
 const aiUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
+const aiServiceToken = process.env.AI_SERVICE_TOKEN || '';
 const maxAttempts = 3;
 const instructionPattern =
   /\b(ignore|follow|obey|disregard)\b.{0,40}\b(instruction|prompt|rule)s?\b|\bsystem prompt\b|\breveal secrets?\b/i;
@@ -103,7 +104,10 @@ const processJob = async (job) => {
   try {
     const response = await fetch(`${aiUrl}/generate-quiz`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-ai-service-token': aiServiceToken,
+      },
       body: JSON.stringify({
         extracted_text: await extractText(job),
         question_count: job.question_count,

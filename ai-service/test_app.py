@@ -1,7 +1,11 @@
+import os
+
+os.environ.setdefault("AI_SERVICE_TOKEN", "test-suite-token")
+
 from fastapi.testclient import TestClient
 from app import app
 
-client = TestClient(app)
+client = TestClient(app, headers={"x-ai-service-token": "test-suite-token"})
 
 
 def test_mock_quiz_is_structured_and_deterministic():

@@ -1,7 +1,15 @@
 import 'dotenv/config';
+import crypto from 'node:crypto';
+import { appendFile } from 'node:fs/promises';
 import pg from 'pg';
 
 const { Client } = pg;
+if (!process.env.AI_SERVICE_TOKEN) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await appendFile('.env', `AI_SERVICE_TOKEN=${token}\n`, 'utf8');
+  process.env.AI_SERVICE_TOKEN = token;
+  console.log('Generated missing AI_SERVICE_TOKEN in .env');
+}
 const urls = [process.env.DATABASE_URL, process.env.TEST_DATABASE_URL];
 if (urls.some((url) => !url))
   throw new Error('DATABASE_URL and TEST_DATABASE_URL are required');
