@@ -1,0 +1,1 @@
+Relational databases store information in tables. Normalization reduces duplicated data and keeps relationships consistent.

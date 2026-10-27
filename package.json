@@ -15,6 +15,8 @@
     "db:status": "node scripts/pglite-server.mjs status",
     "ai:worker": "node backend/scripts/ai-worker.js",
     "test:db:real": "node scripts/test-real-db.mjs",
+    "test:ai:real": "python -m pytest ai-service/tests -q",
+    "verify:all": "node scripts/verify-all.mjs",
     "db:seed": "node backend/scripts/seed.js",
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",

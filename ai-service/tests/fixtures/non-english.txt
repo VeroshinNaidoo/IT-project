@@ -1,0 +1,1 @@
+Les bases de données organisent les informations en tables et en relations.

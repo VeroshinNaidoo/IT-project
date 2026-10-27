@@ -1,0 +1,1 @@
+Networks use addresses and routing rules to move packets between hosts. Reliable transport can detect loss and retry delivery.

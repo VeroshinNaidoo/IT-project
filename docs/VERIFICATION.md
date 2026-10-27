@@ -55,3 +55,128 @@ The project `.env` was rechecked by variable name only. `REAL_TEST_DATABASE_URL`
 - Step 7 native backup: blocked because `pg_dump` and `pg_restore` were not found on PATH.
 
 Updated verdict: ready with caveats. Offline verification and security spot checks pass, but real PostgreSQL concurrency, live Anthropic verification, real-AI screenshots, and native PostgreSQL backup/restore remain unverified.
+
+# Verification run
+
+Generated: 2026-10-27T21:15:54.650Z
+
+| Check              | Result                                                                        |
+| ------------------ | ----------------------------------------------------------------------------- |
+| lint               | failed (process)                                                              |
+| format             | failed (process)                                                              |
+| type-check         | failed (process)                                                              |
+| build              | failed (process)                                                              |
+| JavaScript suite   | failed (process)                                                              |
+| Python suite       | failed (1)                                                                    |
+| Playwright and axe | failed (process)                                                              |
+| real PostgreSQL    | blocked: REAL_TEST_DATABASE_URL — add it to .env, then run npm run verify:all |
+| real AI            | blocked: ANTHROPIC_API_KEY — add it to .env, then run npm run verify:all      |
+
+## Not verified
+
+- Real PostgreSQL and live Anthropic checks are blocked when their variable names are missing.
+- Native backup uses pg_dump/pg_restore when available; otherwise use the JSON fallback.
+
+## Verdict
+
+Not ready: one or more runnable checks failed.
+
+# Verification run
+
+Generated: 2026-10-27T21:16:03.803Z
+
+| Check              | Result                                                                        |
+| ------------------ | ----------------------------------------------------------------------------- |
+| lint               | failed (process)                                                              |
+| format             | failed (process)                                                              |
+| type-check         | failed (process)                                                              |
+| build              | failed (process)                                                              |
+| JavaScript suite   | failed (process)                                                              |
+| Python suite       | passed                                                                        |
+| Playwright and axe | failed (process)                                                              |
+| real PostgreSQL    | blocked: REAL_TEST_DATABASE_URL — add it to .env, then run npm run verify:all |
+| real AI            | blocked: ANTHROPIC_API_KEY — add it to .env, then run npm run verify:all      |
+
+## Not verified
+
+- Real PostgreSQL and live Anthropic checks are blocked when their variable names are missing.
+- Native backup uses pg_dump/pg_restore when available; otherwise use the JSON fallback.
+
+## Verdict
+
+Not ready: one or more runnable checks failed.
+
+# Verification run
+
+Generated: 2026-10-27T21:16:09.017Z
+
+| Check              | Result                                                                        |
+| ------------------ | ----------------------------------------------------------------------------- |
+| lint               | failed (process)                                                              |
+| format             | failed (process)                                                              |
+| type-check         | failed (process)                                                              |
+| build              | failed (process)                                                              |
+| JavaScript suite   | failed (process)                                                              |
+| Python suite       | passed                                                                        |
+| Playwright and axe | failed (process)                                                              |
+| real PostgreSQL    | blocked: REAL_TEST_DATABASE_URL — add it to .env, then run npm run verify:all |
+| real AI            | blocked: ANTHROPIC_API_KEY — add it to .env, then run npm run verify:all      |
+
+## Not verified
+
+- Real PostgreSQL and live Anthropic checks are blocked when their variable names are missing.
+- Native backup uses pg_dump/pg_restore when available; otherwise use the JSON fallback.
+
+## Verdict
+
+Not ready: one or more runnable checks failed.
+
+# Verification run
+
+Generated: 2026-10-27T21:16:25.366Z
+
+| Check              | Result                                                                        |
+| ------------------ | ----------------------------------------------------------------------------- |
+| lint               | failed (process)                                                              |
+| format             | failed (process)                                                              |
+| type-check         | failed (process)                                                              |
+| build              | failed (process)                                                              |
+| JavaScript suite   | failed (process)                                                              |
+| Python suite       | passed                                                                        |
+| Playwright and axe | failed (process)                                                              |
+| real PostgreSQL    | blocked: REAL_TEST_DATABASE_URL — add it to .env, then run npm run verify:all |
+| real AI            | blocked: ANTHROPIC_API_KEY — add it to .env, then run npm run verify:all      |
+
+## Not verified
+
+- Real PostgreSQL and live Anthropic checks are blocked when their variable names are missing.
+- Native backup uses pg_dump/pg_restore when available; otherwise use the JSON fallback.
+
+## Verdict
+
+Not ready: one or more runnable checks failed.
+
+# Verification run
+
+Generated: 2026-10-27T21:18:44.658Z
+
+| Check              | Result                                                                        |
+| ------------------ | ----------------------------------------------------------------------------- |
+| lint               | passed                                                                        |
+| format             | failed (1)                                                                    |
+| type-check         | passed                                                                        |
+| build              | passed                                                                        |
+| JavaScript suite   | passed                                                                        |
+| Python suite       | passed                                                                        |
+| Playwright and axe | passed                                                                        |
+| real PostgreSQL    | blocked: REAL_TEST_DATABASE_URL — add it to .env, then run npm run verify:all |
+| real AI            | blocked: ANTHROPIC_API_KEY — add it to .env, then run npm run verify:all      |
+
+## Not verified
+
+- Real PostgreSQL and live Anthropic checks are blocked when their variable names are missing.
+- Native backup uses pg_dump/pg_restore when available; otherwise use the JSON fallback.
+
+## Verdict
+
+Not ready: one or more runnable checks failed.

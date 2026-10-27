@@ -1,0 +1,4 @@
+Student ID | Name
+1 | Ada
+2 | Sam
+The table demonstrates rows, columns, and a unique identifier.
