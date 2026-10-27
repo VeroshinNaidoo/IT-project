@@ -28,6 +28,11 @@ for (const name of [
   'TEST_DATABASE_URL',
   'REAL_TEST_DATABASE_URL',
   'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'AI_API_KEY',
+  'AI_PROVIDER',
+  'AI_BASE_URL',
+  'AI_MODEL',
   'AI_MAX_REQUESTS_PER_RUN',
 ])
   console.log(`${name}=${has(name) ? 'present' : 'missing'}`);
@@ -46,12 +51,20 @@ else
     result:
       'blocked: REAL_TEST_DATABASE_URL — add it to .env, then run npm run verify:all',
   });
-if (has('ANTHROPIC_API_KEY')) run('real AI', 'npm', ['run', 'test:ai:real']);
+const selectedProvider = process.env.AI_PROVIDER || 'mock';
+const aiCredentialPresent =
+  selectedProvider === 'anthropic'
+    ? has('ANTHROPIC_API_KEY')
+    : selectedProvider === 'openai'
+      ? has('OPENAI_API_KEY')
+      : selectedProvider === 'openai_compatible'
+        ? has('AI_API_KEY') && has('AI_BASE_URL')
+        : false;
+if (aiCredentialPresent) run('real AI', 'npm', ['run', 'test:ai:real']);
 else
   results.push({
     label: 'real AI',
-    result:
-      'blocked: ANTHROPIC_API_KEY — add it to .env, then run npm run verify:all',
+    result: `blocked: provider credentials for ${selectedProvider} — configure provider .env variables, then run npm run verify:all`,
   });
 await mkdir('docs', { recursive: true });
 const lines = [
