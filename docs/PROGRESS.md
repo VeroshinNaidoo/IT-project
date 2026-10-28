@@ -85,8 +85,9 @@ PostgreSQL concurrency/backup and complete screen accessibility remain outstandi
 - Local run/test scripts and README foundation are present.
 - Seed now creates demo lecturer/students, module, groups, resource, competitive/practice quizzes, and completed attempts. Remaining hardening includes backup/restore scripts, dependency audit remediation, clean-clone validation, and complete traceability evidence.
 - Backup/restore scripts and a test-database round-trip check are now present. Browser/axe verification remains environment-dependent and not yet automated.
+
 ## Memory Match implementation — partial, 2026-10-28
 
 Built and tested the deterministic Memory Match engine foundation: configurable eligible-pair card construction, kind-aware flips, pair resolution, scoring, terminal completion, and rejection of invalid flip sequences. The focused engine suite passes 4/4.
 
-Remaining before FR-23 can be marked done: versioned Zod state registration, generic-play persistence/API routes, authorization-matrix integration tests, frontend screen, seed fixture, Playwright/axe flow, invariant and traceability updates, and catalog enablement. Timer Trivia, Boss Battle, and Pixel Car Racer were not started. Multiplayer was not started.
+Remaining before FR-23 can be marked done: versioned Zod state registration, generic-play persistence/API routes, authorization-matrix integration tests, frontend screen, seed fixture, Playwright/axe flow, invariant and traceability updates, and catalog enablement. The engine commit is the only verified FR-23 work. Timer Trivia, Boss Battle, and Pixel Car Racer were not started. Multiplayer was not started.

@@ -1,5 +1,11 @@
+// @ts-nocheck
 import { describe, expect, it } from 'vitest';
-import { buildCards, flipCard, initialMemoryState, resolveFlip } from '../src/games/memory_match/engine.js';
+import {
+  buildCards,
+  flipCard,
+  initialMemoryState,
+  resolveFlip,
+} from '../src/games/memory_match/engine.js';
 
 const questions = Array.from({ length: 6 }, (_, i) => ({
   question_id: `q${i}`,
@@ -11,10 +17,15 @@ describe('Memory Match engine', () => {
   it('filters, creates two card kinds, and shuffles deterministically', () => {
     const cards = buildCards(questions, () => 0.5);
     expect(cards).toHaveLength(12);
-    expect(new Set(cards.map((card) => card.kind))).toEqual(new Set(['question', 'answer']));
+    expect(new Set(cards.map((card) => card.kind))).toEqual(
+      new Set(['question', 'answer']),
+    );
   });
   it('matches pairs and scores without negative values', () => {
-    let state = { ...initialMemoryState(), cards: buildCards(questions, () => 0) };
+    let state = {
+      ...initialMemoryState(),
+      cards: buildCards(questions, () => 0),
+    };
     state = flipCard(state, 'q0:q');
     expect(() => flipCard(state, 'q0:a')).not.toThrow();
     state = resolveFlip(flipCard(state, 'q0:a'));
