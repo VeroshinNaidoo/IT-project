@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
@@ -228,6 +228,10 @@ export function App() {
               setGameQuizId(id);
               setScreen('Island Escape');
             }}
+            onPlayMemoryMatch={(id) => {
+              setGameQuizId(id);
+              setScreen('Memory Match');
+            }}
           />
         )}
         {screen === 'Quiz' && <QuizTaking quizId={quizId} />}
@@ -239,6 +243,12 @@ export function App() {
         )}
         {screen === 'Island Escape' && (
           <IslandEscapeGame
+            quizId={gameQuizId}
+            onBack={() => setScreen('Quizzes')}
+          />
+        )}
+        {screen === 'Memory Match' && (
+          <MemoryMatchGame
             quizId={gameQuizId}
             onBack={() => setScreen('Quizzes')}
           />
@@ -791,7 +801,12 @@ function Analytics({ user }) {
     </section>
   );
 }
-function Quizzes({ onTake, onPlayInfected, onPlayIslandEscape }) {
+function Quizzes({
+  onTake,
+  onPlayInfected,
+  onPlayIslandEscape,
+  onPlayMemoryMatch,
+}) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
   const quizzes = useData(
@@ -840,6 +855,7 @@ function Quizzes({ onTake, onPlayInfected, onPlayIslandEscape }) {
                 quizId={quiz.quiz_id}
                 onPlayInfected={() => onPlayInfected(quiz.quiz_id)}
                 onPlayIslandEscape={() => onPlayIslandEscape(quiz.quiz_id)}
+                onPlayMemoryMatch={() => onPlayMemoryMatch(quiz.quiz_id)}
               />
             </div>
           ))}
@@ -851,7 +867,12 @@ function Quizzes({ onTake, onPlayInfected, onPlayIslandEscape }) {
   );
 }
 
-export function QuizGames({ quizId, onPlayInfected, onPlayIslandEscape }) {
+export function QuizGames({
+  quizId,
+  onPlayInfected,
+  onPlayIslandEscape,
+  onPlayMemoryMatch,
+}) {
   const games = useData(`/quizzes/${quizId}/games`);
   if (games.loading) return <p className="muted">Loading games…</p>;
   if (games.error) return <p className="field-error">{games.error}</p>;
@@ -876,8 +897,215 @@ export function QuizGames({ quizId, onPlayInfected, onPlayIslandEscape }) {
               Play Island Escape
             </button>
           )}
+          {game.key === 'memory_match' && game.available && (
+            <button className="primary" onClick={onPlayMemoryMatch}>
+              Play Memory Match
+            </button>
+          )}
         </div>
       ))}
+    </section>
+  );
+}
+
+export function MemoryMatchGame({ quizId, onBack }) {
+  const [play, setPlay] = useState(null);
+  const [hiddenMismatch, setHiddenMismatch] = useState(() => new Set());
+  const [announcement, setAnnouncement] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const mismatchTimer = useRef(null);
+
+  const start = async () => {
+    if (mismatchTimer.current) clearTimeout(mismatchTimer.current);
+    setLoading(true);
+    setError('');
+    setAnnouncement('');
+    setHiddenMismatch(new Set());
+    try {
+      const body = await api('/games/memory-match/plays', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      });
+      setPlay(body.data);
+    } catch (reason) {
+      setPlay(null);
+      setError(reason.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (quizId) start();
+    return () => {
+      if (mismatchTimer.current) clearTimeout(mismatchTimer.current);
+    };
+  }, [quizId]);
+
+  const flip = async (card) => {
+    if (busy || card.matched) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(`/games/memory-match/plays/${play.playId}/flip`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId: card.cardId }),
+      });
+      const next = body.data;
+      setHiddenMismatch(new Set());
+      setPlay(next);
+      if (next.status === 'finished') {
+        setAnnouncement(
+          `All pairs matched. Final score ${next.score} in ${next.moves} moves.`,
+        );
+        setBusy(false);
+      } else if (next.matched === true) {
+        setAnnouncement(
+          `Match found. ${next.matchedPairs} pairs found. Score ${next.score}.`,
+        );
+        setBusy(false);
+      } else if (next.matched === false) {
+        setAnnouncement('Not a match. The cards will turn face down.');
+        const mismatchIds = next.cards
+          .filter((item) => item.faceUp && !item.matched)
+          .map((item) => item.cardId);
+        const reducedMotion =
+          window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
+          false;
+        mismatchTimer.current = setTimeout(
+          () => {
+            setHiddenMismatch(new Set(mismatchIds));
+            setBusy(false);
+          },
+          reducedMotion ? 0 : 1000,
+        );
+      } else {
+        setAnnouncement(`${card.kind} card revealed.`);
+        setBusy(false);
+      }
+    } catch (reason) {
+      setError(reason.message);
+      setBusy(false);
+    }
+  };
+
+  if (!quizId) return <p className="empty-state">Choose a quiz first.</p>;
+  if (loading) return <p className="center-state">Shuffling the cards…</p>;
+  if (error && !play)
+    return (
+      <section className="card game-error">
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+        <button className="secondary" onClick={onBack}>
+          Back to quiz
+        </button>
+      </section>
+    );
+
+  const revealed = new Map(
+    (play.revealed || []).map((card) => [card.cardId, card]),
+  );
+  if (play.status === 'finished')
+    return (
+      <section className="memory-game">
+        <div className="memory-topbar">
+          <button className="link-button" onClick={onBack}>
+            ← Back
+          </button>
+          <h2>MEMORY MATCH</h2>
+          <span>Complete</span>
+        </div>
+        <div className="memory-finished" aria-live="polite">
+          <span className="memory-finished-mark" aria-hidden="true">
+            ✓
+          </span>
+          <h3>Every pair matched</h3>
+          <p>
+            Final score {play.score} · {play.moves} moves · {play.matchedPairs}{' '}
+            pairs found
+          </p>
+          <div className="terminal-actions">
+            <button className="primary" onClick={start}>
+              Play again
+            </button>
+            <button className="secondary" onClick={onBack}>
+              Back to quiz
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+
+  return (
+    <section className="memory-game">
+      <div className="memory-topbar">
+        <button className="link-button" onClick={onBack}>
+          ← Back
+        </button>
+        <h2>MEMORY MATCH</h2>
+        <div className="memory-stats" aria-label="Game statistics">
+          <span>Score {play.score}</span>
+          <span>Moves {play.moves}</span>
+          <span>Pairs found {play.matchedPairs}</span>
+        </div>
+      </div>
+      <p className="memory-instructions">
+        Match each question card with its correct answer card.
+      </p>
+      <div className="memory-grid" aria-label="Memory Match cards">
+        {play.cards.map((card, index) => {
+          const visible =
+            (card.faceUp || card.matched) && !hiddenMismatch.has(card.cardId);
+          const content = revealed.get(card.cardId);
+          return (
+            <button
+              type="button"
+              key={card.cardId}
+              className={`memory-card memory-${card.kind} ${visible ? 'is-face-up' : ''} ${card.matched ? 'is-matched' : ''}`}
+              disabled={busy || card.matched || (visible && !card.matched)}
+              onClick={() => flip(card)}
+              aria-label={
+                card.matched
+                  ? `Matched ${card.kind} card ${index + 1}: ${content?.text}`
+                  : visible
+                    ? `Face-up ${card.kind} card ${index + 1}: ${content?.text}`
+                    : `Flip ${card.kind} card ${index + 1}`
+              }
+            >
+              <span className="memory-card-inner">
+                <span className="memory-card-back" aria-hidden={visible}>
+                  <span className="memory-card-symbol">
+                    {card.kind === 'question' ? '?' : 'A'}
+                  </span>
+                  <small>
+                    {card.kind === 'question' ? 'Question' : 'Answer'}
+                  </small>
+                </span>
+                {visible && content && (
+                  <span className="memory-card-front">
+                    <small>
+                      {card.kind === 'question' ? 'Question' : 'Answer'}
+                    </small>
+                    <b>{content.text}</b>
+                    {card.matched && <em>Matched</em>}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="sr-only" aria-live="assertive" aria-atomic="true">
+        {announcement}
+      </p>
+      {error && (
+        <p className="field-error memory-error" role="alert">
+          {error}
+        </p>
+      )}
     </section>
   );
 }

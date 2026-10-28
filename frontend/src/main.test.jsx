@@ -12,6 +12,8 @@ import {
   App,
   InfectedGame,
   IslandEscapeGame,
+  MemoryMatchGame,
+  QuizGames,
   QuizTaking,
   ResourceRow,
 } from './main.jsx';
@@ -20,6 +22,324 @@ const response = (body, ok = true) => ({
   ok,
   status: ok ? 200 : 401,
   json: async () => body,
+});
+
+const memoryCards = [
+  {
+    cardId: 'memory-question',
+    kind: 'question',
+    faceUp: false,
+    matched: false,
+  },
+  {
+    cardId: 'memory-answer',
+    kind: 'answer',
+    faceUp: false,
+    matched: false,
+  },
+];
+
+const memoryPlay = (overrides = {}) => ({
+  playId: 'memory-play',
+  quizId: 'memory-quiz',
+  status: 'in_progress',
+  matchedPairs: 0,
+  mismatches: 0,
+  moves: 0,
+  score: 0,
+  cards: memoryCards,
+  revealed: [],
+  ...overrides,
+});
+
+describe('Memory Match frontend', () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('flips a card and reveals only the returned text', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ data: memoryPlay() }))
+      .mockResolvedValueOnce(
+        response({
+          data: memoryPlay({
+            cards: [{ ...memoryCards[0], faceUp: true }, memoryCards[1]],
+            revealed: [
+              {
+                cardId: 'memory-question',
+                kind: 'question',
+                text: 'What is a primary key?',
+              },
+            ],
+            flippedCard: {
+              cardId: 'memory-question',
+              kind: 'question',
+              text: 'What is a primary key?',
+            },
+            matched: null,
+          }),
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<MemoryMatchGame quizId="memory-quiz" onBack={() => {}} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Flip question card 1' }),
+    );
+    expect(await screen.findByText('What is a primary key?')).toBeTruthy();
+    expect(screen.queryByText('A unique row identifier')).toBeNull();
+    expect(fetchMock.mock.calls[1][0]).toContain('/memory-play/flip');
+  });
+
+  it('announces a match, locks both cards and updates textual statistics', async () => {
+    const first = memoryPlay({
+      cards: [{ ...memoryCards[0], faceUp: true }, memoryCards[1]],
+      revealed: [
+        {
+          cardId: 'memory-question',
+          kind: 'question',
+          text: 'What is a primary key?',
+        },
+      ],
+      matched: null,
+    });
+    const matchedCards = memoryCards.map((card) => ({
+      ...card,
+      faceUp: true,
+      matched: true,
+    }));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ data: memoryPlay() }))
+        .mockResolvedValueOnce(response({ data: first }))
+        .mockResolvedValueOnce(
+          response({
+            data: memoryPlay({
+              cards: matchedCards,
+              revealed: [
+                {
+                  cardId: 'memory-question',
+                  kind: 'question',
+                  text: 'What is a primary key?',
+                },
+                {
+                  cardId: 'memory-answer',
+                  kind: 'answer',
+                  text: 'A unique row identifier',
+                },
+              ],
+              matched: true,
+              matchedPairs: 1,
+              moves: 1,
+              score: 10,
+            }),
+          }),
+        ),
+    );
+    render(<MemoryMatchGame quizId="memory-quiz" onBack={() => {}} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Flip question card 1' }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Flip answer card 2' }),
+    );
+    expect(await screen.findByText(/Match found. 1 pairs found/)).toBeTruthy();
+    expect(screen.getByText('Score 10')).toBeTruthy();
+    expect(screen.getByText('Moves 1')).toBeTruthy();
+    expect(screen.getByText('Pairs found 1')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /Matched question card 1/ }).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByRole('button', { name: /Matched answer card 2/ }).disabled,
+    ).toBe(true);
+  });
+
+  it('announces a mismatch and flips the cards back instantly for reduced motion', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    const first = memoryPlay({
+      cards: [{ ...memoryCards[0], faceUp: true }, memoryCards[1]],
+      revealed: [
+        {
+          cardId: 'memory-question',
+          kind: 'question',
+          text: 'Question text',
+        },
+      ],
+      matched: null,
+    });
+    const mismatch = memoryPlay({
+      cards: memoryCards.map((card) => ({ ...card, faceUp: true })),
+      revealed: [
+        {
+          cardId: 'memory-question',
+          kind: 'question',
+          text: 'Question text',
+        },
+        {
+          cardId: 'memory-answer',
+          kind: 'answer',
+          text: 'Wrong answer',
+        },
+      ],
+      matched: false,
+      mismatches: 1,
+      moves: 1,
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ data: memoryPlay() }))
+        .mockResolvedValueOnce(response({ data: first }))
+        .mockResolvedValueOnce(response({ data: mismatch })),
+    );
+    render(<MemoryMatchGame quizId="memory-quiz" onBack={() => {}} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Flip question card 1' }),
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Flip answer card 2' }),
+    );
+    expect(await screen.findByText(/Not a match/)).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByText('Question text')).toBeNull();
+      expect(screen.queryByText('Wrong answer')).toBeNull();
+    });
+    expect(
+      screen.getByRole('button', { name: 'Flip question card 1' }).disabled,
+    ).toBe(false);
+  });
+
+  it('restores server-owned face-up and matched cards after refresh', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          data: memoryPlay({
+            score: 10,
+            moves: 1,
+            matchedPairs: 1,
+            cards: [
+              { ...memoryCards[0], faceUp: true },
+              { ...memoryCards[1], faceUp: true, matched: true },
+            ],
+            revealed: [
+              {
+                cardId: 'memory-question',
+                kind: 'question',
+                text: 'Pending question',
+              },
+              {
+                cardId: 'memory-answer',
+                kind: 'answer',
+                text: 'Stored matched answer',
+              },
+            ],
+          }),
+        }),
+      ),
+    );
+    render(<MemoryMatchGame quizId="memory-quiz" onBack={() => {}} />);
+    expect(await screen.findByText('Pending question')).toBeTruthy();
+    expect(screen.getByText('Stored matched answer')).toBeTruthy();
+    expect(screen.queryByText('isCorrect')).toBeNull();
+  });
+
+  it('shows a finished screen and starts a new play on Play again', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          data: memoryPlay({
+            status: 'finished',
+            score: 60,
+            moves: 6,
+            matchedPairs: 6,
+            cards: memoryCards.map((card) => ({
+              ...card,
+              faceUp: true,
+              matched: true,
+            })),
+          }),
+        }),
+      )
+      .mockResolvedValueOnce(response({ data: memoryPlay() }));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<MemoryMatchGame quizId="memory-quiz" onBack={() => {}} />);
+    expect(await screen.findByText('Every pair matched')).toBeTruthy();
+    expect(screen.getByText(/Final score 60 · 6 moves/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }));
+    expect(
+      await screen.findByRole('button', { name: 'Flip question card 1' }),
+    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows availability, scored-attempt locking and minimum-question reasons', async () => {
+    const onPlay = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        response({
+          data: [
+            {
+              game_id: 'memory-game',
+              key: 'memory_match',
+              display_name: 'Memory Match',
+              available: true,
+              reason: null,
+            },
+          ],
+        }),
+      ),
+    );
+    const available = render(
+      <QuizGames quizId="quiz-available" onPlayMemoryMatch={onPlay} />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Play Memory Match' }),
+    );
+    expect(onPlay).toHaveBeenCalledOnce();
+    available.unmount();
+
+    for (const reason of [
+      'Complete your scored attempt to unlock this game.',
+      'Not enough questions for this game yet. At least 6 are required.',
+    ]) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValueOnce(
+          response({
+            data: [
+              {
+                game_id: `memory-${reason.length}`,
+                key: 'memory_match',
+                display_name: 'Memory Match',
+                available: false,
+                reason,
+              },
+            ],
+          }),
+        ),
+      );
+      const view = render(
+        <QuizGames
+          quizId={`quiz-${reason.length}`}
+          onPlayMemoryMatch={onPlay}
+        />,
+      );
+      expect(await screen.findByText(reason)).toBeTruthy();
+      expect(
+        screen.queryByRole('button', { name: 'Play Memory Match' }),
+      ).toBeNull();
+      view.unmount();
+    }
+  });
 });
 
 const islandPlay = (overrides = {}) => ({
