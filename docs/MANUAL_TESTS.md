@@ -37,3 +37,14 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 5. Continue causing setbacks until the fourth setback. Confirm the terminal screen says **Stranded**, no further answer is accepted, and the final score/personal best are displayed.
 6. Start or resume a play, note the question, refresh before answering, and confirm the same play and pending question return without correctness.
 7. Return to the quiz leaderboard and lecturer analytics. Confirm the Island score and personal best do not alter any scored attempt, rank, or percentage.
+
+## FR-23 Memory Match solo smoke test
+
+1. Run the seed, sign in as `demo-student-1@example.com`, open **Quizzes**, select **Database Systems**, and open **Demo practice quiz**.
+2. Confirm **Play Memory Match** is present. On a competitive quiz for a student without a completed scored attempt, confirm only the locked reason appears and no play button is shown.
+3. Start the game. Confirm the 12 card backs identify question versus answer cards but reveal no question text, answer text, or pairing.
+4. Flip one question card, then refresh the page. Return to the practice quiz and select **Play Memory Match** again. Confirm the same play resumes and only the previously face-up card and any matched cards reveal text.
+5. Flip an answer card from a different pair. Confirm the mismatch is announced in the live region, the score never becomes negative, and both cards turn face down after about one second (immediately when reduced motion is preferred).
+6. Match every question with its correct answer. Confirm each pair locks face up, score/moves/pairs-found remain visible as text, and keyboard Enter or Space operates every available card.
+7. Confirm the terminal screen says **Every pair matched**, reports the final score and moves, and offers **Play again** and **Back to quiz**.
+8. Return to the leaderboard and analytics. Confirm the Memory Match score did not alter a scored attempt, rank, or analytics percentage.

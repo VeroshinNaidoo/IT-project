@@ -162,7 +162,7 @@ try {
       wrong = wrongOption;
     }
   }
-  for (let index = 0; index < 6; index += 1) {
+  for (let index = 0; index < 25; index += 1) {
     const practiceQuestion = (
       await client.query(
         `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
@@ -187,6 +187,39 @@ try {
         `Practice distractor C${index + 1}`,
       ],
     );
+  }
+  const practiceCoverage = (
+    await client.query(
+      `SELECT
+         count(DISTINCT q.question_id)::int AS question_count,
+         count(DISTINCT q.topic_id)::int AS topic_count,
+         count(DISTINCT q.difficulty_level)::int AS level_count,
+         count(DISTINCT q.question_id) FILTER (
+           WHERE length(q.question_text) <= 140
+             AND EXISTS (
+               SELECT 1
+               FROM question_options qo
+               WHERE qo.question_id=q.question_id
+                 AND qo.is_correct=true
+                 AND length(qo.option_text) <= 60
+             )
+         )::int AS memory_eligible_count,
+         count(*) FILTER (
+           WHERE q.explanation IS NULL OR length(trim(q.explanation))=0
+         )::int AS missing_explanation_count
+       FROM questions q
+       WHERE q.quiz_id=$1`,
+      [practice.quiz_id],
+    )
+  ).rows[0];
+  if (
+    practiceCoverage.question_count < 25 ||
+    practiceCoverage.topic_count < 5 ||
+    practiceCoverage.level_count < 5 ||
+    practiceCoverage.memory_eligible_count < 8 ||
+    practiceCoverage.missing_explanation_count > 0
+  ) {
+    throw new Error('Demo practice quiz does not satisfy game seed coverage.');
   }
   for (const [index, student] of students.slice(0, 3).entries()) {
     const attempt = (

@@ -256,3 +256,228 @@ test('Island Escape flow is responsive, keyboard operable and axe clean', async 
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('Memory Match full flow, refresh and competitive lock are accessible', async ({
+  page,
+}) => {
+  const sourceCards = Array.from({ length: 6 }, (_, pair) => [
+    {
+      cardId: `question-${pair}`,
+      kind: 'question',
+      pair,
+      text: `Question ${pair + 1}`,
+      faceUp: false,
+      matched: false,
+    },
+    {
+      cardId: `answer-${pair}`,
+      kind: 'answer',
+      pair,
+      text: `Answer ${pair + 1}`,
+      faceUp: false,
+      matched: false,
+    },
+  ]).flat();
+  let cards = sourceCards.map((card) => ({ ...card }));
+  let mismatches = 0;
+  let moves = 0;
+  let status = 'in_progress';
+  let lastMatched = null;
+
+  const resetPlay = () => {
+    cards = sourceCards.map((card) => ({ ...card }));
+    mismatches = 0;
+    moves = 0;
+    status = 'in_progress';
+    lastMatched = null;
+  };
+  const clientPlay = (flippedCard = null) => {
+    const matchedPairs = cards.filter(
+      (card) => card.kind === 'question' && card.matched,
+    ).length;
+    return {
+      playId: 'memory-play',
+      quizId: 'quiz-memory-practice',
+      status,
+      matchedPairs,
+      mismatches,
+      moves,
+      score: Math.max(0, 10 * matchedPairs - mismatches),
+      cards: cards.map(({ cardId, kind, faceUp, matched }) => ({
+        cardId,
+        kind,
+        faceUp,
+        matched,
+      })),
+      revealed: cards
+        .filter((card) => card.faceUp || card.matched)
+        .map(({ cardId, kind, text }) => ({ cardId, kind, text })),
+      flippedCard,
+      matched: lastMatched,
+    };
+  };
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    let body;
+    let statusCode = 200;
+    if (path.endsWith('/auth/me'))
+      body = {
+        user: {
+          userId: 'student-1',
+          role: 'student',
+          full_name: 'Demo Student',
+        },
+      };
+    else if (path.endsWith('/modules'))
+      body = {
+        data: [{ module_id: 'module-1', module_name: 'Database Systems' }],
+      };
+    else if (path.endsWith('/modules/module-1/quizzes'))
+      body = {
+        data: [
+          {
+            quiz_id: 'quiz-memory-competitive',
+            title: 'Locked competitive quiz',
+            is_competitive: true,
+          },
+          {
+            quiz_id: 'quiz-memory-practice',
+            title: 'Memory practice quiz',
+            is_competitive: false,
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-memory-competitive/games'))
+      body = {
+        data: [
+          {
+            game_id: 'memory-game',
+            key: 'memory_match',
+            display_name: 'Memory Match',
+            available: false,
+            reason: 'Complete your scored attempt to unlock this game.',
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-memory-practice/games'))
+      body = {
+        data: [
+          {
+            game_id: 'memory-game',
+            key: 'memory_match',
+            display_name: 'Memory Match',
+            available: true,
+          },
+        ],
+      };
+    else if (
+      path.endsWith('/games/memory-match/plays') &&
+      request.method() === 'POST'
+    ) {
+      if (status === 'finished') resetPlay();
+      body = { data: clientPlay() };
+    } else if (path.endsWith('/games/memory-match/plays/memory-play/flip')) {
+      const { cardId } = request.postDataJSON();
+      const unresolved = cards.filter((card) => card.faceUp && !card.matched);
+      if (unresolved.length === 2)
+        for (const card of unresolved) card.faceUp = false;
+      const card = cards.find((item) => item.cardId === cardId);
+      if (!card || card.matched || card.faceUp) {
+        statusCode = 409;
+        body = {
+          error: { code: 'CONFLICT', message: 'Card cannot be flipped.' },
+        };
+      } else {
+        card.faceUp = true;
+        const first = cards.find(
+          (item) => item.cardId !== cardId && item.faceUp && !item.matched,
+        );
+        lastMatched = null;
+        if (first) {
+          moves += 1;
+          lastMatched = first.pair === card.pair;
+          if (lastMatched) {
+            first.matched = true;
+            card.matched = true;
+          } else mismatches += 1;
+        }
+        if (cards.every((item) => item.matched)) status = 'finished';
+        body = {
+          data: clientPlay({
+            cardId: card.cardId,
+            kind: card.kind,
+            text: card.text,
+          }),
+        };
+      }
+    } else body = { data: [] };
+    await route.fulfill({
+      status: statusCode,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  const openQuizzes = async () => {
+    await page.getByRole('button', { name: 'Quizzes' }).click();
+    await page.getByRole('combobox').selectOption('module-1');
+  };
+  const flip = async (name) => {
+    const card = page.getByRole('button', { name, exact: true });
+    await card.focus();
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response
+            .url()
+            .includes('/games/memory-match/plays/memory-play/flip') &&
+          response.request().method() === 'POST',
+      ),
+      page.keyboard.press('Enter'),
+    ]);
+    await page.waitForTimeout(50);
+  };
+
+  await page.goto('/');
+  await openQuizzes();
+  const lockedQuiz = page
+    .locator('.quiz-entry')
+    .filter({ hasText: 'Locked competitive quiz' });
+  await expect(
+    lockedQuiz.getByText('Complete your scored attempt to unlock this game.'),
+  ).toBeVisible();
+  await expect(
+    lockedQuiz.getByRole('button', { name: 'Play Memory Match' }),
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Play Memory Match' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'MEMORY MATCH', exact: true, level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByText('Question 1')).toHaveCount(0);
+  await expect(page.getByText('Answer 1')).toHaveCount(0);
+
+  await flip('Flip question card 1');
+  await expect(page.getByText('Question 1')).toBeVisible();
+  await page.reload();
+  await openQuizzes();
+  await page.getByRole('button', { name: 'Play Memory Match' }).click();
+  await expect(page.getByText('Question 1')).toBeVisible();
+
+  await flip('Flip answer card 4');
+  await expect(page.getByText(/Not a match/)).toBeAttached();
+  await expect(page.getByText('Question 1')).toHaveCount(0, { timeout: 2000 });
+  await flip('Flip question card 1');
+  await flip('Flip answer card 2');
+  await expect(page.getByText(/Match found. 1 pairs found/)).toBeAttached();
+
+  for (let pair = 1; pair < 6; pair += 1) {
+    await flip(`Flip question card ${pair * 2 + 1}`);
+    await flip(`Flip answer card ${pair * 2 + 2}`);
+  }
+  await expect(page.getByText('Every pair matched')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play again' })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

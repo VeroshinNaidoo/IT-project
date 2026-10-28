@@ -40,7 +40,7 @@
 
 - Persist question difficulty as `DifficultyLevel` 1–5. The one shared `tierOf(level)` mapping is 1–2 Easy, 3 Medium, and 4–5 Hard. Infected keeps its approved Easy/Medium/Hard behavior by deriving those labels and transitions from the numeric level.
 - AI quiz output must contain `difficulty_level` from 1 through 5. Missing, fractional, or out-of-range levels are invalid AI output under INV-11 and are never persisted. The deterministic MockProvider cycles through all five levels.
-- `speed_round` and `match_pairs` are superseded and removed from the catalog. `flashcards` remains disabled. `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer` are seeded disabled and may be enabled only after their own stage is green.
+- `speed_round` and `match_pairs` are superseded and removed from the catalog. `flashcards` remains disabled. The foundation seeded `memory_match`, `timer_trivia`, `boss_battle`, and `pixel_racer` disabled; migration 009 enables only `memory_match` after its solo gate passed. The remaining catalog rows may be enabled only after their own stage is green.
 - Infected retains its dedicated session tables. New solo games use versioned JSONB state in `game_plays` plus append-only `game_play_moves`; each game owns a strict Zod state schema so mechanics can evolve without changing the shared storage shape.
 - Generic play moves store the accepted move payload and resulting versioned state. The ordered move log is the rebuild source; terminal plays reject later moves at the database boundary.
 - A lecturer’s shared game-progress view returns only game type, play count, and completion count for modules they own. It never returns user identity, state, questions, or options.

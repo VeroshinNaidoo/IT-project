@@ -109,3 +109,13 @@ At that gate, the flip API, frontend screen, seed fixture, Playwright/axe flow, 
 - Gate: 202 JavaScript tests passed with 0 skipped (83 pure/frontend and 119 DB/API). Memory Match API passed 18/18 and the authorization matrix passed 40/40. Lint, formatting, and type-check passed. The frozen engine and PGlite infrastructure were not modified.
 
 Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwright/axe flow, invariant/traceability/manual-test updates, and production catalog enablement. No other game or multiplayer work was started.
+
+## FR-23 Memory Match — completed solo gate — 2026-10-28
+
+- Baseline stability was proved before slice work with three consecutive `npm test` runs. Each run passed 208/208 tests with zero skipped: 89 pure/frontend and 119 DB/API. No worker exit, connection reset, leaked process, or skipped database test occurred.
+- Expanded the demo practice quiz to 25 concise, explained questions spanning five topics and all five difficulty levels. The seed transaction now checks the counts and requires at least eight Memory-eligible pairs before committing.
+- Added a stateful Memory Match Playwright/axe journey covering concealed backs, keyboard flip, mismatch flip-back, match locking, server-owned resume after reload, full clear, terminal UI, and the competitive pre-attempt lock. It passes in Chromium and Firefox at 390, 768, and 1280 pixels.
+- Added INV-37 through INV-42, the FR-23 rule-to-test map, ERD notes, strict STATUS evidence, and the manual full-clear/refresh smoke script.
+- The pre-enable gate passed first. Migration 009 then enabled `memory_match` in the data-driven catalog.
+- Final gate: lint, Prettier, TypeScript, production build, 208/208 JavaScript tests, and 30/30 Playwright/axe project runs passed with zero skipped.
+- FR-23 solo is done and tested. Timer Trivia, Boss Battle, Pixel Car Racer, and all multiplayer work remain untouched.
