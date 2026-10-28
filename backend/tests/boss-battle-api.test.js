@@ -234,6 +234,13 @@ beforeAll(async () => {
     fixture.otherLecturer,
     'Other Boss',
   );
+  await pool.query(
+    `INSERT INTO games(quiz_id,game_type_id)
+     SELECT quiz_id,gt.game_type_id
+     FROM quizzes CROSS JOIN game_types gt
+     WHERE gt.key='boss_battle'
+     ON CONFLICT(quiz_id,game_type_id) DO NOTHING`,
+  );
 });
 
 describe.sequential('Boss Battle persistence and API', () => {
@@ -409,6 +416,20 @@ describe.sequential('Boss Battle persistence and API', () => {
     expect(response.body.error).toMatchObject({
       code: 'NOT_ENOUGH_QUESTIONS',
       message: 'Boss Battle needs at least 12 eligible questions.',
+    });
+  });
+
+  it('reports the twelve-eligible-question requirement in the games catalogue', async () => {
+    const response = await (
+      await login('winner')
+    ).get(`/api/v1/quizzes/${fixture.shortQuiz}/games`);
+    expect(response.status).toBe(200);
+    expect(
+      response.body.data.find((game) => game.key === 'boss_battle'),
+    ).toMatchObject({
+      available: false,
+      reason: 'Boss Battle needs at least 12 eligible questions.',
+      eligible_question_count: 11,
     });
   });
 

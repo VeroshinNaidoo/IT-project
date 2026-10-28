@@ -27,6 +27,7 @@ import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
 import { registerBossBattleRoutes } from './games/boss_battle/routes.js';
 import { ISLAND_MIN_QUESTIONS } from './games/island_escape/config.js';
+import { BOSS_MIN_QUESTIONS } from './games/boss_battle/config.js';
 
 const app = express();
 const cookieSecure =
@@ -1270,7 +1271,17 @@ app.get(
         scoredAttemptCompleted,
       });
       const games = await pool.query(
-        `SELECT g.game_id,gt.key,gt.display_name,count(q.question_id)::int AS question_count
+        `SELECT g.game_id,gt.key,gt.display_name,
+                count(q.question_id)::int AS question_count,
+                count(q.question_id) FILTER (
+                  WHERE EXISTS (
+                    SELECT 1 FROM question_options correct
+                    WHERE correct.question_id=q.question_id
+                      AND correct.is_correct=true
+                  )
+                  AND (SELECT count(*) FROM question_options options
+                       WHERE options.question_id=q.question_id) >= 2
+                )::int AS eligible_question_count
          FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id
          LEFT JOIN questions q ON q.quiz_id=g.quiz_id
          WHERE g.quiz_id=$1 AND gt.is_enabled=true
@@ -1282,8 +1293,14 @@ app.get(
           const minimum =
             game.key === 'island_escape'
               ? ISLAND_MIN_QUESTIONS
-              : Number(process.env.GAME_MIN_QUESTIONS || 6);
-          const enoughQuestions = game.question_count >= minimum;
+              : game.key === 'boss_battle'
+                ? BOSS_MIN_QUESTIONS
+                : Number(process.env.GAME_MIN_QUESTIONS || 6);
+          const availableQuestionCount =
+            game.key === 'boss_battle'
+              ? game.eligible_question_count
+              : game.question_count;
+          const enoughQuestions = availableQuestionCount >= minimum;
           return {
             ...game,
             available: accessAllowed && enoughQuestions,
@@ -1292,7 +1309,9 @@ app.get(
               : !enoughQuestions
                 ? game.key === 'island_escape'
                   ? `Needs a quiz with at least ${minimum} questions.`
-                  : `Not enough questions for this game yet. At least ${minimum} are required.`
+                  : game.key === 'boss_battle'
+                    ? `Boss Battle needs at least ${minimum} eligible questions.`
+                    : `Not enough questions for this game yet. At least ${minimum} are required.`
                 : null,
           };
         }),
