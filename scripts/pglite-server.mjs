@@ -27,7 +27,19 @@ const configs = {
     dir: path.join(dataRoot, 'test'),
     pid: path.join(root, '.pglite-test.pid'),
   },
+  suite: {
+    port: Number(process.env.PGLITE_SUITE_PORT ?? 55433),
+    database: 'eduquest_test',
+    dir: path.join(dataRoot, 'test-suite'),
+    pid: path.join(root, '.pglite-suite.pid'),
+  },
 };
+
+function errorText(error) {
+  if (error instanceof Error)
+    return `${error.name}: ${error.message}\n${error.stack ?? ''}`;
+  return String(error);
+}
 
 async function writeEnv() {
   if (existsSync(envPath))
@@ -72,6 +84,7 @@ async function waitFor(port, database) {
 
 async function daemon(role) {
   const config = configs[role];
+  if (!config) throw new Error(`Unknown PGlite role: ${role}`);
   await mkdir(config.dir, { recursive: true });
   const db = await PGlite.create(config.dir);
   const server = new PGLiteSocketServer({
@@ -82,14 +95,55 @@ async function daemon(role) {
     // continues to serialize execution internally.
     maxConnections: 50,
   });
+  server.addEventListener('error', (event) => {
+    console.error(
+      `[${new Date().toISOString()}] socket server error: ${errorText(event.detail)}`,
+    );
+  });
+  server.addEventListener('close', () => {
+    console.error(`[${new Date().toISOString()}] socket server closed`);
+  });
   await server.start();
+  console.error(
+    `[${new Date().toISOString()}] PGlite ${role} listening on 127.0.0.1:${config.port}`,
+  );
   await writeFile(config.pid, String(process.pid), 'utf8');
+  let stopping = false;
   const shutdown = async () => {
-    await server.stop();
-    await db.close();
-    await unlink(config.pid).catch(() => {});
-    process.exit(0);
+    if (stopping) return;
+    stopping = true;
+    console.error(`[${new Date().toISOString()}] PGlite ${role} stopping`);
+    const forcedExit = setTimeout(() => {
+      console.error(
+        `[${new Date().toISOString()}] PGlite ${role} shutdown timed out`,
+      );
+      process.exit(1);
+    }, 5000);
+    forcedExit.unref();
+    try {
+      await server.stop();
+      await db.close();
+      await unlink(config.pid).catch(() => {});
+      process.exit(0);
+    } catch (error) {
+      console.error(
+        `[${new Date().toISOString()}] PGlite ${role} shutdown failed: ${errorText(error)}`,
+      );
+      process.exit(1);
+    }
   };
+  process.on('uncaughtException', (error) => {
+    console.error(
+      `[${new Date().toISOString()}] uncaught exception: ${errorText(error)}`,
+    );
+    void shutdown();
+  });
+  process.on('unhandledRejection', (error) => {
+    console.error(
+      `[${new Date().toISOString()}] unhandled rejection: ${errorText(error)}`,
+    );
+    void shutdown();
+  });
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
   setInterval(() => {}, 2 ** 31 - 1);
@@ -129,8 +183,13 @@ async function stop() {
   for (const config of Object.values(configs)) {
     if (existsSync(config.pid)) {
       const pid = Number(await readFile(config.pid, 'utf8'));
-      process.kill(pid, 'SIGTERM');
-      console.log(`Stopping ${pid}`);
+      try {
+        process.kill(pid, 'SIGTERM');
+        console.log(`Stopping ${pid}`);
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+        await unlink(config.pid).catch(() => {});
+      }
     }
   }
 }

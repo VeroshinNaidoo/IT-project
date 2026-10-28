@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run db:test:reset && vitest run",
+    "test": "node scripts/run-tests.mjs",
     "test:watch": "vitest",
     "seed": "node backend/scripts/seed.js",
     "dev": "concurrently \"node backend/src/index.js\" \"python ai-service/run.py\" \"node backend/scripts/ai-worker.js\" \"vite --config frontend/vite.config.js\"",
