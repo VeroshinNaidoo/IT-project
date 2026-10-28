@@ -86,6 +86,60 @@ async function start(agent, quizId) {
   return agent.post('/api/v1/games/memory-match/plays').send({ quizId });
 }
 
+async function freshPlay(title) {
+  const quizId = await addQuiz(
+    fixture.module,
+    fixture.lecturer,
+    `${title} ${crypto.randomUUID().slice(0, 6)}`,
+    6,
+  );
+  const agent = await login('student');
+  const started = await start(agent, quizId);
+  expect(started.status).toBe(200);
+  return { agent, quizId, playId: started.body.data.playId, started };
+}
+
+async function playState(playId) {
+  return (
+    await pool.query('SELECT state FROM game_plays WHERE play_id=$1', [playId])
+  ).rows[0].state;
+}
+
+function pairs(state) {
+  return [...new Set(state.cards.map((card) => card.pairKey))].map((pairKey) =>
+    state.cards.filter((card) => card.pairKey === pairKey),
+  );
+}
+
+async function flip(agent, playId, cardId, body = { cardId }) {
+  return agent
+    .post(`/api/v1/games/memory-match/plays/${playId}/flip`)
+    .send(body);
+}
+
+async function clearPlay(agent, playId) {
+  const state = await playState(playId);
+  let response;
+  for (const pair of pairs(state)) {
+    expect((await flip(agent, playId, pair[0].cardId)).status).toBe(200);
+    response = await flip(agent, playId, pair[1].cardId);
+    expect(response.status).toBe(200);
+    expect(response.body.data.matched).toBe(true);
+  }
+  return response;
+}
+
+function expectNoHiddenText(response, state) {
+  const serialized = JSON.stringify(response.body);
+  const visible = new Set(
+    (response.body.data?.revealed ?? []).map((card) => card.cardId),
+  );
+  if (response.body.data?.flippedCard)
+    visible.add(response.body.data.flippedCard.cardId);
+  for (const card of state.cards)
+    if (!visible.has(card.cardId)) expect(serialized).not.toContain(card.text);
+}
+
 beforeAll(async () => {
   await pool.query(
     "UPDATE game_types SET is_enabled=true WHERE key='memory_match'",
@@ -257,6 +311,224 @@ describe.sequential('Memory Match start and refresh API', () => {
     expect(
       (await start(await login('student'), fixture.isolation)).status,
     ).toBe(200);
+    const countsAfter = (
+      await pool.query(
+        `SELECT
+          (SELECT count(*)::int FROM quiz_attempts) AS attempts,
+          (SELECT count(*)::int FROM student_answers) AS answers`,
+      )
+    ).rows[0];
+    const leaderboardAfter = await lecturer.get(
+      `/api/v1/modules/${fixture.module}/leaderboard`,
+    );
+    const analyticsAfter = await lecturer.get(
+      `/api/v1/modules/${fixture.module}/analytics`,
+    );
+    expect(countsAfter).toEqual(countsBefore);
+    expect(leaderboardAfter.body).toEqual(leaderboardBefore.body);
+    expect(analyticsAfter.body).toEqual(analyticsBefore.body);
+  });
+});
+
+describe.sequential('Memory Match flip API', () => {
+  it('clears every pair and finishes the play with the engine score', async () => {
+    const { agent, playId } = await freshPlay('Memory Full Clear');
+    const completed = await clearPlay(agent, playId);
+    expect(completed.body.data).toMatchObject({
+      matchedPairs: 6,
+      mismatches: 0,
+      moves: 6,
+      score: 60,
+      status: 'finished',
+      replayed: false,
+    });
+    expect(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS count FROM game_play_moves WHERE play_id=$1',
+          [playId],
+        )
+      ).rows[0].count,
+    ).toBe(12);
+  });
+
+  it('records mismatches and then allows every pair to be cleared', async () => {
+    const { agent, playId } = await freshPlay('Memory Mismatch Clear');
+    const state = await playState(playId);
+    const allPairs = pairs(state);
+    const question = allPairs[0].find((card) => card.kind === 'question');
+    const wrongAnswer = allPairs[1].find((card) => card.kind === 'answer');
+    expect((await flip(agent, playId, question.cardId)).status).toBe(200);
+    const mismatch = await flip(agent, playId, wrongAnswer.cardId);
+    expect(mismatch.status).toBe(200);
+    expect(mismatch.body.data).toMatchObject({
+      matched: false,
+      mismatches: 1,
+      moves: 1,
+      score: 0,
+    });
+    let completed;
+    const clearOrder = [
+      allPairs[2],
+      allPairs[0],
+      allPairs[1],
+      ...allPairs.slice(3),
+    ];
+    for (const pair of clearOrder) {
+      expect((await flip(agent, playId, pair[0].cardId)).status).toBe(200);
+      completed = await flip(agent, playId, pair[1].cardId);
+      expect(completed.status).toBe(200);
+      expect(completed.body.data.matched).toBe(true);
+    }
+    expect(completed.body.data).toMatchObject({
+      status: 'finished',
+      matchedPairs: 6,
+      mismatches: 1,
+      moves: 7,
+      score: 59,
+    });
+  });
+
+  it('preserves the single flipped card across a refresh', async () => {
+    const { agent, playId } = await freshPlay('Memory Refresh');
+    const state = await playState(playId);
+    const card = state.cards[0];
+    const flipped = await flip(agent, playId, card.cardId);
+    expect(flipped.status).toBe(200);
+    expect(flipped.body.data.flippedCard).toMatchObject({
+      cardId: card.cardId,
+      kind: card.kind,
+      text: card.text,
+    });
+    const refreshed = await agent.get(
+      `/api/v1/games/memory-match/plays/${playId}`,
+    );
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.data.revealed).toEqual([
+      expect.objectContaining({ cardId: card.cardId, text: card.text }),
+    ]);
+    expectNoHiddenText(refreshed, state);
+  });
+
+  it('rejects a same-kind second flip without appending a move', async () => {
+    const { agent, playId } = await freshPlay('Memory Same Kind');
+    const state = await playState(playId);
+    const sameKind = state.cards.filter(
+      (card) => card.kind === state.cards[0].kind,
+    );
+    expect((await flip(agent, playId, sameKind[0].cardId)).status).toBe(200);
+    const rejected = await flip(agent, playId, sameKind[1].cardId);
+    expect(rejected.status).toBe(422);
+    expect(rejected.body.error).toMatchObject({ code: 'INVALID_CARD_PAIR' });
+    expect(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS count FROM game_play_moves WHERE play_id=$1',
+          [playId],
+        )
+      ).rows[0].count,
+    ).toBe(1);
+  });
+
+  it('serializes a rapid duplicate flip and applies it only once', async () => {
+    const { agent, playId } = await freshPlay('Memory Rapid Flip');
+    const state = await playState(playId);
+    const cardId = state.cards[0].cardId;
+    const responses = await Promise.all([
+      flip(agent, playId, cardId),
+      flip(agent, playId, cardId),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual([200, 200]);
+    expect(
+      responses.map((response) => response.body.data.replayed).sort(),
+    ).toEqual([false, true]);
+    expect(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS count FROM game_play_moves WHERE play_id=$1',
+          [playId],
+        )
+      ).rows[0].count,
+    ).toBe(1);
+  });
+
+  it('returns the stored result for a replayed identical flip', async () => {
+    const { agent, playId } = await freshPlay('Memory Replay');
+    const pair = pairs(await playState(playId))[0];
+    expect((await flip(agent, playId, pair[0].cardId)).status).toBe(200);
+    const first = await flip(agent, playId, pair[1].cardId);
+    const locked = await flip(agent, playId, pair[0].cardId);
+    expect(locked.status).toBe(409);
+    expect(locked.body.error).toMatchObject({ code: 'CARD_LOCKED' });
+    const replay = await flip(agent, playId, pair[1].cardId);
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(replay.body.data).toEqual({ ...first.body.data, replayed: true });
+    expect(
+      (
+        await pool.query(
+          'SELECT count(*)::int AS count FROM game_play_moves WHERE play_id=$1',
+          [playId],
+        )
+      ).rows[0].count,
+    ).toBe(2);
+  });
+
+  it('rejects a new move after the play is finished', async () => {
+    const { agent, playId } = await freshPlay('Memory Finished');
+    const state = await playState(playId);
+    const completed = await clearPlay(agent, playId);
+    const finalCardId = completed.body.data.flippedCard.cardId;
+    const otherCard = state.cards.find((card) => card.cardId !== finalCardId);
+    const rejected = await flip(agent, playId, otherCard.cardId);
+    expect(rejected.status).toBe(409);
+    expect(rejected.body.error).toMatchObject({ code: 'GAME_FINISHED' });
+  });
+
+  it("never includes an unflipped card's text in any flip or refresh response", async () => {
+    const { agent, playId, started } = await freshPlay('Memory Hidden Text');
+    const state = await playState(playId);
+    expectNoHiddenText(started, state);
+    const allPairs = pairs(state);
+    const first = allPairs[0].find((card) => card.kind === 'question');
+    const wrong = allPairs[1].find((card) => card.kind === 'answer');
+    const firstResponse = await flip(agent, playId, first.cardId);
+    expectNoHiddenText(firstResponse, state);
+    const secondResponse = await flip(agent, playId, wrong.cardId);
+    expectNoHiddenText(secondResponse, state);
+    const refreshed = await agent.get(
+      `/api/v1/games/memory-match/plays/${playId}`,
+    );
+    expectNoHiddenText(refreshed, state);
+    const next = state.cards.find(
+      (card) => card.cardId !== first.cardId && card.cardId !== wrong.cardId,
+    );
+    const nextResponse = await flip(agent, playId, next.cardId);
+    expect(nextResponse.status).toBe(200);
+    expectNoHiddenText(nextResponse, state);
+    expect(JSON.stringify(nextResponse.body)).not.toContain(first.text);
+    expect(JSON.stringify(nextResponse.body)).not.toContain(wrong.text);
+  });
+
+  it('playing never changes leaderboard rows, scored attempts, or analytics figures', async () => {
+    const { agent, playId } = await freshPlay('Memory Play Isolation');
+    const lecturer = await login('lecturer');
+    const leaderboardBefore = await lecturer.get(
+      `/api/v1/modules/${fixture.module}/leaderboard`,
+    );
+    const analyticsBefore = await lecturer.get(
+      `/api/v1/modules/${fixture.module}/analytics`,
+    );
+    const countsBefore = (
+      await pool.query(
+        `SELECT
+          (SELECT count(*)::int FROM quiz_attempts) AS attempts,
+          (SELECT count(*)::int FROM student_answers) AS answers`,
+      )
+    ).rows[0];
+    const pair = pairs(await playState(playId))[0];
+    expect((await flip(agent, playId, pair[0].cardId)).status).toBe(200);
+    expect((await flip(agent, playId, pair[1].cardId)).status).toBe(200);
     const countsAfter = (
       await pool.query(
         `SELECT

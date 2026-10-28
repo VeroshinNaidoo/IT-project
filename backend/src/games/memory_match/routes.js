@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { canAccessGame } from '../access.js';
 import { validateGameState } from '../play-state.js';
 import { MEMORY_DEFAULT_PAIRS, MEMORY_MIN_PAIRS } from './config.js';
+import { flipCard, resolveFlip } from './engine.js';
 import './state.js';
 
 const startSchema = z.object({ quizId: z.string().uuid() }).strict();
+const flipSchema = z.object({ cardId: z.string().uuid() }).strict();
 const emptySchema = z.object({}).strict();
 
 export function registerMemoryMatchRoutes({
@@ -111,6 +113,106 @@ export function registerMemoryMatchRoutes({
         .filter((card) => card.faceUp || card.matched)
         .map(({ cardId, kind, text }) => ({ cardId, kind, text })),
     };
+  };
+  const engineState = (state) => ({
+    version: state.version,
+    status: state.status,
+    cards: state.cards.map((card) => ({
+      cardId: card.cardId,
+      kind: card.kind,
+      questionId: card.questionId,
+      text: card.text,
+    })),
+    flipped: state.cards
+      .filter((card) => card.faceUp && !card.matched)
+      .map((card) => card.cardId),
+    matched: state.cards
+      .filter((card) => card.matched)
+      .map((card) => card.cardId),
+    matches: state.matchedPairs,
+    mismatches: state.mismatches,
+    score: state.score,
+    moves: state.moves,
+    startedAt: state.startedAt,
+  });
+  const applyFlip = (state, cardId) => {
+    const pending = state.cards.filter((card) => card.faceUp && !card.matched);
+    if (pending.some((card) => card.cardId === cardId))
+      throw new Error('MEMORY_CARD_ALREADY_FLIPPED');
+    let working = state;
+    if (pending.length === 2) {
+      working = {
+        ...state,
+        cards: state.cards.map((card) =>
+          card.matched ? card : { ...card, faceUp: false },
+        ),
+      };
+    }
+    const flipped = flipCard(engineState(working), cardId);
+    const selected = working.cards.find((card) => card.cardId === cardId);
+    let next = {
+      ...working,
+      cards: working.cards.map((card) =>
+        card.cardId === cardId ? { ...card, faceUp: true } : card,
+      ),
+    };
+    let matched = null;
+    if (flipped.flipped.length === 2) {
+      const [left, right] = flipped.flipped.map((id) =>
+        next.cards.find((card) => card.cardId === id),
+      );
+      matched = left.pairKey === right.pairKey;
+      const resolved = resolveFlip(flipped);
+      next = {
+        ...next,
+        matchedPairs: resolved.matches,
+        mismatches: resolved.mismatches,
+        moves: resolved.moves,
+        score: resolved.score,
+        status: resolved.status,
+        cards: next.cards.map((card) =>
+          matched && flipped.flipped.includes(card.cardId)
+            ? { ...card, faceUp: true, matched: true }
+            : card,
+        ),
+      };
+    }
+    return {
+      state: validateGameState('memory_match', next),
+      selected,
+      matched,
+    };
+  };
+  const flipError = (caught) => {
+    const mappings = {
+      MEMORY_PLAY_FINISHED: [409, 'GAME_FINISHED', 'This play has finished.'],
+      MEMORY_CARD_MATCHED: [
+        409,
+        'CARD_LOCKED',
+        'That card is already matched.',
+      ],
+      MEMORY_CARD_ALREADY_FLIPPED: [
+        409,
+        'CARD_ALREADY_FLIPPED',
+        'That card is already face up.',
+      ],
+      MEMORY_TURN_PENDING: [
+        409,
+        'TURN_PENDING',
+        'Finish the current pair before flipping another card.',
+      ],
+      MEMORY_SAME_KIND: [
+        422,
+        'INVALID_CARD_PAIR',
+        'Choose one question card and one answer card.',
+      ],
+      MEMORY_CARD_NOT_FOUND: [
+        422,
+        'INVALID_CARD',
+        'That card is not available.',
+      ],
+    };
+    return mappings[caught?.message];
   };
   const makeState = (questions) => {
     const serverSeed = crypto.randomBytes(16).toString('hex');
@@ -266,6 +368,127 @@ export function registerMemoryMatchRoutes({
         res.json({ data: clientView(play) });
       } catch (caught) {
         next(caught);
+      }
+    },
+  );
+
+  app.post(
+    '/api/v1/games/memory-match/plays/:id/flip',
+    requireAuth,
+    async (req, res, next) => {
+      const data = parse(flipSchema, req, res);
+      if (!data) return;
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const play = (
+          await client.query(
+            `SELECT p.* FROM game_plays p
+             JOIN game_types gt ON gt.game_type_id=p.game_type_id
+             WHERE p.play_id=$1 AND p.student_id=$2 AND gt.key='memory_match'
+             FOR UPDATE`,
+            [req.params.id, req.user.userId],
+          )
+        ).rows[0];
+        if (!play) {
+          await client.query('ROLLBACK');
+          return error(
+            res,
+            404,
+            'NOT_FOUND',
+            'Game play not found.',
+            requestId(req),
+          );
+        }
+        const latest = (
+          await client.query(
+            `SELECT payload,state_after FROM game_play_moves
+             WHERE play_id=$1 ORDER BY move_number DESC LIMIT 1`,
+            [play.play_id],
+          )
+        ).rows[0];
+        if (latest?.payload?.cardId === data.cardId) {
+          await client.query('COMMIT');
+          return res.json({
+            data: { ...latest.payload.result, replayed: true },
+          });
+        }
+        if (play.status !== 'in_progress') {
+          await client.query('ROLLBACK');
+          return error(
+            res,
+            409,
+            'GAME_FINISHED',
+            'This play has finished.',
+            requestId(req),
+          );
+        }
+        let applied;
+        try {
+          applied = applyFlip(
+            validateGameState('memory_match', play.state),
+            data.cardId,
+          );
+        } catch (caught) {
+          const mapped = flipError(caught);
+          if (!mapped) throw caught;
+          await client.query('ROLLBACK');
+          return error(res, ...mapped, requestId(req));
+        }
+        const moveNumber = Number(
+          (
+            await client.query(
+              `SELECT count(*)::int+1 AS next FROM game_play_moves WHERE play_id=$1`,
+              [play.play_id],
+            )
+          ).rows[0].next,
+        );
+        const view = clientView({
+          ...play,
+          state: applied.state,
+          status: applied.state.status,
+          score: applied.state.score,
+        });
+        const result = {
+          ...view,
+          flippedCard: {
+            cardId: applied.selected.cardId,
+            kind: applied.selected.kind,
+            text: applied.selected.text,
+          },
+          matched: applied.matched,
+        };
+        await client.query(
+          `INSERT INTO game_play_moves(play_id,move_number,move_type,payload,state_after)
+           VALUES($1,$2,'flip',$3::jsonb,$4::jsonb)`,
+          [
+            play.play_id,
+            moveNumber,
+            JSON.stringify({ cardId: data.cardId, result }),
+            JSON.stringify(applied.state),
+          ],
+        );
+        await client.query(
+          `UPDATE game_plays
+           SET state=$1::jsonb,score=$2,status=$3,completed_at=$4
+           WHERE play_id=$5`,
+          [
+            JSON.stringify(applied.state),
+            applied.state.score,
+            applied.state.status,
+            applied.state.status === 'finished'
+              ? new Date().toISOString()
+              : null,
+            play.play_id,
+          ],
+        );
+        await client.query('COMMIT');
+        res.json({ data: { ...result, replayed: false } });
+      } catch (caught) {
+        await client.query('ROLLBACK').catch(() => {});
+        next(caught);
+      } finally {
+        client.release();
       }
     },
   );

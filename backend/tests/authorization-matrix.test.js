@@ -161,6 +161,9 @@ const bodies = {
   'POST /api/v1/games/memory-match/plays': () => ({
     quizId: fixture.quizId,
   }),
+  'POST /api/v1/games/memory-match/plays/:id/flip': () => ({
+    cardId: fixture.memoryCardId,
+  }),
 };
 
 const specs = {
@@ -271,6 +274,10 @@ const specs = {
   ],
   'GET /api/v1/games/memory-match/plays/:id': [
     '/api/v1/games/memory-match/plays/:id',
+    'student',
+  ],
+  'POST /api/v1/games/memory-match/plays/:id/flip': [
+    '/api/v1/games/memory-match/plays/:id/flip',
     'student',
   ],
 };
@@ -518,6 +525,7 @@ async function createFixture() {
     infectedOptionId,
     islandPlayId: islandPlay.play_id,
     memoryPlayId: memoryStart.body.data.playId,
+    memoryCardId: memoryStart.body.data.cards[0].cardId,
   };
 }
 
@@ -639,7 +647,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(37);
+    expect(routeInventory.length).toBe(38);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

@@ -98,4 +98,14 @@ The corrected runner keeps pure tests parallel, runs database files serially wit
 
 Commits: Memory Match integration coverage `943b813`; PGlite lifecycle fix `4d2a936`. The authorization-matrix entries were already committed with the route slice in `f02bf47` before this gate and were not rewritten.
 
-Remaining before FR-23 can be marked done: flip API, frontend screen, seed fixture, Playwright/axe flow, invariant/traceability/manual-test updates, and catalog enablement. The engine remains frozen at commits `d0f4adc` and `7275051`. Timer Trivia, Boss Battle, and Pixel Car Racer were not started. Multiplayer was not started.
+At that gate, the flip API, frontend screen, seed fixture, Playwright/axe flow, invariant/traceability/manual-test updates, and catalog enablement still remained. The engine remains frozen at commits `d0f4adc` and `7275051`. Timer Trivia, Boss Battle, and Pixel Car Racer were not started. Multiplayer was not started.
+
+## FR-23 Memory Match — flip API slice — 2026-10-28
+
+- Added the owner-scoped `POST /api/v1/games/memory-match/plays/:id/flip` endpoint with strict unknown-field rejection, a play row lock, frozen-engine application through a route-local state adapter, append-only moves, and atomic play-state/score/status updates.
+- Duplicate delivery of the latest identical flip returns its stored response without appending or scoring twice. New moves against terminal plays, matched cards, face-up cards, same-kind pairs, and unknown cards return the standard 409/422 error shape.
+- Mismatched cards remain face up for feedback; the next distinct flip atomically turns them down before beginning the next pair. Refresh returns only currently face-up or matched text, never an unflipped card's text.
+- Added the flip route to the executable authorization matrix and added separately named integration coverage for full clear, mismatch recovery and clear, refresh, same-kind rejection, rapid duplicate serialization, replay, terminal rejection, text secrecy, and isolation from attempts/leaderboards/analytics.
+- Gate: 202 JavaScript tests passed with 0 skipped (83 pure/frontend and 119 DB/API). Memory Match API passed 18/18 and the authorization matrix passed 40/40. Lint, formatting, and type-check passed. The frozen engine and PGlite infrastructure were not modified.
+
+Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwright/axe flow, invariant/traceability/manual-test updates, and production catalog enablement. No other game or multiplayer work was started.
