@@ -54,7 +54,9 @@ const pathFor = (template, values = fixture) =>
       ':id',
       template.includes('island-escape')
         ? values.islandPlayId
-        : values.infectedSessionId,
+        : template.includes('memory-match')
+          ? values.memoryPlayId
+          : values.infectedSessionId,
     );
 
 async function login(role) {
@@ -155,6 +157,9 @@ const bodies = {
   }),
   'POST /api/v1/games/island-escape/plays/:id/answer': () => ({
     optionId: fixture.infectedOptionId,
+  }),
+  'POST /api/v1/games/memory-match/plays': () => ({
+    quizId: fixture.quizId,
   }),
 };
 
@@ -260,6 +265,14 @@ const specs = {
     '/api/v1/games/island-escape/plays/:id',
     'student',
   ],
+  'POST /api/v1/games/memory-match/plays': [
+    '/api/v1/games/memory-match/plays',
+    'student',
+  ],
+  'GET /api/v1/games/memory-match/plays/:id': [
+    '/api/v1/games/memory-match/plays/:id',
+    'student',
+  ],
 };
 
 async function createFixture() {
@@ -352,6 +365,31 @@ async function createFixture() {
     "INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,'Matrix option',true)",
     [question.question_id],
   );
+  await pool.query(
+    "UPDATE game_types SET is_enabled=true WHERE key='memory_match'",
+  );
+  for (let index = 0; index < 6; index += 1) {
+    const memoryQuestion = (
+      await pool.query(
+        `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level,explanation)
+       VALUES($1,$2,1,3,$3) RETURNING question_id`,
+        [
+          quiz.quiz_id,
+          `Memory question ${index + 1}`,
+          `Memory explanation ${index + 1}.`,
+        ],
+      )
+    ).rows[0];
+    await pool.query(
+      `INSERT INTO question_options(question_id,option_text,is_correct)
+       VALUES($1,$2,true),($1,$3,false)`,
+      [
+        memoryQuestion.question_id,
+        `Memory answer ${index + 1}`,
+        `Memory distractor ${index + 1}`,
+      ],
+    );
+  }
   let infectedCardId;
   let infectedOptionId;
   const islandQuestionIds = [];
@@ -460,6 +498,11 @@ async function createFixture() {
       [quiz.quiz_id, ids[users.student.email]],
     )
   ).rows[0];
+  const memoryAgent = await login('student');
+  const memoryStart = await memoryAgent
+    .post('/api/v1/games/memory-match/plays')
+    .send({ quizId: quiz.quiz_id });
+  expect(memoryStart.status).toBe(200);
   fixture = {
     moduleId: moduleRow.module_id,
     joinCode: moduleRow.join_code,
@@ -474,6 +517,7 @@ async function createFixture() {
     infectedCardId,
     infectedOptionId,
     islandPlayId: islandPlay.play_id,
+    memoryPlayId: memoryStart.body.data.playId,
   };
 }
 
@@ -540,6 +584,7 @@ async function assertRoute(route, [template, successRole]) {
         attemptId: uuid(),
         infectedSessionId: uuid(),
         islandPlayId: uuid(),
+        memoryPlayId: uuid(),
       });
       const ownerBody =
         route === 'POST /api/v1/quizzes'
@@ -594,7 +639,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(35);
+    expect(routeInventory.length).toBe(37);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

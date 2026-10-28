@@ -90,4 +90,6 @@ PostgreSQL concurrency/backup and complete screen accessibility remain outstandi
 
 Built and tested the deterministic Memory Match engine foundation: configurable eligible-pair card construction, kind-aware flips, pair resolution, scoring, terminal completion, and rejection of invalid flip sequences. The focused engine suite passes 4/4.
 
-Remaining before FR-23 can be marked done: versioned Zod state registration, generic-play persistence/API routes, authorization-matrix integration tests, frontend screen, seed fixture, Playwright/axe flow, invariant and traceability updates, and catalog enablement. The engine commit is the only verified FR-23 work. Timer Trivia, Boss Battle, and Pixel Car Racer were not started. Multiplayer was not started.
+The backend start/resume and owner-scoped GET slice is now implemented with the registered versioned Zod state and generic `game_plays` persistence. The behavioral authorization matrix covers both routes; the full suite passes 183/183 with zero skips.
+
+Remaining before FR-23 can be marked done: dedicated route-specific integration scenarios for all requested Memory Match cases, flip API, frontend screen, seed fixture, Playwright/axe flow, invariant/traceability/manual-test updates, and catalog enablement. The engine remains frozen at commits `d0f4adc` and `7275051`. Timer Trivia, Boss Battle, and Pixel Car Racer were not started. Multiplayer was not started.

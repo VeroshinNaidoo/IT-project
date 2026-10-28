@@ -24,6 +24,7 @@ import {
 import { canAccessGame } from './games/access.js';
 import { registerInfectedRoutes } from './games/infected/routes.js';
 import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
+import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
 import { ISLAND_MIN_QUESTIONS } from './games/island_escape/config.js';
 
 const app = express();
@@ -1384,6 +1385,8 @@ registerIslandEscapeRoutes({
   error,
   requestId,
 });
+
+registerMemoryMatchRoutes({ app, pool, requireAuth, error, requestId });
 
 app.use((err, req, res, _next) => {
   console.error(

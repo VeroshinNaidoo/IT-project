@@ -53,6 +53,8 @@ const routePolicies = {
   'GET /api/v1/games/island-escape/plays/:id': {
     auth: 'student|lecturer',
   },
+  'POST /api/v1/games/memory-match/plays': { auth: 'student|lecturer' },
+  'GET /api/v1/games/memory-match/plays/:id': { auth: 'student|lecturer' },
 };
 
 const caseNames = [
