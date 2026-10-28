@@ -22,7 +22,21 @@ Run the API, MockProvider AI service, and React frontend together with:
 npm run dev
 ```
 
-`npm test` requires `TEST_DATABASE_URL` (or `DATABASE_URL`) in the EduQuest `.env`, resets the test database schema, reapplies all migrations, and then runs the raw SQL invariant tests. To explicitly opt out, set `EDUQUEST_SKIP_DB_TESTS=true`; this prints a warning and is not a passing database gate.
+`npm test` starts a fresh, isolated PGlite instance in `.pgdata/test-suite`, waits for a successful `select 1`, reapplies all migrations, runs database test files serially, and stops the instance after the gate. It never uses the dev data directory. Pure unit tests still run in parallel. A skipped test exits non-zero and can never count as a passing gate.
+
+### PGlite test troubleshooting
+
+`read ECONNRESET`, `Connection terminated unexpectedly`, or “did not accept connections” means the socket server stopped accepting queries; it is not an application assertion failure. Retry `npm test` first: the test runner owns a fresh isolated instance and normally recovers automatically. Its termination log is `.pgdata/logs/test-suite.log` and contains no connection secrets.
+
+For a problem with the long-lived local development servers, restart them:
+
+```powershell
+npm run db:stop
+npm run db:start
+npm run db:status
+```
+
+If `db:status` still reports that 5432 or 5433 is unavailable, inspect `.pglite-dev.pid` and `.pglite-test.pid` and stop only those recorded Node processes before running `npm run db:start` again. Do not delete `.pgdata/dev`; it contains local development data. The automated test runner may safely recreate only `.pgdata/test-suite`.
 
 ### Dev tooling safety
 
