@@ -39,7 +39,7 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-22          | Infected solo engine, persistent sessions, API, and responsive UI | automated: engine property tests, DB invariants, API win/loss/exhaustion/access tests, frontend flow tests, Playwright/axe flow               |
 | FR-23          | Memory Match solo engine, persistence, API, and responsive UI     | automated: engine/property, API, authorization-matrix, component, and six-project Playwright/axe coverage; rule mapping below                 |
 | FR-24          | Timer Trivia                                                      | not started; disabled catalog row and generic storage foundation only                                                                         |
-| FR-25          | Boss Battle                                                       | not started; disabled catalog row and generic storage foundation only                                                                         |
+| FR-25          | Boss Battle pure engine, versioned persistence, and API           | partial: 15 engine and 14 API tests plus 43-route authorization matrix pass; frontend/browser evidence and catalog enablement remain          |
 | FR-26          | Pixel Car Racer                                                   | not started; disabled catalog row and generic storage foundation only                                                                         |
 | FR-27          | Multiplayer room layer                                            | not started; no room persistence, SSE, or multiplayer behavior                                                                                |
 | FR-28          | Island Escape solo survival game                                  | automated: pure-engine/property tests, DB invariants, API access/win/setback/replay/isolation tests, component tests, Playwright/axe flow     |
@@ -66,7 +66,7 @@ Infected, Island Escape, and Memory Match are enabled and practice-only. Flashca
 
 Automated axe/Playwright and the manual checklist remain required before NFR04/NFR05/NFR10 can be marked done. `npm run test:db:real` fails loudly unless `REAL_TEST_DATABASE_URL` is supplied; concurrency evidence is therefore marked “needs real PostgreSQL” under PGlite.
 
-The executable matrix has 40 passing tests and includes all Memory Match, Infected, and Island Escape routes plus the aggregate generic-game activity route. Dedicated game integration fixtures additionally prove real session/play ownership, module ownership, exact 422 unknown-field rejection, pre-answer response secrecy, and success shapes. The generic activity response is asserted to contain no student, state, question, or option data. Older routes retain the limitations documented by their existing matrix assertions, so NFR14 remains partial overall.
+The executable matrix has 43 passing tests and includes all Boss Battle, Memory Match, Infected, and Island Escape routes plus the aggregate generic-game activity route. Dedicated game integration fixtures additionally prove real session/play ownership, module ownership, exact 422 unknown-field rejection, pre-answer response secrecy, and success shapes. The generic activity response is asserted to contain no student, state, question, or option data. Older routes retain the limitations documented by their existing matrix assertions, so NFR14 remains partial overall.
 
 ## Infected invariant evidence
 

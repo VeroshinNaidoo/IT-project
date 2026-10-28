@@ -119,3 +119,12 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - The pre-enable gate passed first. Migration 009 then enabled `memory_match` in the data-driven catalog.
 - Final gate: lint, Prettier, TypeScript, production build, 208/208 JavaScript tests, and 30/30 Playwright/axe project runs passed with zero skipped.
 - FR-23 solo is done and tested. Timer Trivia, Boss Battle, Pixel Car Racer, and all multiplayer work remain untouched.
+
+## FR-25 Boss Battle — persistence and API slice — 2026-10-28
+
+- Kept the pure engine frozen at commit `f7ec23d` and added a strict versioned Boss Battle state schema registered with the generic game-state registry.
+- Added start/resume, owner refresh, and row-locked answer routes under `/api/v1/games/boss-battle`. They use `canAccessGame`, require 12 eligible questions, reject unknown fields, conceal correctness before answer, validate option/question scope, append immutable moves, rebuild state from the latest move snapshot, and replay duplicate answers without applying damage twice.
+- Added all three routes to the executable authorization inventory. The matrix passes 43/43 and covers unauthenticated/revoked sessions, ownership, strict validation, success shapes, and answer secrecy; both students and owning lecturers are valid roles, so a dual-role route has no applicable wrong-role case.
+- Added 14 named integration tests covering win, loss, exhaustion, move-log refresh, replay, invalid/no-pending answers, competitive access, eligibility, enrolment, lecturer ownership, pre-answer secrecy, cross-user ownership, and scored-data isolation.
+- Gate: 240/240 JavaScript tests passed with zero skipped (104 pure/frontend and 136 DB/API). Lint, Prettier, and TypeScript passed.
+- Boss Battle remains disabled. Frontend, seed coverage, browser/axe evidence, final documentation, and catalog enablement remain for later slices. No database migration was added.

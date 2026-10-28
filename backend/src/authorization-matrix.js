@@ -58,6 +58,13 @@ const routePolicies = {
   'POST /api/v1/games/memory-match/plays/:id/flip': {
     auth: 'student|lecturer',
   },
+  'POST /api/v1/games/boss-battle/plays': { auth: 'student|lecturer' },
+  'GET /api/v1/games/boss-battle/plays/:id': {
+    auth: 'student|lecturer',
+  },
+  'POST /api/v1/games/boss-battle/plays/:id/answer': {
+    auth: 'student|lecturer',
+  },
 };
 
 const caseNames = [

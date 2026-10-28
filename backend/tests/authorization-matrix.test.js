@@ -54,9 +54,11 @@ const pathFor = (template, values = fixture) =>
       ':id',
       template.includes('island-escape')
         ? values.islandPlayId
-        : template.includes('memory-match')
-          ? values.memoryPlayId
-          : values.infectedSessionId,
+        : template.includes('boss-battle')
+          ? values.bossPlayId
+          : template.includes('memory-match')
+            ? values.memoryPlayId
+            : values.infectedSessionId,
     );
 
 async function login(role) {
@@ -163,6 +165,12 @@ const bodies = {
   }),
   'POST /api/v1/games/memory-match/plays/:id/flip': () => ({
     cardId: fixture.memoryCardId,
+  }),
+  'POST /api/v1/games/boss-battle/plays': () => ({
+    quizId: fixture.startQuizId,
+  }),
+  'POST /api/v1/games/boss-battle/plays/:id/answer': () => ({
+    optionId: fixture.bossOptionId,
   }),
 };
 
@@ -280,6 +288,18 @@ const specs = {
     '/api/v1/games/memory-match/plays/:id/flip',
     'student',
   ],
+  'POST /api/v1/games/boss-battle/plays': [
+    '/api/v1/games/boss-battle/plays',
+    'student',
+  ],
+  'GET /api/v1/games/boss-battle/plays/:id': [
+    '/api/v1/games/boss-battle/plays/:id',
+    'student',
+  ],
+  'POST /api/v1/games/boss-battle/plays/:id/answer': [
+    '/api/v1/games/boss-battle/plays/:id/answer',
+    'student',
+  ],
 };
 
 async function createFixture() {
@@ -374,6 +394,9 @@ async function createFixture() {
   );
   await pool.query(
     "UPDATE game_types SET is_enabled=true WHERE key='memory_match'",
+  );
+  await pool.query(
+    "UPDATE game_types SET is_enabled=true WHERE key='boss_battle'",
   );
   for (let index = 0; index < 6; index += 1) {
     const memoryQuestion = (
@@ -510,6 +533,17 @@ async function createFixture() {
     .post('/api/v1/games/memory-match/plays')
     .send({ quizId: quiz.quiz_id });
   expect(memoryStart.status).toBe(200);
+  const bossStart = await memoryAgent
+    .post('/api/v1/games/boss-battle/plays')
+    .send({ quizId: startQuiz.quiz_id });
+  expect([200, 201]).toContain(bossStart.status);
+  const bossOption = (
+    await pool.query(
+      `SELECT option_id FROM question_options
+       WHERE question_id=$1 AND is_correct=true`,
+      [bossStart.body.data.question.questionId],
+    )
+  ).rows[0];
   fixture = {
     moduleId: moduleRow.module_id,
     joinCode: moduleRow.join_code,
@@ -526,6 +560,8 @@ async function createFixture() {
     islandPlayId: islandPlay.play_id,
     memoryPlayId: memoryStart.body.data.playId,
     memoryCardId: memoryStart.body.data.cards[0].cardId,
+    bossPlayId: bossStart.body.data.play.playId,
+    bossOptionId: bossOption.option_id,
   };
 }
 
@@ -535,6 +571,7 @@ async function assertNoSensitive(result, route) {
     ![
       'POST /api/v1/games/infected/sessions/:id/answer',
       'POST /api/v1/games/island-escape/plays/:id/answer',
+      'POST /api/v1/games/boss-battle/plays/:id/answer',
     ].includes(route)
   )
     expect(JSON.stringify(result.body)).not.toMatch(
@@ -578,7 +615,8 @@ async function assertRoute(route, [template, successRole]) {
       template.includes(':') ||
       route === 'POST /api/v1/quizzes' ||
       route === 'POST /api/v1/games/infected/sessions' ||
-      route === 'POST /api/v1/games/island-escape/plays'
+      route === 'POST /api/v1/games/island-escape/plays' ||
+      route === 'POST /api/v1/games/boss-battle/plays'
     ) {
       const ownerPath = pathFor(template, {
         ...fixture,
@@ -593,12 +631,14 @@ async function assertRoute(route, [template, successRole]) {
         infectedSessionId: uuid(),
         islandPlayId: uuid(),
         memoryPlayId: uuid(),
+        bossPlayId: uuid(),
       });
       const ownerBody =
         route === 'POST /api/v1/quizzes'
           ? { ...body, moduleId: uuid() }
           : route === 'POST /api/v1/games/infected/sessions' ||
-              route === 'POST /api/v1/games/island-escape/plays'
+              route === 'POST /api/v1/games/island-escape/plays' ||
+              route === 'POST /api/v1/games/boss-battle/plays'
             ? { quizId: uuid() }
             : body;
       expect([403, 404], `${route} wrong owner`).toContain(
@@ -647,7 +687,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(38);
+    expect(routeInventory.length).toBe(41);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();
