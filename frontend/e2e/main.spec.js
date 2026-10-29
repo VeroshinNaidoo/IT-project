@@ -125,10 +125,16 @@ test('Infected solo flow is responsive, keyboard operable and axe clean', async 
     name: /medium card about normalization/i,
   });
   await card.focus();
-  await page.keyboard.press('Enter');
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/choose')),
+    page.keyboard.press('Enter'),
+  ]);
   expect(phase).toBe('question');
   await page.getByLabel('Third normal form').check();
-  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/answer')),
+    page.getByRole('button', { name: 'Submit answer' }).click(),
+  ]);
   expect(phase).toBe('feedback');
   await expect(page.getByText('Correct', { exact: true })).toBeVisible();
   await expect(page.getByText('Cure 20% · Infection 80%')).toBeVisible();
