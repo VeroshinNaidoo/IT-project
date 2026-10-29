@@ -1285,7 +1285,14 @@ app.get(
          FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id
          LEFT JOIN questions q ON q.quiz_id=g.quiz_id
          WHERE g.quiz_id=$1 AND gt.is_enabled=true
-         GROUP BY g.game_id,gt.key,gt.display_name ORDER BY gt.key`,
+         GROUP BY g.game_id,gt.key,gt.display_name
+         ORDER BY CASE gt.key
+           WHEN 'infected' THEN 1
+           WHEN 'island_escape' THEN 2
+           WHEN 'memory_match' THEN 3
+           WHEN 'boss_battle' THEN 4
+           ELSE 100
+         END, gt.key`,
         [req.params.quizId],
       );
       res.json({
