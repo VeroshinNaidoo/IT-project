@@ -669,3 +669,212 @@ test('Boss Battle full flow and competitive lock are accessible', async ({
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('Pixel Car Racer nitro flow and competitive lock are accessible', async ({
+  page,
+}) => {
+  let speed = 2;
+  let distance = 0;
+  let streak = 0;
+  let points = 0;
+  let nitroActive = false;
+  let slotsUsed = 0;
+  let answersUsed = 0;
+  const bot = {
+    name: 'Bot',
+    distance: 360,
+    points: 70,
+    answersUsed: 9,
+    status: 'finished',
+  };
+  const question = () => ({
+    questionId: `pixel-question-${slotsUsed}`,
+    questionText: 'Which protocol provides reliable transport?',
+    difficultyLevel: 3,
+    topic: 'Networking',
+    options: [
+      { optionId: 'pixel-correct', optionText: 'TCP' },
+      { optionId: 'pixel-wrong', optionText: 'ARP' },
+      { optionId: 'pixel-wrong-2', optionText: 'A display driver' },
+      { optionId: 'pixel-wrong-3', optionText: 'A font file' },
+    ],
+  });
+  const play = () => ({
+    playId: 'pixel-play',
+    quizId: 'quiz-pixel-practice',
+    status: slotsUsed >= 10 ? 'finished' : 'in_progress',
+    speed,
+    distance,
+    streak,
+    points,
+    nitroActive,
+    slotsUsed,
+    slotsRemaining: Math.max(0, 10 - slotsUsed),
+    answersUsed,
+    bot,
+  });
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    let body;
+    if (path.endsWith('/auth/me'))
+      body = {
+        user: {
+          userId: 'student-1',
+          role: 'student',
+          full_name: 'Demo Student',
+        },
+      };
+    else if (path.endsWith('/modules'))
+      body = {
+        data: [{ module_id: 'module-1', module_name: 'Database Systems' }],
+      };
+    else if (path.endsWith('/modules/module-1/quizzes'))
+      body = {
+        data: [
+          {
+            quiz_id: 'quiz-pixel-competitive',
+            title: 'Locked pixel race',
+            is_competitive: true,
+          },
+          {
+            quiz_id: 'quiz-pixel-practice',
+            title: 'Pixel practice quiz',
+            is_competitive: false,
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-pixel-competitive/games'))
+      body = {
+        data: [
+          {
+            game_id: 'pixel-game',
+            key: 'pixel_racer',
+            display_name: 'Pixel Car Racer',
+            available: false,
+            reason: 'Complete your scored attempt to unlock this game.',
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-pixel-practice/games'))
+      body = {
+        data: [
+          {
+            game_id: 'pixel-game',
+            key: 'pixel_racer',
+            display_name: 'Pixel Car Racer',
+            available: true,
+          },
+        ],
+      };
+    else if (
+      path.endsWith('/games/pixel-racer/plays') &&
+      request.method() === 'POST'
+    ) {
+      if (slotsUsed >= 10) {
+        speed = 2;
+        distance = 0;
+        streak = 0;
+        points = 0;
+        nitroActive = false;
+        slotsUsed = 0;
+        answersUsed = 0;
+      }
+      body = {
+        data: {
+          play: play(),
+          question: question(),
+          outcome: null,
+          resumed: false,
+        },
+      };
+    } else if (path.endsWith('/games/pixel-racer/plays/pixel-play/answer')) {
+      const isCorrect = request.postDataJSON().optionId === 'pixel-correct';
+      const usedNitro = nitroActive && isCorrect;
+      speed = isCorrect ? Math.min(5, speed + 1) : Math.max(1, speed - 1);
+      streak = isCorrect ? streak + 1 : 0;
+      const multiplier = usedNitro ? 2 : 1;
+      const slotsConsumed = usedNitro ? 2 : 1;
+      const distanceGained = speed * 10 * multiplier;
+      const pointsEarned = isCorrect ? 10 * multiplier : 0;
+      distance += distanceGained;
+      points += pointsEarned;
+      slotsUsed = Math.min(10, slotsUsed + slotsConsumed);
+      answersUsed += 1;
+      nitroActive = isCorrect && (usedNitro || streak >= 4);
+      body = {
+        data: {
+          isCorrect,
+          correctOption: { optionId: 'pixel-correct', optionText: 'TCP' },
+          explanation: 'TCP provides reliable ordered delivery.',
+          distanceGained,
+          pointsEarned,
+          slotsConsumed,
+          play: play(),
+          question: slotsUsed >= 10 ? null : question(),
+          outcome:
+            slotsUsed >= 10
+              ? {
+                  winner: distance > bot.distance ? 'player' : 'bot',
+                  playerDistance: distance,
+                  playerPoints: points,
+                  botDistance: bot.distance,
+                  botPoints: bot.points,
+                  answersUsed,
+                }
+              : null,
+          replayed: false,
+        },
+      };
+    } else body = { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Quizzes' }).click();
+  await page.getByRole('combobox').selectOption('module-1');
+  const lockedQuiz = page
+    .locator('.quiz-entry')
+    .filter({ hasText: 'Locked pixel race' });
+  await expect(
+    lockedQuiz.getByText('Complete your scored attempt to unlock this game.'),
+  ).toBeVisible();
+  await expect(
+    lockedQuiz.getByRole('button', { name: 'Play Pixel Car Racer' }),
+  ).toHaveCount(0);
+
+  const playButton = page.getByRole('button', { name: 'Play Pixel Car Racer' });
+  await playButton.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('heading', {
+      name: 'PIXEL CAR RACER',
+      exact: true,
+      level: 2,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(/Correct answer:/)).toHaveCount(0);
+  await expect(page.getByText('Speed 2 of 5')).toBeVisible();
+
+  for (let answerNumber = 0; answerNumber < 7; answerNumber += 1) {
+    await page.getByLabel('TCP').check();
+    await page.getByRole('button', { name: 'Submit answer' }).click();
+    await expect(page.getByText('Correct', { exact: true })).toBeVisible();
+    if (answerNumber >= 3)
+      await expect(
+        page.getByText('NITRO ACTIVE, answers worth double'),
+      ).toBeVisible();
+    await page.getByRole('button', { name: 'Continue' }).click();
+  }
+
+  await expect(page.getByText('You won the race!')).toBeVisible();
+  await expect(page.getByText('Answers used: 7')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Race again' })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

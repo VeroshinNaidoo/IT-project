@@ -58,3 +58,13 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 5. Continue until boss HP reaches zero. Confirm the **Boss defeated** terminal screen shows final score/HP and offers **Play again** and **Back to quiz**.
 6. In separate plays, answer incorrectly until player HP reaches zero and exhaust all questions before either HP reaches zero. Confirm **The boss prevailed** and **Questions exhausted** terminal screens respectively.
 7. Refresh while a question is pending. Confirm the same play and question return without correctness. Return to leaderboard and analytics and confirm the game changed neither scored attempts nor percentages.
+
+## FR-26 Pixel Car Racer solo-vs-Bot smoke test
+
+1. Sign in as an enrolled student and open a practice quiz containing at least 10 explained questions. Confirm **Play Pixel Car Racer** appears. On a competitive quiz without a completed scored attempt, confirm only the locked reason is shown.
+2. Start the race. Confirm the player and clearly labelled **Bot** share a track, speed starts at 2 of 5, score/streak/slots are visible as text, and the pending question contains no correctness marker.
+3. Answer four questions correctly. Confirm speed increases but never exceeds 5, streak reaches four, and nitro is announced for the next question.
+4. Answer the next three correctly. Confirm **NITRO ACTIVE, answers worth double**, doubled points and distance, two consumed slots per answer, and that the ten-slot race finishes after seven answers in this worked run.
+5. In a replay, answer incorrectly while nitro is active. Confirm speed drops by one but not below 1, streak resets to zero, nitro ends, points do not decrease, and one slot is consumed.
+6. Refresh while a question is pending. Confirm the same play and question resume without revealing the correct answer.
+7. Confirm the result reports player/Bot distance, points, answers used, and win/Bot win/shared outcome. Select **Race again**, then verify no race result appears in the leaderboard, scored attempts, or lecturer analytics.

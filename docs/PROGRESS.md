@@ -151,3 +151,12 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added start/resume, owner refresh, and row-locked answer routes with `canAccessGame`, ten-question eligibility, strict unknown-field rejection, option/question validation, idempotent replay, concealed correctness, and server-owned movement/scoring/outcome.
 - Added all three routes to the behavioral authorization matrix and dedicated integration coverage for the nitro worked run, resume, duplicate answer, invalid option/fields, competitive access, eligibility/enrolment, lecturer ownership, cross-user ownership, and scored-data isolation.
 - Remaining: Part 3 frontend, seed proof, six-project Playwright/axe flow, final invariant/traceability/manual docs, three full gates, and catalog enablement. Timer Trivia and multiplayer remain untouched.
+
+## FR-26 Pixel Car Racer — completed solo-vs-Bot gate — 2026-10-30
+
+- Added the responsive two-car race screen with original CSS pixel art, textual speed/streak/slots/score state, explicit nitro messaging, keyboard-operable answers, server feedback, and player/Bot/shared terminal outcomes.
+- The 25-question demo practice quiz spans five topics and all five levels with explanations; seed validation now explicitly requires at least 10 Pixel Racer-eligible questions.
+- Added 7 component test cases and a stateful Playwright/axe flow covering the four-answer streak, next-question nitro, doubled slot use, seven-answer worked finish, result, and competitive pre-attempt lock in Chromium and Firefox at 390, 768, and 1280 pixels.
+- Three consecutive pre-enable gates each passed lint, Prettier, TypeScript, production build, 277/277 JavaScript tests with zero skipped (128 pure/frontend and 149 DB/API), and 42/42 Playwright/axe project runs.
+- Added INV-49 through INV-55 and the FR-26 rule mapping, ERD, status, and manual smoke evidence. Migration 011 enables only `pixel_racer` after those gates passed.
+- Pixel Car Racer solo-vs-Bot is done and tested. Timer Trivia is the only remaining requested solo game; multiplayer remains out of scope.

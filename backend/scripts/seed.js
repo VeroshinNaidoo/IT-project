@@ -217,6 +217,19 @@ try {
                WHERE qo.question_id=q.question_id
              ) >= 2
          )::int AS boss_eligible_count,
+         count(DISTINCT q.question_id) FILTER (
+           WHERE EXISTS (
+             SELECT 1
+             FROM question_options qo
+             WHERE qo.question_id=q.question_id
+               AND qo.is_correct=true
+           )
+             AND (
+               SELECT count(*)
+               FROM question_options qo
+               WHERE qo.question_id=q.question_id
+             ) >= 2
+         )::int AS pixel_racer_eligible_count,
          count(*) FILTER (
            WHERE q.explanation IS NULL OR length(trim(q.explanation))=0
          )::int AS missing_explanation_count
@@ -231,6 +244,7 @@ try {
     practiceCoverage.level_count < 5 ||
     practiceCoverage.memory_eligible_count < 8 ||
     practiceCoverage.boss_eligible_count < 12 ||
+    practiceCoverage.pixel_racer_eligible_count < 10 ||
     practiceCoverage.missing_explanation_count > 0
   ) {
     throw new Error('Demo practice quiz does not satisfy game seed coverage.');

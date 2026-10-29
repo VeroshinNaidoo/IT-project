@@ -236,6 +236,10 @@ export function App() {
               setGameQuizId(id);
               setScreen('Boss Battle');
             }}
+            onPlayPixelRacer={(id) => {
+              setGameQuizId(id);
+              setScreen('Pixel Car Racer');
+            }}
           />
         )}
         {screen === 'Quiz' && <QuizTaking quizId={quizId} />}
@@ -259,6 +263,12 @@ export function App() {
         )}
         {screen === 'Boss Battle' && (
           <BossBattleGame
+            quizId={gameQuizId}
+            onBack={() => setScreen('Quizzes')}
+          />
+        )}
+        {screen === 'Pixel Car Racer' && (
+          <PixelRacerGame
             quizId={gameQuizId}
             onBack={() => setScreen('Quizzes')}
           />
@@ -817,6 +827,7 @@ function Quizzes({
   onPlayIslandEscape,
   onPlayMemoryMatch,
   onPlayBossBattle,
+  onPlayPixelRacer,
 }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
@@ -868,6 +879,7 @@ function Quizzes({
                 onPlayIslandEscape={() => onPlayIslandEscape(quiz.quiz_id)}
                 onPlayMemoryMatch={() => onPlayMemoryMatch(quiz.quiz_id)}
                 onPlayBossBattle={() => onPlayBossBattle(quiz.quiz_id)}
+                onPlayPixelRacer={() => onPlayPixelRacer(quiz.quiz_id)}
               />
             </div>
           ))}
@@ -885,6 +897,7 @@ export function QuizGames({
   onPlayIslandEscape,
   onPlayMemoryMatch,
   onPlayBossBattle,
+  onPlayPixelRacer,
 }) {
   const games = useData(`/quizzes/${quizId}/games`);
   if (games.loading) return <p className="muted">Loading games…</p>;
@@ -918,6 +931,11 @@ export function QuizGames({
           {game.key === 'boss_battle' && game.available && (
             <button className="primary" onClick={onPlayBossBattle}>
               Play Boss Battle
+            </button>
+          )}
+          {game.key === 'pixel_racer' && game.available && (
+            <button className="primary" onClick={onPlayPixelRacer}>
+              Play Pixel Car Racer
             </button>
           )}
         </div>
@@ -1164,6 +1182,210 @@ export function BossBattleGame({ quizId, onBack }) {
           </div>
           <button className="primary" disabled={!selected || busy}>
             {busy ? 'Applying answer…' : 'Submit answer'}
+          </button>
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      )}
+    </section>
+  );
+}
+
+function PixelCar({ label, distance, player = false }) {
+  const lanePosition = Math.min(92, Math.max(4, (distance / 500) * 88));
+  return (
+    <div className="pixel-lane" aria-label={`${label}: ${distance} distance`}>
+      <span className="pixel-lane-label">{label}</span>
+      <span
+        className={`pixel-car ${player ? 'player-car' : 'bot-car'}`}
+        style={{ left: `${lanePosition}%` }}
+        role="img"
+        aria-label={`${label} car at ${distance}`}
+      >
+        <i />
+        <b />
+        <em />
+      </span>
+      <span className="finish-line" aria-hidden="true" />
+    </div>
+  );
+}
+
+export function PixelRacerGame({ quizId, onBack }) {
+  const [race, setRace] = useState(null);
+  const [selected, setSelected] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const start = async () => {
+    setLoading(true);
+    setError('');
+    setFeedback(null);
+    setSelected('');
+    try {
+      const body = await api('/games/pixel-racer/plays', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      });
+      setRace(body.data);
+    } catch (reason) {
+      setRace(null);
+      setError(reason.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (quizId) start();
+  }, [quizId]);
+
+  const answer = async (event) => {
+    event.preventDefault();
+    if (!selected || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(
+        `/games/pixel-racer/plays/${race.play.playId}/answer`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ optionId: selected }),
+        },
+      );
+      setRace({
+        play: body.data.play,
+        question: body.data.question,
+        outcome: body.data.outcome,
+      });
+      setFeedback(body.data);
+      setSelected('');
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!quizId) return <p className="empty-state">Choose a quiz first.</p>;
+  if (loading) return <p className="center-state">Starting the engines…</p>;
+  if (error && !race)
+    return (
+      <section className="card game-error">
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+        <button className="secondary" onClick={onBack}>
+          Back to quiz
+        </button>
+      </section>
+    );
+
+  const terminal = race.play.status === 'finished';
+  const resultTitle =
+    race.outcome?.winner === 'player'
+      ? 'You won the race!'
+      : race.outcome?.winner === 'bot'
+        ? 'Bot wins this race'
+        : 'Photo finish — shared result';
+
+  return (
+    <section className="pixel-racer-game">
+      <div className="pixel-racer-topbar">
+        <button className="link-button" onClick={onBack}>
+          ← Back
+        </button>
+        <h2>PIXEL CAR RACER</h2>
+        <span>Points {race.play.points}</span>
+      </div>
+
+      <div className="pixel-track" aria-label="Race positions">
+        <PixelCar label="You" distance={race.play.distance} player={true} />
+        <PixelCar label="Bot" distance={race.play.bot.distance} />
+      </div>
+
+      <div className="pixel-racer-stats" aria-label="Race statistics">
+        <span>Speed {race.play.speed} of 5</span>
+        <span>Streak {race.play.streak}</span>
+        <span>
+          Question slots {race.play.slotsUsed} of 10 · Answers{' '}
+          {race.play.answersUsed}
+        </span>
+        <strong className={race.play.nitroActive ? 'nitro-active' : ''}>
+          {race.play.nitroActive
+            ? 'NITRO ACTIVE, answers worth double'
+            : 'Nitro inactive'}
+        </strong>
+      </div>
+
+      {feedback ? (
+        <section
+          className={`feedback-panel ${feedback.isCorrect ? 'correct' : 'incorrect'}`}
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          <h3>{feedback.isCorrect ? 'Correct' : 'Incorrect'}</h3>
+          <p>
+            Distance gained: {feedback.distanceGained} · Points earned:{' '}
+            {feedback.pointsEarned} · Slots used: {feedback.slotsConsumed}
+          </p>
+          <p>
+            Correct answer: <strong>{feedback.correctOption.optionText}</strong>
+          </p>
+          <p>{feedback.explanation}</p>
+          <button className="primary" onClick={() => setFeedback(null)}>
+            Continue
+          </button>
+        </section>
+      ) : terminal ? (
+        <section className="pixel-racer-result" aria-live="polite">
+          <div className="pixel-trophy" aria-hidden="true">
+            ★
+          </div>
+          <h3>{resultTitle}</h3>
+          <p>
+            You: {race.outcome.playerDistance} distance ·{' '}
+            {race.outcome.playerPoints} points
+          </p>
+          <p>
+            Bot: {race.outcome.botDistance} distance · {race.outcome.botPoints}{' '}
+            points
+          </p>
+          <p>Answers used: {race.outcome.answersUsed}</p>
+          <div className="terminal-actions">
+            <button className="primary" onClick={start}>
+              Race again
+            </button>
+            <button className="secondary" onClick={onBack}>
+              Back to quiz
+            </button>
+          </div>
+        </section>
+      ) : (
+        <form className="pixel-racer-question" onSubmit={answer}>
+          <p className="eyebrow">{race.question.topic}</p>
+          <h3>{race.question.questionText}</h3>
+          <div className="option-list">
+            {race.question.options.map((option) => (
+              <label key={option.optionId}>
+                <input
+                  type="radio"
+                  name="pixel-option"
+                  value={option.optionId}
+                  checked={selected === option.optionId}
+                  onChange={() => setSelected(option.optionId)}
+                />
+                {option.optionText}
+              </label>
+            ))}
+          </div>
+          <button className="primary" disabled={!selected || busy}>
+            {busy ? 'Racing…' : 'Submit answer'}
           </button>
           {error && (
             <p className="field-error" role="alert">

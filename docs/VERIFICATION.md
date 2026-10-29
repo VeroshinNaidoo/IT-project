@@ -23,7 +23,7 @@ Variable names were checked without printing values. Present names: `DATABASE_UR
 - Real PostgreSQL row-locking/concurrency: requires `REAL_TEST_DATABASE_URL` and `npm run test:db:real`.
 - Anthropic live-provider behavior: requires `ANTHROPIC_API_KEY` and `npm run test:ai:real`.
 - Native PostgreSQL backup/restore: requires `pg_dump`/`pg_restore` against real PostgreSQL.
-- Timer Trivia, Boss Battle, and Pixel Car Racer: not built; no verification is claimed. Memory Match solo is built and covered by its engine, API, component, authorization, and six-project Playwright/axe gate.
+- Timer Trivia is not built and no verification is claimed. Memory Match, Boss Battle, and Pixel Car Racer solo modes are built and covered by engine, API, component, authorization, and six-project Playwright/axe gates.
 - Multiplayer rooms and all multiplayer modes: not built and explicitly out of scope.
 
 ## Verdict
@@ -82,7 +82,7 @@ Updated verdict: ready with caveats. Offline verification and security spot chec
 - Step 5: the existing 24 browser tests passed using mocked routes, but the requested full lecturer/student generation journey and screenshots were not run. No screenshot evidence is claimed.
 - Native `pg_dump`/`pg_restore`: unavailable because neither executable was found. JSON backup fallback passed after restarting the PGlite processes; round-trip reported 8 migrations.
 - `npm audit --audit-level=high`: 12 vulnerabilities reported: 5 moderate, 5 high, 2 critical. No forced dependency upgrade was applied.
-- The three unbuilt solo games (Timer Trivia, Boss Battle, Pixel Car Racer) and multiplayer remain unverified.
+- Timer Trivia and multiplayer remain unverified. Boss Battle and Pixel Car Racer solo modes have since passed their documented gates.
 
 ### Bug list
 

@@ -14,6 +14,7 @@ import {
   InfectedGame,
   IslandEscapeGame,
   MemoryMatchGame,
+  PixelRacerGame,
   QuizGames,
   QuizTaking,
   ResourceRow,
@@ -239,6 +240,238 @@ const response = (body, ok = true) => ({
   ok,
   status: ok ? 200 : 401,
   json: async () => body,
+});
+
+const pixelQuestion = {
+  questionId: 'pixel-question-1',
+  questionText: 'Which protocol provides reliable transport?',
+  difficultyLevel: 3,
+  topic: 'Networking',
+  options: [
+    { optionId: 'pixel-correct', optionText: 'TCP' },
+    { optionId: 'pixel-wrong-1', optionText: 'ARP' },
+    { optionId: 'pixel-wrong-2', optionText: 'ICMP only' },
+    { optionId: 'pixel-wrong-3', optionText: 'A display driver' },
+  ],
+};
+
+const pixelData = (overrides = {}) => ({
+  play: {
+    playId: 'pixel-play',
+    quizId: 'pixel-quiz',
+    status: 'in_progress',
+    speed: 2,
+    distance: 0,
+    streak: 0,
+    points: 0,
+    nitroActive: false,
+    slotsUsed: 0,
+    slotsRemaining: 10,
+    answersUsed: 0,
+    bot: {
+      name: 'Bot',
+      distance: 310,
+      points: 60,
+      answersUsed: 10,
+      status: 'finished',
+    },
+    ...(overrides.play || {}),
+  },
+  question:
+    overrides.question === undefined ? pixelQuestion : overrides.question,
+  outcome: overrides.outcome || null,
+  resumed: false,
+});
+
+describe('Pixel Car Racer frontend', () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders the track, textual stats, four options and no correctness', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(response({ data: pixelData() })),
+    );
+    render(<PixelRacerGame quizId="pixel-quiz" onBack={() => {}} />);
+    expect(await screen.findByText('Speed 2 of 5')).toBeTruthy();
+    expect(screen.getByText('Streak 0')).toBeTruthy();
+    expect(screen.getByText('Nitro inactive')).toBeTruthy();
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(screen.getByRole('img', { name: 'You car at 0' })).toBeTruthy();
+    expect(screen.queryByText(/Correct answer:/)).toBeNull();
+  });
+
+  it('shows doubled nitro feedback and updated race state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ data: pixelData() }))
+        .mockResolvedValueOnce(
+          response({
+            data: {
+              ...pixelData({
+                play: {
+                  speed: 5,
+                  distance: 100,
+                  streak: 5,
+                  points: 20,
+                  nitroActive: true,
+                  slotsUsed: 2,
+                  slotsRemaining: 8,
+                  answersUsed: 1,
+                },
+              }),
+              isCorrect: true,
+              correctOption: {
+                optionId: 'pixel-correct',
+                optionText: 'TCP',
+              },
+              explanation: 'TCP provides reliable ordered delivery.',
+              distanceGained: 100,
+              pointsEarned: 20,
+              slotsConsumed: 2,
+            },
+          }),
+        ),
+    );
+    render(<PixelRacerGame quizId="pixel-quiz" onBack={() => {}} />);
+    fireEvent.click(await screen.findByLabelText('TCP'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    expect(await screen.findByText('Correct', { exact: true })).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Distance gained: 100 · Points earned: 20 · Slots used: 2',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('NITRO ACTIVE, answers worth double')).toBeTruthy();
+  });
+
+  it('shows wrong-answer feedback without reducing points', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ data: pixelData() }))
+        .mockResolvedValueOnce(
+          response({
+            data: {
+              ...pixelData({
+                play: { speed: 1, distance: 10, slotsUsed: 1, answersUsed: 1 },
+              }),
+              isCorrect: false,
+              correctOption: {
+                optionId: 'pixel-correct',
+                optionText: 'TCP',
+              },
+              explanation: 'TCP is the reliable transport protocol.',
+              distanceGained: 10,
+              pointsEarned: 0,
+              slotsConsumed: 1,
+            },
+          }),
+        ),
+    );
+    render(<PixelRacerGame quizId="pixel-quiz" onBack={() => {}} />);
+    fireEvent.click(await screen.findByLabelText('ARP'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    expect(await screen.findByText('Incorrect')).toBeTruthy();
+    expect(screen.getByText(/Points earned: 0/)).toBeTruthy();
+    expect(screen.getByText('Points 0')).toBeTruthy();
+  });
+
+  it.each([
+    ['player', 'You won the race!'],
+    ['bot', 'Bot wins this race'],
+    ['shared', 'Photo finish — shared result'],
+  ])('shows the %s terminal result', async (winner, title) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          data: pixelData({
+            play: {
+              status: 'finished',
+              distance: 420,
+              points: 100,
+              slotsUsed: 10,
+              slotsRemaining: 0,
+              answersUsed: 7,
+            },
+            question: null,
+            outcome: {
+              winner,
+              playerDistance: 420,
+              playerPoints: 100,
+              botDistance: 390,
+              botPoints: 70,
+              answersUsed: 7,
+            },
+          }),
+        }),
+      ),
+    );
+    render(<PixelRacerGame quizId="pixel-quiz" onBack={() => {}} />);
+    expect(await screen.findByText(title)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Race again' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Back to quiz' })).toBeTruthy();
+  });
+
+  it('shows play only when available and otherwise shows the reason', async () => {
+    const onPlay = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        response({
+          data: [
+            {
+              game_id: 'pixel-game',
+              key: 'pixel_racer',
+              display_name: 'Pixel Car Racer',
+              available: true,
+            },
+          ],
+        }),
+      ),
+    );
+    const available = render(
+      <QuizGames quizId="pixel-available" onPlayPixelRacer={onPlay} />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Play Pixel Car Racer' }),
+    );
+    expect(onPlay).toHaveBeenCalledOnce();
+    available.unmount();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        response({
+          data: [
+            {
+              game_id: 'pixel-locked',
+              key: 'pixel_racer',
+              display_name: 'Pixel Car Racer',
+              available: false,
+              reason: 'Complete your scored attempt to unlock this game.',
+            },
+          ],
+        }),
+      ),
+    );
+    render(<QuizGames quizId="pixel-locked" onPlayPixelRacer={onPlay} />);
+    expect(
+      await screen.findByText(
+        'Complete your scored attempt to unlock this game.',
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Play Pixel Car Racer' }),
+    ).toBeNull();
+  });
 });
 
 const memoryCards = [
