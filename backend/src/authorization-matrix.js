@@ -65,6 +65,13 @@ const routePolicies = {
   'POST /api/v1/games/boss-battle/plays/:id/answer': {
     auth: 'student|lecturer',
   },
+  'POST /api/v1/games/pixel-racer/plays': { auth: 'student|lecturer' },
+  'GET /api/v1/games/pixel-racer/plays/:id': {
+    auth: 'student|lecturer',
+  },
+  'POST /api/v1/games/pixel-racer/plays/:id/answer': {
+    auth: 'student|lecturer',
+  },
 };
 
 const caseNames = [

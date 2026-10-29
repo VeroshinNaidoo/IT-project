@@ -17,6 +17,7 @@ export default defineConfig({
       'backend/tests/island-escape-api.test.js',
       'backend/tests/memory-match-api.test.js',
       'backend/tests/boss-battle-api.test.js',
+      'backend/tests/pixel-racer-api.test.js',
     ],
     fileParallelism: false,
     maxWorkers: 1,

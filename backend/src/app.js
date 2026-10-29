@@ -26,8 +26,10 @@ import { registerInfectedRoutes } from './games/infected/routes.js';
 import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
 import { registerBossBattleRoutes } from './games/boss_battle/routes.js';
+import { registerPixelRacerRoutes } from './games/pixel_racer/routes.js';
 import { ISLAND_MIN_QUESTIONS } from './games/island_escape/config.js';
 import { BOSS_MIN_QUESTIONS } from './games/boss_battle/config.js';
+import { RACE_MIN_QUESTIONS } from './games/pixel_racer/config.js';
 
 const app = express();
 const cookieSecure =
@@ -1302,9 +1304,11 @@ app.get(
               ? ISLAND_MIN_QUESTIONS
               : game.key === 'boss_battle'
                 ? BOSS_MIN_QUESTIONS
-                : Number(process.env.GAME_MIN_QUESTIONS || 6);
+                : game.key === 'pixel_racer'
+                  ? RACE_MIN_QUESTIONS
+                  : Number(process.env.GAME_MIN_QUESTIONS || 6);
           const availableQuestionCount =
-            game.key === 'boss_battle'
+            game.key === 'boss_battle' || game.key === 'pixel_racer'
               ? game.eligible_question_count
               : game.question_count;
           const enoughQuestions = availableQuestionCount >= minimum;
@@ -1318,7 +1322,9 @@ app.get(
                   ? `Needs a quiz with at least ${minimum} questions.`
                   : game.key === 'boss_battle'
                     ? `Boss Battle needs at least ${minimum} eligible questions.`
-                    : `Not enough questions for this game yet. At least ${minimum} are required.`
+                    : game.key === 'pixel_racer'
+                      ? `Pixel Car Racer needs at least ${minimum} eligible questions.`
+                      : `Not enough questions for this game yet. At least ${minimum} are required.`
                 : null,
           };
         }),
@@ -1415,6 +1421,7 @@ registerIslandEscapeRoutes({
 
 registerMemoryMatchRoutes({ app, pool, requireAuth, error, requestId });
 registerBossBattleRoutes({ app, pool, requireAuth, error, requestId });
+registerPixelRacerRoutes({ app, pool, requireAuth, error, requestId });
 
 app.use((err, req, res, _next) => {
   console.error(

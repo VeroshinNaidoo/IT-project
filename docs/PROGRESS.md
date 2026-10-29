@@ -144,3 +144,10 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added worked-example, transition, deterministic, uniqueness, terminal, minimum-question, and property-based tests. The engine is frozen after this part's green commit.
 - Remaining: Part 2 persistence/routes/integration coverage, then Part 3 frontend, seed, six-project Playwright/axe flow, documentation, three full gates, and catalog enablement. Timer Trivia remains untouched and multiplayer remains out of scope.
 - Frozen-engine correction: bot simulation now preserves the server-selected question order exactly and randomizes only bot correctness. A regression assertion covers the shared-list rule.
+
+## FR-26 Pixel Car Racer — persistence and API — 2026-10-29
+
+- Added a strict versioned Pixel Racer state registered with generic `game_plays` and append-only `game_play_moves`, including the server-selected question list and deterministic Bot result.
+- Added start/resume, owner refresh, and row-locked answer routes with `canAccessGame`, ten-question eligibility, strict unknown-field rejection, option/question validation, idempotent replay, concealed correctness, and server-owned movement/scoring/outcome.
+- Added all three routes to the behavioral authorization matrix and dedicated integration coverage for the nitro worked run, resume, duplicate answer, invalid option/fields, competitive access, eligibility/enrolment, lecturer ownership, cross-user ownership, and scored-data isolation.
+- Remaining: Part 3 frontend, seed proof, six-project Playwright/axe flow, final invariant/traceability/manual docs, three full gates, and catalog enablement. Timer Trivia and multiplayer remain untouched.
