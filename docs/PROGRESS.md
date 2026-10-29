@@ -160,3 +160,9 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Three consecutive pre-enable gates each passed lint, Prettier, TypeScript, production build, 277/277 JavaScript tests with zero skipped (128 pure/frontend and 149 DB/API), and 42/42 Playwright/axe project runs.
 - Added INV-49 through INV-55 and the FR-26 rule mapping, ERD, status, and manual smoke evidence. Migration 011 enables only `pixel_racer` after those gates passed.
 - Pixel Car Racer solo-vs-Bot is done and tested. Timer Trivia is the only remaining requested solo game; multiplayer remains out of scope.
+
+## FR-24 Timer Trivia — pure engine — 2026-10-30
+
+- Added the configurable pure solo engine for a five-level topic board, ten server-timed rounds, cell-owned points, timeout scoring, extended-time deadlines, distinct-cell use, refresh-stable active rounds, and terminal immutability.
+- All game numbers are centralized in `backend/src/games/timer_trivia/config.js`; seeded selection is deterministic and the engine has no I/O.
+- Part 5 persistence/routes/integration tests and Part 6 frontend/seed/browser/docs/catalog enablement remain. Timer Trivia stays disabled; multiplayer remains out of scope.
