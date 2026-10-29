@@ -121,7 +121,8 @@ export function applyAnswer(state, isCorrect) {
  */
 export function simulateBot(questions, seed = 'pixel-racer-bot') {
   const rng = typeof seed === 'function' ? seed : seededRng(seed);
-  let state = createRace(questions, rng);
+  // The bot races the exact server-selected list; only its answers use RNG.
+  let state = createRace(questions, () => 0.9999999999999999);
   while (!isTerminal(state)) state = applyAnswer(state, rng() < BOT_ACCURACY);
   return { ...state, name: 'Bot' };
 }

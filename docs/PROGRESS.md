@@ -143,3 +143,4 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added the configurable pure solo-race engine with speed bounds, distance, streak, next-question nitro activation, doubled nitro points/slot consumption, deterministic bot simulation, distance/points tie-breaking, and terminal immutability.
 - Added worked-example, transition, deterministic, uniqueness, terminal, minimum-question, and property-based tests. The engine is frozen after this part's green commit.
 - Remaining: Part 2 persistence/routes/integration coverage, then Part 3 frontend, seed, six-project Playwright/axe flow, documentation, three full gates, and catalog enablement. Timer Trivia remains untouched and multiplayer remains out of scope.
+- Frozen-engine correction: bot simulation now preserves the server-selected question order exactly and randomizes only bot correctness. A regression assertion covers the shared-list rule.

@@ -96,10 +96,14 @@ describe('Pixel Car Racer pure engine', () => {
   });
 
   it('produces a deterministic labelled bot at the configured accuracy', () => {
-    const first = simulateBot(questions(), 'fixed-bot');
-    const second = simulateBot(questions(), 'fixed-bot');
+    const raceQuestions = questions().reverse();
+    const first = simulateBot(raceQuestions, 'fixed-bot');
+    const second = simulateBot(raceQuestions, 'fixed-bot');
     expect(first).toEqual(second);
     expect(first).toMatchObject({ name: 'Bot', status: 'finished' });
+    expect(first.questions.map((question) => question.question_id)).toEqual(
+      raceQuestions.map((question) => question.question_id),
+    );
     expect(BOT_ACCURACY).toBe(0.6);
   });
 
