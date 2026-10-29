@@ -527,8 +527,14 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
       catalog.rows.find((row) => row.key === 'memory_match').is_enabled,
     ).toBe(true);
     expect(
+      catalog.rows.find((row) => row.key === 'boss_battle').is_enabled,
+    ).toBe(true);
+    expect(
       catalog.rows
-        .filter((row) => !['infected', 'memory_match'].includes(row.key))
+        .filter(
+          (row) =>
+            !['infected', 'memory_match', 'boss_battle'].includes(row.key),
+        )
         .every((row) => row.is_enabled === false),
     ).toBe(true);
     expect(

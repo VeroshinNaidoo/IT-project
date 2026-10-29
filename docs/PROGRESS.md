@@ -128,3 +128,12 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added 14 named integration tests covering win, loss, exhaustion, move-log refresh, replay, invalid/no-pending answers, competitive access, eligibility, enrolment, lecturer ownership, pre-answer secrecy, cross-user ownership, and scored-data isolation.
 - Gate: 240/240 JavaScript tests passed with zero skipped (104 pure/frontend and 136 DB/API). Lint, Prettier, and TypeScript passed.
 - Boss Battle remains disabled. Frontend, seed coverage, browser/axe evidence, final documentation, and catalog enablement remain for later slices. No database migration was added.
+
+## FR-25 Boss Battle — completed solo gate — 2026-10-29
+
+- Added the responsive Boss Battle screen with an original four-state vector boss, textual boss/player HP bars, keyboard-operable answers, live feedback with correct answer and explanation, and win/loss/exhausted terminal screens.
+- Added 7 component test cases and a stateful Playwright/axe flow that covers a wrong answer, hard-question damage, a full win, the competitive pre-attempt lock, and both browser engines at 390, 768, and 1280 pixels.
+- The demo practice quiz already contains 25 explained questions over five topics and all five levels; the seed now explicitly refuses to commit unless at least 12 are Boss Battle eligible.
+- Three consecutive complete pre-enable gates each passed lint, Prettier, TypeScript, production build, 248/248 JavaScript tests with zero skipped, and 36/36 browser/axe project runs.
+- A Firefox race in an older Infected flow was fixed separately in `e14d708` by waiting for real mocked responses; no assertion was removed. Migration 010 then enabled `boss_battle` and made new-quiz game attachment data-driven from enabled catalog rows.
+- Boss Battle solo is done and tested. Timer Trivia, Pixel Car Racer, and all multiplayer modes remain out of scope and disabled.

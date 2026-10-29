@@ -42,7 +42,7 @@ erDiagram
   QUIZZES o|--o{ AI_GENERATION_JOBS : creates
 ```
 
-`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected`, `island_escape`, and `memory_match` are enabled; `flashcards`, `timer_trivia`, `boss_battle`, and `pixel_racer` are disabled until their implementation gates pass. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
+`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected`, `island_escape`, `memory_match`, and `boss_battle` are enabled; `flashcards`, `timer_trivia`, and `pixel_racer` are disabled until their implementation gates pass. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
 
 Questions use required `DifficultyLevel smallint` (1–5, default 3) and nullable `Explanation` (1–300 characters). The shared mapping is levels 1–2 Easy, 3 Medium, and 4–5 Hard.
 
@@ -59,3 +59,5 @@ Generic solo-game storage introduced by migration 007:
 - `game_personal_bests(GameTypeID FK, StudentID FK, QuizID FK, Score, UpdatedAt)` stores practice-only personal records; its composite key is `(GameTypeID, StudentID, QuizID)`.
 
 Memory Match uses `game_plays` for its versioned, Zod-validated shuffled-card state and `game_play_moves` for its append-only flip log. The partial unique index resumes the same in-progress play for a student, game type, and quiz. Pair identity and all unflipped text remain server-only; persisted client state uses opaque card IDs, kinds, face state, matched state, score, moves, and mismatch count.
+
+Boss Battle uses the same generic tables with a versioned state containing bounded boss/player HP, score, a server-shuffled remaining-question queue, the current question, and terminal status. Each answer appends one immutable move and the play row stores the latest validated state; terminal-state and append-only triggers remain shared with the other generic games.

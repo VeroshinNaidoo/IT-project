@@ -1266,6 +1266,234 @@ input[type='radio'] {
   resize: vertical;
 }
 
+.boss-game {
+  max-width: 980px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #e3dfd5;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 20px 60px #14213d12;
+}
+.boss-topbar {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  color: #fff;
+  background: #14213d;
+}
+.boss-topbar h2 {
+  margin: 0;
+  color: #fff;
+  font:
+    700 20px 'Space Grotesk',
+    sans-serif;
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+.boss-topbar .link-button {
+  min-height: 44px;
+  justify-self: start;
+  color: #e4e7fb;
+}
+.boss-topbar > span {
+  justify-self: end;
+  color: #fce9c4;
+  font-weight: 700;
+}
+.boss-arena {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(220px, 320px) minmax(
+      170px,
+      1fr
+    );
+  align-items: center;
+  gap: 24px;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 50% 75%, #fce9c4 0 8%, transparent 29%),
+    linear-gradient(180deg, #f6f4ef, #fff);
+}
+.boss-health,
+.player-health {
+  align-self: end;
+  padding: 16px;
+  border: 1px solid #e3dfd5;
+  border-radius: 16px;
+  background: #ffffffde;
+}
+.health-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: #14213d;
+}
+.health-copy span {
+  font-weight: 800;
+}
+.health-track {
+  height: 16px;
+  overflow: hidden;
+  border: 1px solid #d6d2c8;
+  border-radius: 999px;
+  background: #eeeae2;
+}
+.health-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 420ms ease;
+}
+.boss-hp-track span {
+  background: linear-gradient(90deg, #b3261e, #c77700);
+}
+.player-hp-track span {
+  background: linear-gradient(90deg, #2f8f5b, #3b4bdb);
+}
+.boss-character {
+  margin: 0;
+  text-align: center;
+}
+.boss-character svg {
+  width: min(100%, 290px);
+  overflow: visible;
+  filter: drop-shadow(0 16px 16px #14213d20);
+  animation: boss-hover 2.8s ease-in-out infinite;
+}
+.boss-character figcaption {
+  margin-top: 4px;
+  color: #5d6678;
+  font-size: 13px;
+  font-weight: 700;
+}
+.boss-shadow {
+  fill: #14213d24;
+}
+.boss-horn {
+  fill: #f2a93b;
+  stroke: #6b4400;
+  stroke-width: 5;
+}
+.boss-body {
+  fill: #3b4bdb;
+  stroke: #14213d;
+  stroke-width: 6;
+}
+.damage-1 .boss-body {
+  fill: #5a54c7;
+}
+.damage-2 .boss-body {
+  fill: #76528f;
+}
+.damage-3 .boss-body {
+  fill: #8b3d55;
+}
+.boss-brow,
+.boss-mouth,
+.boss-crack {
+  fill: none;
+  stroke: #14213d;
+  stroke-linecap: round;
+  stroke-width: 7;
+}
+.boss-crack {
+  stroke: #fce9c4;
+  stroke-width: 5;
+}
+.boss-eye {
+  fill: #f6f4ef;
+  stroke: #14213d;
+  stroke-width: 4;
+}
+.boss-bandage {
+  fill: none;
+  stroke: #f6f4ef;
+  stroke-width: 13;
+}
+.boss-question {
+  margin: 0 24px 28px;
+  padding: 24px;
+  border: 1px solid #e3dfd5;
+  border-radius: 16px;
+  background: #fff;
+}
+.boss-question h3 {
+  margin: 12px 0 18px;
+  color: #14213d;
+  font-size: clamp(20px, 3vw, 28px);
+}
+.boss-question .eyebrow {
+  display: inline-block;
+  margin: 0 0 0 8px;
+}
+.boss-question .option-list label {
+  min-height: 48px;
+}
+.boss-question > .primary,
+.feedback-panel > .primary {
+  min-height: 44px;
+  margin-top: 16px;
+}
+.terminal-screen.exhausted {
+  border-color: #c77700;
+}
+@keyframes boss-hover {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+@media (max-width: 760px) {
+  .boss-topbar {
+    grid-template-columns: 1fr auto;
+    padding: 14px 16px;
+  }
+  .boss-topbar h2 {
+    order: -1;
+    grid-column: 1 / -1;
+  }
+  .boss-arena {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 18px;
+  }
+  .boss-character {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .boss-character svg {
+    max-height: 190px;
+  }
+  .boss-health,
+  .player-health {
+    padding: 12px;
+  }
+  .boss-question {
+    margin: 0 14px 18px;
+    padding: 18px;
+  }
+}
+@media (max-width: 420px) {
+  .boss-arena {
+    grid-template-columns: 1fr;
+  }
+  .boss-character,
+  .boss-health,
+  .player-health {
+    grid-column: 1;
+  }
+  .boss-character {
+    grid-row: 1;
+  }
+}
+
 .infected-game {
   max-width: 980px;
   margin: 0 auto;

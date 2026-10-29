@@ -48,3 +48,13 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 6. Match every question with its correct answer. Confirm each pair locks face up, score/moves/pairs-found remain visible as text, and keyboard Enter or Space operates every available card.
 7. Confirm the terminal screen says **Every pair matched**, reports the final score and moves, and offers **Play again** and **Back to quiz**.
 8. Return to the leaderboard and analytics. Confirm the Memory Match score did not alter a scored attempt, rank, or analytics percentage.
+
+## FR-25 Boss Battle solo smoke test
+
+1. Sign in as an enrolled student and open a practice quiz containing at least 12 explained questions. Confirm **Play Boss Battle** appears. On a competitive quiz without a completed scored attempt, confirm the locked reason appears and no play button is shown.
+2. Start Boss Battle. Confirm both HP bars show **100%** as text, the original boss illustration is visible, four options are keyboard-operable, and no correct answer is shown before submission.
+3. Submit a wrong hard answer. Confirm player HP loses 20, boss HP does not change, the correct answer and explanation are announced, and **Continue** reveals the next unused question.
+4. Submit correct answers across easy, medium, and hard questions. Confirm boss damage is 10, 15, and 25 respectively, score only increases by boss damage, and the boss illustration progresses through four labelled damage states.
+5. Continue until boss HP reaches zero. Confirm the **Boss defeated** terminal screen shows final score/HP and offers **Play again** and **Back to quiz**.
+6. In separate plays, answer incorrectly until player HP reaches zero and exhaust all questions before either HP reaches zero. Confirm **The boss prevailed** and **Questions exhausted** terminal screens respectively.
+7. Refresh while a question is pending. Confirm the same play and question return without correctness. Return to leaderboard and analytics and confirm the game changed neither scored attempts nor percentages.

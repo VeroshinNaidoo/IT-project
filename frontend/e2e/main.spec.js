@@ -487,3 +487,185 @@ test('Memory Match full flow, refresh and competitive lock are accessible', asyn
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('Boss Battle full flow and competitive lock are accessible', async ({
+  page,
+}) => {
+  let bossHp = 100;
+  let playerHp = 100;
+  let score = 0;
+  let answerCount = 0;
+  const question = () => ({
+    questionId: `boss-question-${answerCount + 1}`,
+    questionText: 'Which database structure speeds up keyed lookups?',
+    difficultyLevel: 5,
+    difficulty: 'hard',
+    topic: 'Indexes',
+    options: [
+      { optionId: 'boss-correct', optionText: 'A B-tree index' },
+      { optionId: 'boss-wrong-1', optionText: 'A colour palette' },
+      { optionId: 'boss-wrong-2', optionText: 'A page margin' },
+      { optionId: 'boss-wrong-3', optionText: 'A font family' },
+    ],
+  });
+  const play = () => ({
+    playId: 'boss-play',
+    quizId: 'quiz-boss-practice',
+    bossHp,
+    playerHp,
+    score,
+    status: bossHp === 0 ? 'won' : playerHp === 0 ? 'lost' : 'in_progress',
+  });
+
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    let body;
+    if (path.endsWith('/auth/me'))
+      body = {
+        user: {
+          userId: 'student-1',
+          role: 'student',
+          full_name: 'Demo Student',
+        },
+      };
+    else if (path.endsWith('/modules'))
+      body = {
+        data: [{ module_id: 'module-1', module_name: 'Database Systems' }],
+      };
+    else if (path.endsWith('/modules/module-1/quizzes'))
+      body = {
+        data: [
+          {
+            quiz_id: 'quiz-boss-competitive',
+            title: 'Locked boss challenge',
+            is_competitive: true,
+          },
+          {
+            quiz_id: 'quiz-boss-practice',
+            title: 'Boss practice quiz',
+            is_competitive: false,
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-boss-competitive/games'))
+      body = {
+        data: [
+          {
+            game_id: 'boss-game',
+            key: 'boss_battle',
+            display_name: 'Boss Battle',
+            available: false,
+            reason: 'Complete your scored attempt to unlock this game.',
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/quiz-boss-practice/games'))
+      body = {
+        data: [
+          {
+            game_id: 'boss-game',
+            key: 'boss_battle',
+            display_name: 'Boss Battle',
+            available: true,
+          },
+        ],
+      };
+    else if (
+      path.endsWith('/games/boss-battle/plays') &&
+      request.method() === 'POST'
+    ) {
+      if (bossHp === 0 || playerHp === 0) {
+        bossHp = 100;
+        playerHp = 100;
+        score = 0;
+        answerCount = 0;
+      }
+      body = {
+        data: {
+          play: play(),
+          question: question(),
+          outcome: null,
+          resumed: false,
+        },
+      };
+    } else if (path.endsWith('/games/boss-battle/plays/boss-play/answer')) {
+      const { optionId } = request.postDataJSON();
+      const isCorrect = optionId === 'boss-correct';
+      answerCount += 1;
+      if (isCorrect) {
+        bossHp = Math.max(0, bossHp - 25);
+        score += 25;
+      } else playerHp = Math.max(0, playerHp - 20);
+      body = {
+        data: {
+          isCorrect,
+          correctOption: {
+            optionId: 'boss-correct',
+            optionText: 'A B-tree index',
+          },
+          explanation: 'A B-tree keeps keyed lookups efficient.',
+          damageDealt: isCorrect ? 25 : 0,
+          damageTaken: isCorrect ? 0 : 20,
+          play: play(),
+          question: bossHp === 0 ? null : question(),
+          outcome: bossHp === 0 ? 'won' : null,
+          replayed: false,
+        },
+      };
+    } else body = { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Quizzes' }).click();
+  await page.getByRole('combobox').selectOption('module-1');
+  const lockedQuiz = page
+    .locator('.quiz-entry')
+    .filter({ hasText: 'Locked boss challenge' });
+  await expect(
+    lockedQuiz.getByText('Complete your scored attempt to unlock this game.'),
+  ).toBeVisible();
+  await expect(
+    lockedQuiz.getByRole('button', { name: 'Play Boss Battle' }),
+  ).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Play Boss Battle' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'BOSS BATTLE', exact: true, level: 2 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('progressbar', { name: 'Boss HP' }),
+  ).toHaveAttribute('aria-valuenow', '100');
+  await expect(page.getByText(/Correct answer:/)).toHaveCount(0);
+
+  await page.getByLabel('A colour palette').focus();
+  await page.keyboard.press('Space');
+  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await expect(page.getByText('Incorrect', { exact: true })).toBeVisible();
+  await expect(page.getByText('Player damage: 20.')).toBeVisible();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(
+    page.getByRole('progressbar', { name: 'Player HP' }),
+  ).toHaveAttribute('aria-valuenow', '80');
+
+  for (let round = 0; round < 4; round += 1) {
+    await page.getByLabel('A B-tree index').check();
+    await page.getByRole('button', { name: 'Submit answer' }).click();
+    await expect(page.getByText('Correct', { exact: true })).toBeVisible();
+    await expect(page.getByText('Boss damage: 25.')).toBeVisible();
+    await page.getByRole('button', { name: 'Continue' }).click();
+  }
+
+  await expect(page.getByText('Boss defeated')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play again' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Back to quiz' }),
+  ).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

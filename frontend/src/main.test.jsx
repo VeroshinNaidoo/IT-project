@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   App,
+  BossBattleGame,
   InfectedGame,
   IslandEscapeGame,
   MemoryMatchGame,
@@ -17,6 +18,222 @@ import {
   QuizTaking,
   ResourceRow,
 } from './main.jsx';
+
+const bossQuestion = {
+  questionId: 'boss-question-1',
+  questionText: 'Which index supports this query?',
+  difficultyLevel: 5,
+  difficulty: 'hard',
+  topic: 'Indexes',
+  options: [
+    { optionId: 'boss-correct', optionText: 'A B-tree index' },
+    { optionId: 'boss-wrong-1', optionText: 'No index' },
+    { optionId: 'boss-wrong-2', optionText: 'A display index' },
+    { optionId: 'boss-wrong-3', optionText: 'A colour index' },
+  ],
+};
+
+const bossData = (overrides = {}) => ({
+  play: {
+    playId: 'boss-play',
+    quizId: 'boss-quiz',
+    bossHp: 100,
+    playerHp: 100,
+    score: 0,
+    status: 'in_progress',
+    questionsAnswered: 0,
+    questionsRemaining: 12,
+    ...(overrides.play || {}),
+  },
+  question:
+    overrides.question === undefined ? bossQuestion : overrides.question,
+  outcome: overrides.outcome || null,
+  resumed: false,
+});
+
+describe('Boss Battle frontend', () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders four options, textual HP and no pre-answer correctness', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(response({ data: bossData() })),
+    );
+    render(<BossBattleGame quizId="boss-quiz" onBack={() => {}} />);
+    expect(await screen.findByText('Boss HP')).toBeTruthy();
+    expect(screen.getByText('Player HP')).toBeTruthy();
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(screen.getAllByText('100%', { selector: 'span' })).toHaveLength(2);
+    expect(screen.queryByText(/Correct answer:/)).toBeNull();
+    expect(
+      screen.getByRole('img', { name: 'Boss condition: Unhurt' }),
+    ).toBeTruthy();
+  });
+
+  it('shows correct feedback, damage and the next question after Continue', async () => {
+    const nextQuestion = {
+      ...bossQuestion,
+      questionText: 'Next boss question?',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ data: bossData() }))
+        .mockResolvedValueOnce(
+          response({
+            data: {
+              ...bossData({
+                play: { bossHp: 75, score: 25, questionsAnswered: 1 },
+                question: nextQuestion,
+              }),
+              isCorrect: true,
+              correctOption: {
+                optionId: 'boss-correct',
+                optionText: 'A B-tree index',
+              },
+              explanation: 'B-tree indexes support ordered lookups.',
+              damageDealt: 25,
+              damageTaken: 0,
+              replayed: false,
+            },
+          }),
+        ),
+    );
+    render(<BossBattleGame quizId="boss-quiz" onBack={() => {}} />);
+    fireEvent.click(await screen.findByLabelText('A B-tree index'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    expect(await screen.findByText('Correct', { exact: true })).toBeTruthy();
+    expect(screen.getByText('Boss damage: 25.')).toBeTruthy();
+    expect(
+      screen.getByText('B-tree indexes support ordered lookups.'),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Next boss question?')).toBeTruthy();
+    expect(screen.getByText('75%', { selector: 'span' })).toBeTruthy();
+  });
+
+  it('shows incorrect feedback and player damage', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(response({ data: bossData() }))
+        .mockResolvedValueOnce(
+          response({
+            data: {
+              ...bossData({ play: { playerHp: 80, questionsAnswered: 1 } }),
+              isCorrect: false,
+              correctOption: {
+                optionId: 'boss-correct',
+                optionText: 'A B-tree index',
+              },
+              explanation: 'The ordered index is the correct choice.',
+              damageDealt: 0,
+              damageTaken: 20,
+              replayed: false,
+            },
+          }),
+        ),
+    );
+    render(<BossBattleGame quizId="boss-quiz" onBack={() => {}} />);
+    fireEvent.click(await screen.findByLabelText('No index'));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }));
+    expect(await screen.findByText('Incorrect')).toBeTruthy();
+    expect(screen.getByText('Player damage: 20.')).toBeTruthy();
+    expect(screen.getByText('80%', { selector: 'span' })).toBeTruthy();
+  });
+
+  it.each([
+    ['won', 'Boss defeated', 0, 100],
+    ['lost', 'The boss prevailed', 100, 0],
+    ['exhausted', 'Questions exhausted', 40, 40],
+  ])(
+    'shows the %s terminal screen and replay controls',
+    async (status, title, bossHp, playerHp) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue(
+          response({
+            data: bossData({
+              play: { status, bossHp, playerHp, score: 60 },
+              question: null,
+              outcome: { status, bossHp, playerHp, score: 60 },
+            }),
+          }),
+        ),
+      );
+      render(<BossBattleGame quizId="boss-quiz" onBack={() => {}} />);
+      expect(await screen.findByText(title)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Play again' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Back to quiz' })).toBeTruthy();
+    },
+  );
+
+  it('shows availability and both unavailable reasons without dead buttons', async () => {
+    const onPlay = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        response({
+          data: [
+            {
+              game_id: 'boss-game',
+              key: 'boss_battle',
+              display_name: 'Boss Battle',
+              available: true,
+            },
+          ],
+        }),
+      ),
+    );
+    const available = render(
+      <QuizGames quizId="boss-available" onPlayBossBattle={onPlay} />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Play Boss Battle' }),
+    );
+    expect(onPlay).toHaveBeenCalledOnce();
+    available.unmount();
+
+    for (const reason of [
+      'Complete your scored attempt to unlock this game.',
+      'Boss Battle needs at least 12 eligible questions.',
+    ]) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValueOnce(
+          response({
+            data: [
+              {
+                game_id: `boss-${reason.length}`,
+                key: 'boss_battle',
+                display_name: 'Boss Battle',
+                available: false,
+                reason,
+              },
+            ],
+          }),
+        ),
+      );
+      const view = render(
+        <QuizGames
+          quizId={`boss-${reason.length}`}
+          onPlayBossBattle={onPlay}
+        />,
+      );
+      expect(await screen.findByText(reason)).toBeTruthy();
+      expect(
+        screen.queryByRole('button', { name: 'Play Boss Battle' }),
+      ).toBeNull();
+      view.unmount();
+    }
+  });
+});
 
 const response = (body, ok = true) => ({
   ok,

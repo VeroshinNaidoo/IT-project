@@ -39,7 +39,7 @@ The backend never echoes the matched term or logs offending text. The filter has
 | FR-22          | Infected solo engine, persistent sessions, API, and responsive UI | automated: engine property tests, DB invariants, API win/loss/exhaustion/access tests, frontend flow tests, Playwright/axe flow               |
 | FR-23          | Memory Match solo engine, persistence, API, and responsive UI     | automated: engine/property, API, authorization-matrix, component, and six-project Playwright/axe coverage; rule mapping below                 |
 | FR-24          | Timer Trivia                                                      | not started; disabled catalog row and generic storage foundation only                                                                         |
-| FR-25          | Boss Battle pure engine, versioned persistence, and API           | partial: 15 engine and 14 API tests plus 43-route authorization matrix pass; frontend/browser evidence and catalog enablement remain          |
+| FR-25          | Boss Battle solo engine, persistence, API, and responsive UI      | automated: 15 engine, 15 API, 7 component, authorization-matrix, and six-project Playwright/axe coverage; rule mapping below                  |
 | FR-26          | Pixel Car Racer                                                   | not started; disabled catalog row and generic storage foundation only                                                                         |
 | FR-27          | Multiplayer room layer                                            | not started; no room persistence, SSE, or multiplayer behavior                                                                                |
 | FR-28          | Island Escape solo survival game                                  | automated: pure-engine/property tests, DB invariants, API access/win/setback/replay/isolation tests, component tests, Playwright/axe flow     |
@@ -62,7 +62,7 @@ The backend never echoes the matched term or logs offending text. The filter has
 | NFR17          | Profanity, generic rejection, cooldown                            | 25 profanity tests passed; API/AI integration pending                                                                                         |
 | INV-01, INV-13 | Competitive uniqueness and atomic submission                      | PGlite passes; `npm run test:db:real` required for full row-lock verification                                                                 |
 
-Infected, Island Escape, and Memory Match are enabled and practice-only. Flashcards and the three unfinished solo game catalog entries stay disabled until their individual gates pass; `speed_round` and `match_pairs` are removed. All game results remain isolated from quiz attempts, leaderboards, and scored analytics.
+Infected, Island Escape, Memory Match, and Boss Battle are enabled and practice-only. Flashcards and the two unfinished solo game catalog entries stay disabled until their individual gates pass; `speed_round` and `match_pairs` are removed. All game results remain isolated from quiz attempts, leaderboards, and scored analytics.
 
 Automated axe/Playwright and the manual checklist remain required before NFR04/NFR05/NFR10 can be marked done. `npm run test:db:real` fails loudly unless `REAL_TEST_DATABASE_URL` is supplied; concurrency evidence is therefore marked “needs real PostgreSQL” under PGlite.
 
@@ -121,6 +121,19 @@ The executable matrix has 43 passing tests and includes all Boss Battle, Memory 
 | Game output is practice-only (INV-42 / INV-09)                              | Generic game tables are separate from scored attempts          | Start and full-play isolation integration tests                                                              |
 | Keyboard, reduced-motion, responsive, and axe coverage                      | Accessible React controls/CSS                                  | Six Playwright/axe projects: Chromium and Firefox at 390/768/1280; component reduced-motion test             |
 
+## Boss Battle rule and invariant evidence
+
+| Rule / invariant                                              | Enforcement                                                     | Automated evidence                                                                |
+| ------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Minimum 12 eligible questions                                 | Central config and server eligibility query                     | Engine refusal, API under-minimum, catalog eligibility, and seed coverage tests   |
+| Tier damage table and bounded HP (INV-43/INV-44)              | Frozen pure engine using shared `tierOf()`                      | Six transition cases, clamp/property tests, API win/loss, component HP assertions |
+| Server-shuffled questions never repeat (INV-46)               | Seeded question queue persisted in versioned state              | Engine property/no-repeat and API exhaustion tests                                |
+| Terminal plays reject moves and replay is idempotent (INV-45) | Engine guard, row lock, append-only moves, generic DB trigger   | Terminal immutability, duplicate answer, refresh/rebuild, and authorization tests |
+| Correctness remains hidden until answer (INV-47)              | Pending-question serializer omits correctness                   | API whole-response secrecy, component pre-answer, and six-project browser checks  |
+| Practice output isolation (INV-48/INV-09)                     | Generic game storage is separate from quiz attempts             | API leaderboard/attempt/analytics isolation test                                  |
+| Access uses `canAccessGame`                                   | Enrollment, competitive completion, and lecturer ownership      | Dedicated API access cases and competitive-lock browser assertion                 |
+| Responsive and accessible presentation                        | Original SVG, textual HP, keyboard controls, live feedback, CSS | Component state tests and axe in Chromium/Firefox at 390, 768, and 1280 pixels    |
+
 FR-22 Stage 1 gate evidence: 131 JavaScript tests, 4 Python tests, and 18 browser tests passed with zero skips. Lint, Prettier, TypeScript, and the production frontend build also pass. Earlier assertion totals were manually estimated and are not treated as verified behavioral evidence.
 
 FR-23–FR-27 Stage 0 gate evidence: 141 JavaScript tests, 4 Python tests, and 18 Chromium/Firefox browser tests passed with zero skips. Lint, Prettier, TypeScript, and the production frontend build passed. This was foundation evidence only; Memory Match has since passed its individual gate, while the other three solo games and multiplayer remain not started.
@@ -128,3 +141,5 @@ FR-23–FR-27 Stage 0 gate evidence: 141 JavaScript tests, 4 Python tests, and 1
 FR-28 gate evidence: 177 JavaScript tests, 4 Python tests, and 24 Chromium/Firefox browser tests passed with zero skips. Island-specific evidence includes 14 engine/property tests, 11 API integration tests, DB INV-30–INV-34 assertions, component coverage for question/answer/setback/terminal/resume/error states, and axe/keyboard checks at 390/768/1280. All 35 inventoried routes pass the executable authorization-matrix guard. Lint, Prettier, TypeScript, and production build pass.
 
 FR-23 gate evidence: 208 JavaScript tests passed with zero skips (89 pure/frontend and 119 DB/API). Memory Match contributes 4 engine tests, 18 API integration tests, 6 component tests, and coverage in the 40-test executable authorization matrix. The complete browser gate passed 30/30 project runs: 15 Chromium and 15 Firefox at 390, 768, and 1280 pixels, including Memory Match full clear, mismatch, refresh, keyboard operation, concealment, terminal state, competitive lock, and axe analysis. Lint, Prettier, TypeScript, and production build pass.
+
+FR-25 gate evidence: three consecutive complete pre-enable gates each passed lint, Prettier, TypeScript, production build, 248/248 JavaScript tests with zero skipped (111 pure/frontend and 137 DB/API), and 36/36 Playwright/axe project runs. Boss Battle contributes 15 engine tests, 15 API tests, 7 component test cases, three authorization-matrix routes, and one full flow in each Chromium/Firefox viewport at 390, 768, and 1280 pixels. Migration 010 enables the catalog entry only after those gates passed.

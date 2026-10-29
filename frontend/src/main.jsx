@@ -232,6 +232,10 @@ export function App() {
               setGameQuizId(id);
               setScreen('Memory Match');
             }}
+            onPlayBossBattle={(id) => {
+              setGameQuizId(id);
+              setScreen('Boss Battle');
+            }}
           />
         )}
         {screen === 'Quiz' && <QuizTaking quizId={quizId} />}
@@ -249,6 +253,12 @@ export function App() {
         )}
         {screen === 'Memory Match' && (
           <MemoryMatchGame
+            quizId={gameQuizId}
+            onBack={() => setScreen('Quizzes')}
+          />
+        )}
+        {screen === 'Boss Battle' && (
+          <BossBattleGame
             quizId={gameQuizId}
             onBack={() => setScreen('Quizzes')}
           />
@@ -806,6 +816,7 @@ function Quizzes({
   onPlayInfected,
   onPlayIslandEscape,
   onPlayMemoryMatch,
+  onPlayBossBattle,
 }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
@@ -856,6 +867,7 @@ function Quizzes({
                 onPlayInfected={() => onPlayInfected(quiz.quiz_id)}
                 onPlayIslandEscape={() => onPlayIslandEscape(quiz.quiz_id)}
                 onPlayMemoryMatch={() => onPlayMemoryMatch(quiz.quiz_id)}
+                onPlayBossBattle={() => onPlayBossBattle(quiz.quiz_id)}
               />
             </div>
           ))}
@@ -872,6 +884,7 @@ export function QuizGames({
   onPlayInfected,
   onPlayIslandEscape,
   onPlayMemoryMatch,
+  onPlayBossBattle,
 }) {
   const games = useData(`/quizzes/${quizId}/games`);
   if (games.loading) return <p className="muted">Loading games…</p>;
@@ -902,8 +915,263 @@ export function QuizGames({
               Play Memory Match
             </button>
           )}
+          {game.key === 'boss_battle' && game.available && (
+            <button className="primary" onClick={onPlayBossBattle}>
+              Play Boss Battle
+            </button>
+          )}
         </div>
       ))}
+    </section>
+  );
+}
+
+function BossCharacter({ hp }) {
+  const damageState = hp > 75 ? 0 : hp > 50 ? 1 : hp > 25 ? 2 : 3;
+  const labels = ['Unhurt', 'Bruised', 'Cracked', 'Critical'];
+  return (
+    <figure className={`boss-character damage-${damageState}`}>
+      <svg
+        viewBox="0 0 260 210"
+        role="img"
+        aria-label={`Boss condition: ${labels[damageState]}`}
+      >
+        <path
+          className="boss-shadow"
+          d="M52 188 Q130 215 208 188 Q170 169 130 174 Q90 169 52 188Z"
+        />
+        <path
+          className="boss-horn"
+          d="M72 68 Q31 28 51 92 L86 103ZM188 68 Q229 28 209 92 L174 103Z"
+        />
+        <path
+          className="boss-body"
+          d="M51 119 Q52 58 130 50 Q208 58 209 119 L195 179 Q130 202 65 179Z"
+        />
+        <path className="boss-brow" d="M78 103 L111 113 M182 103 L149 113" />
+        <circle className="boss-eye" cx="96" cy="120" r="8" />
+        <circle className="boss-eye" cx="164" cy="120" r="8" />
+        <path className="boss-mouth" d="M99 157 Q130 135 161 157" />
+        {damageState >= 1 && (
+          <path className="boss-crack" d="M116 69 L106 89 L120 100 L110 120" />
+        )}
+        {damageState >= 2 && (
+          <path
+            className="boss-crack"
+            d="M181 134 L164 143 L173 158 L153 174"
+          />
+        )}
+        {damageState >= 3 && (
+          <>
+            <path className="boss-crack" d="M72 126 L90 139 L78 157 L99 177" />
+            <path className="boss-bandage" d="M136 75 L166 88" />
+          </>
+        )}
+      </svg>
+      <figcaption>{labels[damageState]} boss</figcaption>
+    </figure>
+  );
+}
+
+export function BossBattleGame({ quizId, onBack }) {
+  const [battle, setBattle] = useState(null);
+  const [selected, setSelected] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const start = async () => {
+    setLoading(true);
+    setError('');
+    setFeedback(null);
+    setSelected('');
+    try {
+      const body = await api('/games/boss-battle/plays', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      });
+      setBattle(body.data);
+    } catch (reason) {
+      setBattle(null);
+      setError(reason.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (quizId) start();
+  }, [quizId]);
+
+  const answer = async (event) => {
+    event.preventDefault();
+    if (!selected || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(
+        `/games/boss-battle/plays/${battle.play.playId}/answer`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ optionId: selected }),
+        },
+      );
+      setBattle({
+        play: body.data.play,
+        question: body.data.question,
+        outcome: body.data.outcome,
+      });
+      setFeedback(body.data);
+      setSelected('');
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!quizId) return <p className="empty-state">Choose a quiz first.</p>;
+  if (loading) return <p className="center-state">Summoning the boss…</p>;
+  if (error && !battle)
+    return (
+      <section className="card game-error">
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+        <button className="secondary" onClick={onBack}>
+          Back to quiz
+        </button>
+      </section>
+    );
+
+  const terminal = battle.play.status !== 'in_progress';
+  const terminalCopy = {
+    won: ['Boss defeated', 'You brought the boss down.'],
+    lost: ['The boss prevailed', 'Your team ran out of health.'],
+    exhausted: [
+      'Questions exhausted',
+      'The battle ended before either side fell.',
+    ],
+  };
+
+  return (
+    <section className="boss-game">
+      <div className="boss-topbar">
+        <button className="link-button" onClick={onBack}>
+          ← Back
+        </button>
+        <h2>BOSS BATTLE</h2>
+        <span>Score {battle.play.score}</span>
+      </div>
+      <div className="boss-arena">
+        <div className="boss-health" aria-label="Boss health">
+          <div className="health-copy">
+            <strong>Boss HP</strong>
+            <span>{battle.play.bossHp}%</span>
+          </div>
+          <div
+            className="health-track boss-hp-track"
+            role="progressbar"
+            aria-label="Boss HP"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={battle.play.bossHp}
+          >
+            <span style={{ width: `${battle.play.bossHp}%` }} />
+          </div>
+        </div>
+        <BossCharacter hp={battle.play.bossHp} />
+        <div className="player-health" aria-label="Player health">
+          <div className="health-copy">
+            <strong>Player HP</strong>
+            <span>{battle.play.playerHp}%</span>
+          </div>
+          <div
+            className="health-track player-hp-track"
+            role="progressbar"
+            aria-label="Player HP"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={battle.play.playerHp}
+          >
+            <span style={{ width: `${battle.play.playerHp}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {feedback ? (
+        <section
+          className={`feedback-panel ${feedback.isCorrect ? 'correct' : 'incorrect'}`}
+          aria-live="assertive"
+          aria-atomic="true"
+        >
+          <h3>{feedback.isCorrect ? 'Correct' : 'Incorrect'}</h3>
+          <p>
+            {feedback.damageDealt > 0
+              ? `Boss damage: ${feedback.damageDealt}.`
+              : `Player damage: ${feedback.damageTaken}.`}
+          </p>
+          <p>
+            Correct answer: <strong>{feedback.correctOption.optionText}</strong>
+          </p>
+          <p>{feedback.explanation}</p>
+          <button className="primary" onClick={() => setFeedback(null)}>
+            Continue
+          </button>
+        </section>
+      ) : terminal ? (
+        <section
+          className={`terminal-screen ${battle.play.status}`}
+          aria-live="polite"
+        >
+          <h3>{terminalCopy[battle.play.status][0]}</h3>
+          <p>{terminalCopy[battle.play.status][1]}</p>
+          <p>
+            Final score {battle.play.score} · Boss HP {battle.play.bossHp}% ·
+            Player HP {battle.play.playerHp}%
+          </p>
+          <div className="terminal-actions">
+            <button className="primary" onClick={start}>
+              Play again
+            </button>
+            <button className="secondary" onClick={onBack}>
+              Back to quiz
+            </button>
+          </div>
+        </section>
+      ) : (
+        <form className="boss-question" onSubmit={answer}>
+          <span className={`difficulty ${battle.question.difficulty}`}>
+            {battle.question.difficulty} · Level{' '}
+            {battle.question.difficultyLevel}
+          </span>
+          <p className="eyebrow">{battle.question.topic}</p>
+          <h3>{battle.question.questionText}</h3>
+          <div className="option-list">
+            {battle.question.options.map((option) => (
+              <label key={option.optionId}>
+                <input
+                  type="radio"
+                  name="boss-option"
+                  value={option.optionId}
+                  checked={selected === option.optionId}
+                  onChange={() => setSelected(option.optionId)}
+                />
+                {option.optionText}
+              </label>
+            ))}
+          </div>
+          <button className="primary" disabled={!selected || busy}>
+            {busy ? 'Applying answer…' : 'Submit answer'}
+          </button>
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      )}
     </section>
   );
 }
