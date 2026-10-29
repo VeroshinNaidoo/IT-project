@@ -1,0 +1,10 @@
+export const RACE_MIN_QUESTIONS = 10;
+export const RACE_SLOTS = 10;
+export const START_SPEED = 2;
+export const MIN_SPEED = 1;
+export const MAX_SPEED = 5;
+export const DISTANCE_PER_SPEED = 10;
+export const POINTS_PER_CORRECT = 10;
+export const NITRO_STREAK = 4;
+export const NITRO_MULTIPLIER = 2;
+export const BOT_ACCURACY = 0.6;

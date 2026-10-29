@@ -137,3 +137,9 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Three consecutive complete pre-enable gates each passed lint, Prettier, TypeScript, production build, 248/248 JavaScript tests with zero skipped, and 36/36 browser/axe project runs.
 - A Firefox race in an older Infected flow was fixed separately in `e14d708` by waiting for real mocked responses; no assertion was removed. Migration 010 then enabled `boss_battle` and made new-quiz game attachment data-driven from enabled catalog rows.
 - Boss Battle solo is done and tested. Timer Trivia, Pixel Car Racer, and all multiplayer modes remain out of scope and disabled.
+
+## FR-26 Pixel Car Racer — pure engine — 2026-10-29
+
+- Added the configurable pure solo-race engine with speed bounds, distance, streak, next-question nitro activation, doubled nitro points/slot consumption, deterministic bot simulation, distance/points tie-breaking, and terminal immutability.
+- Added worked-example, transition, deterministic, uniqueness, terminal, minimum-question, and property-based tests. The engine is frozen after this part's green commit.
+- Remaining: Part 2 persistence/routes/integration coverage, then Part 3 frontend, seed, six-project Playwright/axe flow, documentation, three full gates, and catalog enablement. Timer Trivia remains untouched and multiplayer remains out of scope.
