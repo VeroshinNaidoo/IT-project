@@ -1421,9 +1421,11 @@ export function TimerTriviaGame({ quizId, onBack }) {
   const [selected, setSelected] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [seconds, setSeconds] = useState(0);
+  const [countdownAnnouncement, setCountdownAnnouncement] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const previousRemainingRef = useRef(null);
 
   const start = async () => {
     setLoading(true);
@@ -1447,14 +1449,52 @@ export function TimerTriviaGame({ quizId, onBack }) {
     if (quizId) start();
   }, [quizId]);
   useEffect(() => {
-    if (!play?.play.deadlineAt) return undefined;
-    const update = () =>
-      setSeconds(
-        Math.max(
-          0,
-          Math.ceil((Date.parse(play.play.deadlineAt) - Date.now()) / 1000),
-        ),
+    const deadlineAt = play?.play.deadlineAt;
+    const playId = play?.play.playId;
+    if (!deadlineAt || !playId) {
+      previousRemainingRef.current = null;
+      setCountdownAnnouncement('');
+      return undefined;
+    }
+    const storageKey = `eduquest:timer-trivia:announcements:${playId}:${deadlineAt}`;
+    let seen = new Set();
+    try {
+      seen = new Set(
+        JSON.parse(window.localStorage.getItem(storageKey) || '[]'),
       );
+    } catch {
+      seen = new Set();
+    }
+    const persist = () => {
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify([...seen]));
+      } catch {
+        // Announcement persistence is best effort when storage is unavailable.
+      }
+    };
+    const update = () => {
+      const remainingMs = Date.parse(deadlineAt) - Date.now();
+      const remainingSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+      const previousRemaining = previousRemainingRef.current;
+      setSeconds(remainingSeconds);
+      for (const threshold of [10, 5]) {
+        if (
+          remainingMs >= 0 &&
+          previousRemaining !== null &&
+          previousRemaining > threshold * 1000 &&
+          remainingMs <= threshold * 1000 &&
+          !seen.has(threshold)
+        ) {
+          seen.add(threshold);
+          persist();
+          setCountdownAnnouncement(`${threshold} seconds remaining`);
+        } else if (remainingMs < threshold * 1000 && !seen.has(threshold)) {
+          seen.add(threshold);
+          persist();
+        }
+      }
+      previousRemainingRef.current = remainingMs;
+    };
     update();
     const interval = window.setInterval(update, 250);
     return () => window.clearInterval(interval);
@@ -1521,11 +1561,16 @@ export function TimerTriviaGame({ quizId, onBack }) {
       </div>
       <div className="timer-trivia-meta" aria-label="Trivia status">
         <span>Round {play.play.roundsCompleted + 1} of 10</span>
-        {play.play.deadlineAt && (
-          <strong aria-live="polite">Time remaining: {seconds}s</strong>
-        )}
+        {play.play.deadlineAt && <strong>Time remaining: {seconds}s</strong>}
         {play.play.extendedTime && <span>Extended time enabled</span>}
       </div>
+      <p
+        className="timer-trivia-announcement"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {countdownAnnouncement}
+      </p>
       {feedback ? (
         <section
           className={`feedback-panel ${feedback.isCorrect ? 'correct' : 'incorrect'}`}

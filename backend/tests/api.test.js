@@ -452,6 +452,36 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     ).toBe(false);
   });
 
+  it('returns a lecturer-only aggregate game activity projection without student state', async () => {
+    const response = await lecturerAgent.get(
+      `/api/v1/modules/${moduleRecord.module_id}/games/activity`,
+    );
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.data)).toBe(true);
+    expect(response.body.data.length).toBeGreaterThan(0);
+    for (const row of response.body.data) {
+      expect(row).toEqual(
+        expect.objectContaining({
+          key: expect.any(String),
+          display_name: expect.any(String),
+          plays: expect.any(Number),
+          completions: expect.any(Number),
+        }),
+      );
+      expect(row.plays).toBeGreaterThanOrEqual(row.completions);
+    }
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /student|question|option|state|password/i,
+    );
+    expect(
+      (
+        await studentAgent.get(
+          `/api/v1/modules/${moduleRecord.module_id}/games/activity`,
+        )
+      ).status,
+    ).toBe(403);
+  });
+
   it('queues an AI job and restricts polling to its requester', async () => {
     const queued = await lecturerAgent
       .post(`/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`)

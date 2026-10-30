@@ -952,7 +952,7 @@ test('Timer Trivia board, timed question and feedback are accessible', async ({
           play: {
             ...play(),
             activeCellId: 'cell-2',
-            deadlineAt: new Date(Date.now() + 30000).toISOString(),
+            deadlineAt: new Date(Date.now() + 10100).toISOString(),
           },
           question: {
             questionId: 'timer-q',
@@ -999,6 +999,9 @@ test('Timer Trivia board, timed question and feedback are accessible', async ({
     .first()
     .click();
   await expect(page.getByText('Which structure stores rows?')).toBeVisible();
+  await expect(page.getByText('10 seconds remaining')).toBeVisible();
+  await page.waitForTimeout(5000);
+  await expect(page.getByText('5 seconds remaining')).toBeVisible();
   await page.getByLabel('A table').check();
   await page.getByRole('button', { name: 'Submit answer' }).click();
   await expect(page.getByText('Correct', { exact: true })).toBeVisible();

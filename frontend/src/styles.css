@@ -1717,6 +1717,13 @@ input[type='radio'] {
 .timer-trivia-meta strong {
   color: #b3261e;
 }
+.timer-trivia-announcement {
+  min-height: 1.5rem;
+  margin: 0.35rem 0;
+  color: #6b4400;
+  font-weight: 700;
+  text-align: center;
+}
 .timer-board,
 .timer-trivia-question,
 .timer-trivia-result {
