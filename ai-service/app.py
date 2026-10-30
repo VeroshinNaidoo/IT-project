@@ -13,7 +13,13 @@ from typing import Protocol
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(os.environ.get("EDUQUEST_ENV_FILE", Path(__file__).resolve().parent.parent / ".env"))
+
+
+def require_service_token():
+    if not os.environ.get("AI_SERVICE_TOKEN"):
+        raise RuntimeError("AI_SERVICE_TOKEN is missing: run npm run setup:token")
+    return os.environ["AI_SERVICE_TOKEN"]
 
 _development = os.environ.get("NODE_ENV", "development").lower() == "development"
 app = FastAPI(

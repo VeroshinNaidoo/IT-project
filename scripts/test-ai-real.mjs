@@ -5,6 +5,10 @@ if (selected === 'anthropic' && !process.env.ANTHROPIC_API_KEY)
   throw new Error('ANTHROPIC_API_KEY is required for AI_PROVIDER=anthropic');
 if (selected === 'openai' && !process.env.OPENAI_API_KEY)
   throw new Error('OPENAI_API_KEY is required for AI_PROVIDER=openai');
+if (selected === 'openai_compatible' && !process.env.AI_API_KEY)
+  throw new Error('AI_API_KEY is required for AI_PROVIDER=openai_compatible');
+if (selected === 'openai_compatible' && !process.env.AI_BASE_URL)
+  throw new Error('AI_BASE_URL is required for AI_PROVIDER=openai_compatible');
 if (selected !== 'mock' && !process.env.AI_MODEL)
   throw new Error('AI_MODEL is required for real AI verification');
 console.log(`Provider: ${selected}`);
@@ -18,5 +22,6 @@ console.log(
 const result = spawnSync('python', ['-m', 'pytest', 'ai-service/tests', '-q'], {
   stdio: 'inherit',
   shell: process.platform === 'win32',
+  env: { ...process.env, AI_REAL_TESTS: 'true' },
 });
 process.exitCode = result.status ?? 1;

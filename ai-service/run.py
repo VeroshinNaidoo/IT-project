@@ -1,6 +1,10 @@
 import os
 
 import uvicorn
+from app import require_service_token
+
+
+require_service_token()
 
 
 host = os.environ.get("AI_BIND_HOST", "127.0.0.1")
