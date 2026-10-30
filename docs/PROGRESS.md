@@ -166,3 +166,11 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added the configurable pure solo engine for a five-level topic board, ten server-timed rounds, cell-owned points, timeout scoring, extended-time deadlines, distinct-cell use, refresh-stable active rounds, and terminal immutability.
 - All game numbers are centralized in `backend/src/games/timer_trivia/config.js`; seeded selection is deterministic and the engine has no I/O.
 - Part 5 persistence/routes/integration tests and Part 6 frontend/seed/browser/docs/catalog enablement remain. Timer Trivia stays disabled; multiplayer remains out of scope.
+
+## FR-24 Timer Trivia — persistence and API — 2026-10-30
+
+- Registered a strict versioned Timer Trivia state over generic `game_plays` and append-only `game_play_moves`, with board cells, active server deadline, score, answered questions, and terminal status validated on every transition.
+- Added start/resume, owner refresh, row-locked cell choice, and row-locked answer routes. The server owns cell availability, correctness, points, timeout decisions, round count, and status; pre-answer responses contain no correctness.
+- Added the persisted `users.extended_time` preference through migration 012. It doubles the server deadline and cannot be supplied in a game request.
+- Added 11 integration tests for 50-point scoring, timeout, replay, cell/option scope, refresh, extended time, eligibility/enrolment, competitive access, lecturer ownership, strict fields, finish/personal-best, and scored-data isolation. All four routes are in the executable authorization matrix.
+- Part 6 frontend, seed/browser evidence, final docs, three complete gates, and catalog enablement remain. Timer Trivia stays disabled; multiplayer remains out of scope.

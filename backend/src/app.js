@@ -27,9 +27,11 @@ import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
 import { registerBossBattleRoutes } from './games/boss_battle/routes.js';
 import { registerPixelRacerRoutes } from './games/pixel_racer/routes.js';
+import { registerTimerTriviaRoutes } from './games/timer_trivia/routes.js';
 import { ISLAND_MIN_QUESTIONS } from './games/island_escape/config.js';
 import { BOSS_MIN_QUESTIONS } from './games/boss_battle/config.js';
 import { RACE_MIN_QUESTIONS } from './games/pixel_racer/config.js';
+import { TRIVIA_MIN_QUESTIONS } from './games/timer_trivia/config.js';
 
 const app = express();
 const cookieSecure =
@@ -1293,6 +1295,8 @@ app.get(
            WHEN 'island_escape' THEN 2
            WHEN 'memory_match' THEN 3
            WHEN 'boss_battle' THEN 4
+           WHEN 'pixel_racer' THEN 5
+           WHEN 'timer_trivia' THEN 6
            ELSE 100
          END, gt.key`,
         [req.params.quizId],
@@ -1306,9 +1310,13 @@ app.get(
                 ? BOSS_MIN_QUESTIONS
                 : game.key === 'pixel_racer'
                   ? RACE_MIN_QUESTIONS
-                  : Number(process.env.GAME_MIN_QUESTIONS || 6);
+                  : game.key === 'timer_trivia'
+                    ? TRIVIA_MIN_QUESTIONS
+                    : Number(process.env.GAME_MIN_QUESTIONS || 6);
           const availableQuestionCount =
-            game.key === 'boss_battle' || game.key === 'pixel_racer'
+            game.key === 'boss_battle' ||
+            game.key === 'pixel_racer' ||
+            game.key === 'timer_trivia'
               ? game.eligible_question_count
               : game.question_count;
           const enoughQuestions = availableQuestionCount >= minimum;
@@ -1324,7 +1332,9 @@ app.get(
                     ? `Boss Battle needs at least ${minimum} eligible questions.`
                     : game.key === 'pixel_racer'
                       ? `Pixel Car Racer needs at least ${minimum} eligible questions.`
-                      : `Not enough questions for this game yet. At least ${minimum} are required.`
+                      : game.key === 'timer_trivia'
+                        ? `Timer Trivia needs at least ${minimum} eligible questions.`
+                        : `Not enough questions for this game yet. At least ${minimum} are required.`
                 : null,
           };
         }),
@@ -1422,6 +1432,7 @@ registerIslandEscapeRoutes({
 registerMemoryMatchRoutes({ app, pool, requireAuth, error, requestId });
 registerBossBattleRoutes({ app, pool, requireAuth, error, requestId });
 registerPixelRacerRoutes({ app, pool, requireAuth, error, requestId });
+registerTimerTriviaRoutes({ app, pool, requireAuth, error, requestId });
 
 app.use((err, req, res, _next) => {
   console.error(

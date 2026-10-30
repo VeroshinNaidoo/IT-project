@@ -18,6 +18,7 @@ export default defineConfig({
       'backend/tests/memory-match-api.test.js',
       'backend/tests/boss-battle-api.test.js',
       'backend/tests/pixel-racer-api.test.js',
+      'backend/tests/timer-trivia-api.test.js',
     ],
     fileParallelism: false,
     maxWorkers: 1,

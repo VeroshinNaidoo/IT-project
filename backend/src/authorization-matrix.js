@@ -72,6 +72,16 @@ const routePolicies = {
   'POST /api/v1/games/pixel-racer/plays/:id/answer': {
     auth: 'student|lecturer',
   },
+  'POST /api/v1/games/timer-trivia/plays': { auth: 'student|lecturer' },
+  'GET /api/v1/games/timer-trivia/plays/:id': {
+    auth: 'student|lecturer',
+  },
+  'POST /api/v1/games/timer-trivia/plays/:id/choose': {
+    auth: 'student|lecturer',
+  },
+  'POST /api/v1/games/timer-trivia/plays/:id/answer': {
+    auth: 'student|lecturer',
+  },
 };
 
 const caseNames = [

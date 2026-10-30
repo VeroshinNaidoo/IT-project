@@ -58,9 +58,11 @@ const pathFor = (template, values = fixture) =>
           ? values.bossPlayId
           : template.includes('pixel-racer')
             ? values.pixelPlayId
-            : template.includes('memory-match')
-              ? values.memoryPlayId
-              : values.infectedSessionId,
+            : template.includes('timer-trivia')
+              ? values.timerPlayId
+              : template.includes('memory-match')
+                ? values.memoryPlayId
+                : values.infectedSessionId,
     );
 
 async function login(role) {
@@ -179,6 +181,15 @@ const bodies = {
   }),
   'POST /api/v1/games/pixel-racer/plays/:id/answer': () => ({
     optionId: fixture.pixelOptionId,
+  }),
+  'POST /api/v1/games/timer-trivia/plays': () => ({
+    quizId: fixture.startQuizId,
+  }),
+  'POST /api/v1/games/timer-trivia/plays/:id/choose': () => ({
+    cellId: fixture.timerCellId,
+  }),
+  'POST /api/v1/games/timer-trivia/plays/:id/answer': () => ({
+    optionId: fixture.timerOptionId,
   }),
 };
 
@@ -320,6 +331,22 @@ const specs = {
     '/api/v1/games/pixel-racer/plays/:id/answer',
     'student',
   ],
+  'POST /api/v1/games/timer-trivia/plays': [
+    '/api/v1/games/timer-trivia/plays',
+    'student',
+  ],
+  'GET /api/v1/games/timer-trivia/plays/:id': [
+    '/api/v1/games/timer-trivia/plays/:id',
+    'student',
+  ],
+  'POST /api/v1/games/timer-trivia/plays/:id/choose': [
+    '/api/v1/games/timer-trivia/plays/:id/choose',
+    'student',
+  ],
+  'POST /api/v1/games/timer-trivia/plays/:id/answer': [
+    '/api/v1/games/timer-trivia/plays/:id/answer',
+    'student',
+  ],
 };
 
 async function createFixture() {
@@ -421,6 +448,9 @@ async function createFixture() {
   await pool.query(
     "UPDATE game_types SET is_enabled=true WHERE key='pixel_racer'",
   );
+  await pool.query(
+    "UPDATE game_types SET is_enabled=true WHERE key='timer_trivia'",
+  );
   for (let index = 0; index < 6; index += 1) {
     const memoryQuestion = (
       await pool.query(
@@ -446,15 +476,28 @@ async function createFixture() {
   let infectedCardId;
   let infectedOptionId;
   const islandQuestionIds = [];
+  const timerTopics = [];
+  for (const name of ['Matrix Timer Alpha', 'Matrix Timer Beta'])
+    timerTopics.push(
+      (
+        await pool.query(
+          `INSERT INTO topics(module_id,name) VALUES($1,$2)
+           ON CONFLICT(module_id,name) DO UPDATE SET name=excluded.name
+           RETURNING topic_id`,
+          [moduleRow.module_id, name],
+        )
+      ).rows[0].topic_id,
+    );
   for (let index = 0; index < 30; index += 1) {
     const infectedQuestion = (
       await pool.query(
-        `INSERT INTO questions(quiz_id,question_text,marks,difficulty_level,explanation)
-         VALUES($1,$2,1,$3,$4) RETURNING question_id`,
+        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
+         VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
         [
           startQuiz.quiz_id,
+          timerTopics[Math.floor(index / 5) % 2],
           `Matrix infected question ${index + 1}?`,
-          [1, 3, 5][index % 3],
+          (index % 5) + 1,
           `Matrix explanation ${index + 1}.`,
         ],
       )
@@ -578,6 +621,26 @@ async function createFixture() {
       [pixelStart.body.data.question.questionId],
     )
   ).rows[0];
+  const timerStart = await memoryAgent
+    .post('/api/v1/games/timer-trivia/plays')
+    .send({ quizId: startQuiz.quiz_id });
+  expect([200, 201]).toContain(timerStart.status);
+  const timerCellId = timerStart.body.data.play.board.find(
+    (cell) => !cell.disabled,
+  ).cellId;
+  const timerChoose = await memoryAgent
+    .post(
+      `/api/v1/games/timer-trivia/plays/${timerStart.body.data.play.playId}/choose`,
+    )
+    .send({ cellId: timerCellId });
+  expect(timerChoose.status).toBe(200);
+  const timerOption = (
+    await pool.query(
+      `SELECT option_id FROM question_options
+       WHERE question_id=$1 AND is_correct=true`,
+      [timerChoose.body.data.question.questionId],
+    )
+  ).rows[0];
   fixture = {
     moduleId: moduleRow.module_id,
     joinCode: moduleRow.join_code,
@@ -598,6 +661,9 @@ async function createFixture() {
     bossOptionId: bossOption.option_id,
     pixelPlayId: pixelStart.body.data.play.playId,
     pixelOptionId: pixelOption.option_id,
+    timerPlayId: timerStart.body.data.play.playId,
+    timerCellId,
+    timerOptionId: timerOption.option_id,
   };
 }
 
@@ -609,6 +675,7 @@ async function assertNoSensitive(result, route) {
       'POST /api/v1/games/island-escape/plays/:id/answer',
       'POST /api/v1/games/boss-battle/plays/:id/answer',
       'POST /api/v1/games/pixel-racer/plays/:id/answer',
+      'POST /api/v1/games/timer-trivia/plays/:id/answer',
     ].includes(route)
   )
     expect(JSON.stringify(result.body)).not.toMatch(
@@ -654,7 +721,8 @@ async function assertRoute(route, [template, successRole]) {
       route === 'POST /api/v1/games/infected/sessions' ||
       route === 'POST /api/v1/games/island-escape/plays' ||
       route === 'POST /api/v1/games/boss-battle/plays' ||
-      route === 'POST /api/v1/games/pixel-racer/plays'
+      route === 'POST /api/v1/games/pixel-racer/plays' ||
+      route === 'POST /api/v1/games/timer-trivia/plays'
     ) {
       const ownerPath = pathFor(template, {
         ...fixture,
@@ -671,6 +739,7 @@ async function assertRoute(route, [template, successRole]) {
         memoryPlayId: uuid(),
         bossPlayId: uuid(),
         pixelPlayId: uuid(),
+        timerPlayId: uuid(),
       });
       const ownerBody =
         route === 'POST /api/v1/quizzes'
@@ -678,7 +747,8 @@ async function assertRoute(route, [template, successRole]) {
           : route === 'POST /api/v1/games/infected/sessions' ||
               route === 'POST /api/v1/games/island-escape/plays' ||
               route === 'POST /api/v1/games/boss-battle/plays' ||
-              route === 'POST /api/v1/games/pixel-racer/plays'
+              route === 'POST /api/v1/games/pixel-racer/plays' ||
+              route === 'POST /api/v1/games/timer-trivia/plays'
             ? { quizId: uuid() }
             : body;
       expect([403, 404], `${route} wrong owner`).toContain(
@@ -727,7 +797,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(44);
+    expect(routeInventory.length).toBe(48);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();
