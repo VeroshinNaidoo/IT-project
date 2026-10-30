@@ -171,7 +171,9 @@ try {
           practice.quiz_id,
           topics[index % topics.length].topic_id,
           `Practice database question ${index + 1}?`,
-          difficultyLevels[index % difficultyLevels.length],
+          difficultyLevels[
+            Math.floor(index / topics.length) % difficultyLevels.length
+          ],
           `The correct option follows from the supplied database notes.`,
         ],
       )
@@ -194,6 +196,7 @@ try {
          count(DISTINCT q.question_id)::int AS question_count,
          count(DISTINCT q.topic_id)::int AS topic_count,
          count(DISTINCT q.difficulty_level)::int AS level_count,
+         count(DISTINCT q.topic_id || ':' || q.difficulty_level)::int AS timer_board_cell_count,
          count(DISTINCT q.question_id) FILTER (
            WHERE length(q.question_text) <= 140
              AND EXISTS (
@@ -245,6 +248,7 @@ try {
     practiceCoverage.memory_eligible_count < 8 ||
     practiceCoverage.boss_eligible_count < 12 ||
     practiceCoverage.pixel_racer_eligible_count < 10 ||
+    practiceCoverage.timer_board_cell_count < 10 ||
     practiceCoverage.missing_explanation_count > 0
   ) {
     throw new Error('Demo practice quiz does not satisfy game seed coverage.');

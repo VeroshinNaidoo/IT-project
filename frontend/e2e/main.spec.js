@@ -878,3 +878,130 @@ test('Pixel Car Racer nitro flow and competitive lock are accessible', async ({
   const results = await new AxeBuilder({ page }).analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('Timer Trivia board, timed question and feedback are accessible', async ({
+  page,
+}) => {
+  let answered = false;
+  const board = Array.from({ length: 10 }, (_, index) => ({
+    cellId: `cell-${index}`,
+    topic: 'Databases',
+    level: (index % 5) + 1,
+    points: ((index % 5) + 1) * 10,
+    state: index === 0 && answered ? 'answered' : 'open',
+    disabled: index === 0 && answered,
+  }));
+  const play = () => ({
+    playId: 'timer-play',
+    quizId: 'timer-quiz',
+    status: answered ? 'finished' : 'in_progress',
+    score: answered ? 30 : 0,
+    roundsCompleted: answered ? 10 : 0,
+    roundsRemaining: answered ? 0 : 10,
+    topics: ['Databases'],
+    board,
+    activeCellId: answered ? null : null,
+    deadlineAt: null,
+    extendedTime: false,
+  });
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    let body;
+    if (path.endsWith('/auth/me'))
+      body = {
+        user: {
+          userId: 'student-1',
+          role: 'student',
+          full_name: 'Demo Student',
+        },
+      };
+    else if (path.endsWith('/modules'))
+      body = {
+        data: [{ module_id: 'module-1', module_name: 'Database Systems' }],
+      };
+    else if (path.endsWith('/modules/module-1/quizzes'))
+      body = {
+        data: [
+          {
+            quiz_id: 'timer-quiz',
+            title: 'Timer practice',
+            is_competitive: false,
+          },
+        ],
+      };
+    else if (path.endsWith('/quizzes/timer-quiz/games'))
+      body = {
+        data: [
+          {
+            game_id: 'timer-game',
+            key: 'timer_trivia',
+            display_name: 'Timer Trivia',
+            available: true,
+          },
+        ],
+      };
+    else if (
+      path.endsWith('/games/timer-trivia/plays') &&
+      request.method() === 'POST'
+    )
+      body = { data: { play: play(), question: null, resumed: false } };
+    else if (path.endsWith('/games/timer-trivia/plays/timer-play/choose'))
+      body = {
+        data: {
+          play: {
+            ...play(),
+            activeCellId: 'cell-2',
+            deadlineAt: new Date(Date.now() + 30000).toISOString(),
+          },
+          question: {
+            questionId: 'timer-q',
+            questionText: 'Which structure stores rows?',
+            topic: 'Databases',
+            difficultyLevel: 3,
+            options: [
+              { optionId: 'timer-correct', optionText: 'A table' },
+              { optionId: 'timer-wrong', optionText: 'A canvas' },
+            ],
+          },
+        },
+      };
+    else if (path.endsWith('/games/timer-trivia/plays/timer-play/answer')) {
+      answered = true;
+      body = {
+        data: {
+          isCorrect: true,
+          timedOut: false,
+          pointsEarned: 30,
+          correctOption: { optionId: 'timer-correct', optionText: 'A table' },
+          explanation: 'Tables store rows.',
+          play: play(),
+          question: null,
+        },
+      };
+    } else body = { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Quizzes' }).click();
+  await page.getByRole('combobox').selectOption('module-1');
+  await page.getByRole('button', { name: 'Play Timer Trivia' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'TIMER TRIVIA', exact: true, level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByText(/Choose an open topic/)).toBeVisible();
+  await page
+    .getByRole('button', { name: /Databases, 30 points/ })
+    .first()
+    .click();
+  await expect(page.getByText('Which structure stores rows?')).toBeVisible();
+  await page.getByLabel('A table').check();
+  await page.getByRole('button', { name: 'Submit answer' }).click();
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});

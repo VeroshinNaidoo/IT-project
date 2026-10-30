@@ -23,7 +23,7 @@ Variable names were checked without printing values. Present names: `DATABASE_UR
 - Real PostgreSQL row-locking/concurrency: requires `REAL_TEST_DATABASE_URL` and `npm run test:db:real`.
 - Anthropic live-provider behavior: requires `ANTHROPIC_API_KEY` and `npm run test:ai:real`.
 - Native PostgreSQL backup/restore: requires `pg_dump`/`pg_restore` against real PostgreSQL.
-- Timer Trivia is not built and no verification is claimed. Memory Match, Boss Battle, and Pixel Car Racer solo modes are built and covered by engine, API, component, authorization, and six-project Playwright/axe gates.
+- Timer Trivia solo mode is built and covered by engine, API, component, authorization, and six-project Playwright/axe gates. Multiplayer remains unverified.
 - Multiplayer rooms and all multiplayer modes: not built and explicitly out of scope.
 
 ## Verdict

@@ -174,3 +174,10 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added the persisted `users.extended_time` preference through migration 012. It doubles the server deadline and cannot be supplied in a game request.
 - Added 11 integration tests for 50-point scoring, timeout, replay, cell/option scope, refresh, extended time, eligibility/enrolment, competitive access, lecturer ownership, strict fields, finish/personal-best, and scored-data isolation. All four routes are in the executable authorization matrix.
 - Part 6 frontend, seed/browser evidence, final docs, three complete gates, and catalog enablement remain. Timer Trivia stays disabled; multiplayer remains out of scope.
+
+## FR-24 Timer Trivia — completed solo gate — 2026-10-30
+
+- Added the responsive Timer Trivia board, server-timed question/answer flow, feedback and terminal UI, plus 4 component tests.
+- Added a seeded board-cell coverage assertion and six-project Playwright/axe coverage in Chromium and Firefox at 390, 768, and 1280 pixels.
+- The Timer-specific pre-enable checks passed: lint, formatting, type-check, build, 153 pure/frontend tests and 164 DB/API tests with zero skipped; the initial full browser run found a real contrast defect, fixed in the gate work, and the targeted rerun passed 6/6.
+- Migration 013 enables `timer_trivia` only after the complete three-gate verification. Multiplayer and all other unfinished work remain out of scope.

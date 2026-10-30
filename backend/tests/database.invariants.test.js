@@ -533,6 +533,9 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
       catalog.rows.find((row) => row.key === 'pixel_racer').is_enabled,
     ).toBe(true);
     expect(
+      catalog.rows.find((row) => row.key === 'timer_trivia').is_enabled,
+    ).toBe(true);
+    expect(
       catalog.rows
         .filter(
           (row) =>
@@ -541,6 +544,7 @@ describe.skipIf(optOut)('Milestone 1 raw-SQL database invariants', () => {
               'memory_match',
               'boss_battle',
               'pixel_racer',
+              'timer_trivia',
             ].includes(row.key),
         )
         .every((row) => row.is_enabled === false),

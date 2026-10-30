@@ -42,7 +42,7 @@ erDiagram
   QUIZZES o|--o{ AI_GENERATION_JOBS : creates
 ```
 
-`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected`, `island_escape`, `memory_match`, `boss_battle`, and `pixel_racer` are enabled; `flashcards` and `timer_trivia` are disabled until their implementation gates pass. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
+`game_types` is a data-driven catalog (`GameTypeID`, unique `Key`, `DisplayName`, `IsEnabled`). `games.GameTypeID` references it. `infected`, `island_escape`, `memory_match`, `boss_battle`, `pixel_racer`, and `timer_trivia` are enabled; `flashcards` remains disabled. The superseded `speed_round` and `match_pairs` rows are removed. Games are practice-only and reuse quiz questions; they do not create leaderboard records.
 
 Questions use required `DifficultyLevel smallint` (1–5, default 3) and nullable `Explanation` (1–300 characters). The shared mapping is levels 1–2 Easy, 3 Medium, and 4–5 Hard.
 
@@ -63,3 +63,5 @@ Memory Match uses `game_plays` for its versioned, Zod-validated shuffled-card st
 Boss Battle uses the same generic tables with a versioned state containing bounded boss/player HP, score, a server-shuffled remaining-question queue, the current question, and terminal status. Each answer appends one immutable move and the play row stores the latest validated state; terminal-state and append-only triggers remain shared with the other generic games.
 
 Pixel Car Racer uses the generic tables with versioned player and deterministic-Bot race state: bounded speed, distance, streak, points, nitro state, consumed slots, a shared server-selected question list, and terminal outcome. Each server-scored answer appends one immutable move. Race scores remain practice-only and are not queried by leaderboard or scored analytics services.
+
+Timer Trivia uses the generic tables with a versioned topic/level board state, up to five topic columns, point rows 10–50 mapped to levels 1–5, server deadlines, answered-cell tracking, and terminal status. A user’s `extended_time` preference doubles the server deadline. The server selects each distinct question cell, owns timeout and scoring decisions, and practice results remain outside leaderboards and scored analytics.

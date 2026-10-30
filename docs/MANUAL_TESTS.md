@@ -68,3 +68,13 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 5. In a replay, answer incorrectly while nitro is active. Confirm speed drops by one but not below 1, streak resets to zero, nitro ends, points do not decrease, and one slot is consumed.
 6. Refresh while a question is pending. Confirm the same play and question resume without revealing the correct answer.
 7. Confirm the result reports player/Bot distance, points, answers used, and win/Bot win/shared outcome. Select **Race again**, then verify no race result appears in the leaderboard, scored attempts, or lecturer analytics.
+
+## FR-24 Timer Trivia solo smoke test
+
+1. Sign in as an enrolled student and open a practice quiz with at least 10 explained questions across topic/level cells. Confirm **Play Timer Trivia** appears; on a competitive quiz before the scored attempt, confirm the locked reason is shown.
+2. Start Timer Trivia. Confirm the board shows topic columns and point rows 10, 20, 30, 40, and 50, while no question text or correctness is exposed.
+3. Choose an open cell, confirm the question and options appear with textual time remaining, and submit the correct answer. Confirm the server-owned points and explanation are announced.
+4. Let a round expire. Confirm it records a timeout and zero points, then the board marks the cell used. Try to reuse it and confirm it is rejected.
+5. Enable the extended-time profile preference and confirm the server deadline doubles. Refresh mid-round and confirm the same active question and deadline continue without revealing correctness.
+6. Complete ten rounds. Confirm the terminal screen reports the score and offers **Play again** and **Back to quiz**.
+7. Return to the leaderboard and analytics. Confirm Timer Trivia did not change scored attempts, ranks, or analytics percentages.

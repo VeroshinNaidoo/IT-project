@@ -74,3 +74,9 @@
 - Backend-to-AI requests carry `AI_SERVICE_TOKEN`. The service compares it with a constant-time comparison, rejects missing or incorrect tokens with 401, and never includes the token in logs or error responses. `npm run db:setup-check` generates a random token in `.env` when it is missing.
 - The service enforces `AI_MAX_BODY_BYTES` (default 2 MiB) and `AI_REQUEST_TIMEOUT_SECONDS` (default 45). FastAPI docs and OpenAPI are disabled outside development. These controls mitigate the remaining Starlette advisories while the FastAPI dependency line does not support their patched major versions.
 - Revisit this decision when FastAPI supports a patched Starlette release: run `pip-audit -r ai-service/requirements.txt`, review the Starlette fixed versions and changelog, then rerun all AI and full application gates before any upgrade.
+
+## 2026-10-30 — Timer Trivia solo defaults
+
+- Timer Trivia is solo and practice-only in this stage. It uses 10 rounds, 30 seconds per round, up to five topics, and point rows 10/20/30/40/50 mapped to difficulty levels 1–5.
+- The server owns deadlines and timeout decisions. The `extended_time` profile preference doubles the server deadline; clients cannot supply timing, score, correctness, or status.
+- Each cell maps to one distinct question and cannot be reused. Results are stored only as generic practice plays/personal bests and never enter scored attempts, leaderboards, or analytics. Multiplayer is explicitly deferred.

@@ -240,6 +240,10 @@ export function App() {
               setGameQuizId(id);
               setScreen('Pixel Car Racer');
             }}
+            onPlayTimerTrivia={(id) => {
+              setGameQuizId(id);
+              setScreen('Timer Trivia');
+            }}
           />
         )}
         {screen === 'Quiz' && <QuizTaking quizId={quizId} />}
@@ -269,6 +273,12 @@ export function App() {
         )}
         {screen === 'Pixel Car Racer' && (
           <PixelRacerGame
+            quizId={gameQuizId}
+            onBack={() => setScreen('Quizzes')}
+          />
+        )}
+        {screen === 'Timer Trivia' && (
+          <TimerTriviaGame
             quizId={gameQuizId}
             onBack={() => setScreen('Quizzes')}
           />
@@ -828,6 +838,7 @@ function Quizzes({
   onPlayMemoryMatch,
   onPlayBossBattle,
   onPlayPixelRacer,
+  onPlayTimerTrivia,
 }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
@@ -880,6 +891,7 @@ function Quizzes({
                 onPlayMemoryMatch={() => onPlayMemoryMatch(quiz.quiz_id)}
                 onPlayBossBattle={() => onPlayBossBattle(quiz.quiz_id)}
                 onPlayPixelRacer={() => onPlayPixelRacer(quiz.quiz_id)}
+                onPlayTimerTrivia={() => onPlayTimerTrivia(quiz.quiz_id)}
               />
             </div>
           ))}
@@ -898,6 +910,7 @@ export function QuizGames({
   onPlayMemoryMatch,
   onPlayBossBattle,
   onPlayPixelRacer,
+  onPlayTimerTrivia,
 }) {
   const games = useData(`/quizzes/${quizId}/games`);
   if (games.loading) return <p className="muted">Loading games…</p>;
@@ -936,6 +949,11 @@ export function QuizGames({
           {game.key === 'pixel_racer' && game.available && (
             <button className="primary" onClick={onPlayPixelRacer}>
               Play Pixel Car Racer
+            </button>
+          )}
+          {game.key === 'timer_trivia' && game.available && (
+            <button className="primary" onClick={onPlayTimerTrivia}>
+              Play Timer Trivia
             </button>
           )}
         </div>
@@ -1393,6 +1411,215 @@ export function PixelRacerGame({ quizId, onBack }) {
             </p>
           )}
         </form>
+      )}
+    </section>
+  );
+}
+
+export function TimerTriviaGame({ quizId, onBack }) {
+  const [play, setPlay] = useState(null);
+  const [selected, setSelected] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [seconds, setSeconds] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const start = async () => {
+    setLoading(true);
+    setError('');
+    setFeedback(null);
+    setSelected('');
+    try {
+      const body = await api('/games/timer-trivia/plays', {
+        method: 'POST',
+        body: JSON.stringify({ quizId }),
+      });
+      setPlay(body.data);
+    } catch (reason) {
+      setPlay(null);
+      setError(reason.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (quizId) start();
+  }, [quizId]);
+  useEffect(() => {
+    if (!play?.play.deadlineAt) return undefined;
+    const update = () =>
+      setSeconds(
+        Math.max(
+          0,
+          Math.ceil((Date.parse(play.play.deadlineAt) - Date.now()) / 1000),
+        ),
+      );
+    update();
+    const interval = window.setInterval(update, 250);
+    return () => window.clearInterval(interval);
+  }, [play?.play.deadlineAt]);
+
+  const choose = async (cell) => {
+    if (busy || cell.disabled || play.play.activeCellId) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(
+        `/games/timer-trivia/plays/${play.play.playId}/choose`,
+        { method: 'POST', body: JSON.stringify({ cellId: cell.cellId }) },
+      );
+      setPlay(body.data);
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const answer = async (event) => {
+    event.preventDefault();
+    if (!selected || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const body = await api(
+        `/games/timer-trivia/plays/${play.play.playId}/answer`,
+        { method: 'POST', body: JSON.stringify({ optionId: selected }) },
+      );
+      setPlay(body.data);
+      setFeedback(body.data);
+      setSelected('');
+    } catch (reason) {
+      setError(reason.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!quizId) return <p className="empty-state">Choose a quiz first.</p>;
+  if (loading) return <p className="center-state">Loading the trivia board…</p>;
+  if (error && !play)
+    return (
+      <section className="card game-error">
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+        <button className="secondary" onClick={onBack}>
+          Back to quiz
+        </button>
+      </section>
+    );
+  const terminal = play.play.status === 'finished';
+  return (
+    <section className="timer-trivia-game">
+      <div className="timer-trivia-topbar">
+        <button className="link-button" onClick={onBack}>
+          ← Back
+        </button>
+        <h2>TIMER TRIVIA</h2>
+        <span>Score {play.play.score}</span>
+      </div>
+      <div className="timer-trivia-meta" aria-label="Trivia status">
+        <span>Round {play.play.roundsCompleted + 1} of 10</span>
+        {play.play.deadlineAt && (
+          <strong aria-live="polite">Time remaining: {seconds}s</strong>
+        )}
+        {play.play.extendedTime && <span>Extended time enabled</span>}
+      </div>
+      {feedback ? (
+        <section
+          className={`feedback-panel ${feedback.isCorrect ? 'correct' : 'incorrect'}`}
+          aria-live="assertive"
+        >
+          <h3>
+            {feedback.timedOut
+              ? 'Time is up'
+              : feedback.isCorrect
+                ? 'Correct'
+                : 'Incorrect'}
+          </h3>
+          <p>Points earned: {feedback.pointsEarned}</p>
+          <p>
+            Correct answer: <strong>{feedback.correctOption.optionText}</strong>
+          </p>
+          <p>{feedback.explanation}</p>
+          <button className="primary" onClick={() => setFeedback(null)}>
+            Continue
+          </button>
+        </section>
+      ) : terminal ? (
+        <section className="timer-trivia-result" aria-live="polite">
+          <div className="trivia-trophy" aria-hidden="true">
+            ✦
+          </div>
+          <h3>Board complete</h3>
+          <p>
+            Final score: {play.play.score} points across{' '}
+            {play.play.roundsCompleted} rounds.
+          </p>
+          <div className="terminal-actions">
+            <button className="primary" onClick={start}>
+              Play again
+            </button>
+            <button className="secondary" onClick={onBack}>
+              Back to quiz
+            </button>
+          </div>
+        </section>
+      ) : play.question ? (
+        <form className="timer-trivia-question" onSubmit={answer}>
+          <p className="eyebrow">
+            {play.question.topic} · Level {play.question.difficultyLevel}
+          </p>
+          <h3>{play.question.questionText}</h3>
+          <div className="option-list">
+            {play.question.options.map((option) => (
+              <label key={option.optionId}>
+                <input
+                  type="radio"
+                  name="timer-option"
+                  value={option.optionId}
+                  checked={selected === option.optionId}
+                  onChange={() => setSelected(option.optionId)}
+                />
+                {option.optionText}
+              </label>
+            ))}
+          </div>
+          <button className="primary" disabled={!selected || busy}>
+            {busy ? 'Checking…' : 'Submit answer'}
+          </button>
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
+        </form>
+      ) : (
+        <section className="timer-board" aria-label="Timer Trivia board">
+          <p className="muted">
+            Choose an open topic and point value. Each cell can be used once.
+          </p>
+          <div className="trivia-board">
+            {play.play.board.map((cell) => (
+              <button
+                key={cell.cellId}
+                className={`trivia-cell ${cell.disabled ? 'disabled' : ''}`}
+                disabled={cell.disabled || busy}
+                onClick={() => choose(cell)}
+                aria-label={`${cell.topic}, ${cell.points} points${cell.disabled ? ', used' : ''}`}
+              >
+                <span>{cell.topic}</span>
+                <strong>{cell.points}</strong>
+              </button>
+            ))}
+          </div>
+          {error && (
+            <p className="field-error" role="alert">
+              {error}
+            </p>
+          )}
+        </section>
       )}
     </section>
   );
