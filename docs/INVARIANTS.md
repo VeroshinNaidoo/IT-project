@@ -119,3 +119,9 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 | New student-created groups have a leader and the last leader cannot leave      | Transactional create, leader index and last-leader trigger | migration 020, `backend/tests/study-groups-api.test.js`                                |
 | Only leaders post/edit group content and text is profanity-checked             | Zod schemas, profanity check and leader authorization      | `backend/tests/study-groups-api.test.js`                                               |
 | Recommendations are deterministic and privacy-safe                             | Pure scoring/reason functions and aggregate projection     | `backend/src/groups/recommendations.test.js`, `backend/tests/study-groups-api.test.js` |
+
+## Business Lab completion invariants
+
+- Spreadsheet checks are evaluated server-side for displayed pass/not-yet results, while expected values remain absent from student responses.
+- Scenario state is saved per student and every accepted transition is validated against the finite scenario graph.
+- Lecturers can author only within owned modules; students cannot access lecturer authoring or another student's attempt.

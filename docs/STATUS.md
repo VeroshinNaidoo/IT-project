@@ -156,3 +156,10 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 - Spreadsheet configuration, hidden expected values and practice-only persistence: done and tested — `backend/tests/labs-api.test.js` 9/9.
 - Scenario finite-path validation: done and tested — `backend/src/labs/scenario.test.js` 2/2.
 - Business frontend/axe flow: done and tested — `frontend/e2e/main.spec.js` 6/6 across Chromium and Firefox at 390/768/1280, 0 axe violations.
+
+## Business Lab completion update
+
+- Student spreadsheet experience now includes formula bar, arrow/Enter/Tab navigation, locked-cell labels and server-evaluated check results with hidden expected values.
+- Student scenario gameplay now persists node and meter progress, announces changes, shows bars and text, provides reflection and restart.
+- Lecturer authoring now exposes validated draft creation, publish/unpublish through the existing patch route, duplication, deletion protection after attempts, aggregate activity, and no student practice editor.
+- Evidence: frontend component tests 55, Business Lab API tests 11, authorization matrix 87, and Business Lab browser/axe coverage 18/18 across Chromium and Firefox at 390/768/1280.

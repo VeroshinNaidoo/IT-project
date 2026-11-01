@@ -124,3 +124,10 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 4. Save and refresh. Confirm the grid restores and progress remains self-checked.
 5. Open **Break-even calculator**, change the inputs and confirm the result and formula working update.
 6. Open the seeded business scenario, make each choice, confirm meters and the reflection summary, and confirm no result appears on the leaderboard.
+
+## Business Lab completion smoke test
+
+1. As a lecturer, open Practice Labs and create a spreadsheet draft, calculator draft and scenario draft for an owned module; publish, duplicate and unpublish one draft.
+2. As a student enrolled in the module, open the spreadsheet, move with arrows/Enter/Tab, confirm locked cells cannot be edited, save, and inspect the check panel without seeing expected values.
+3. Open the scenario, choose a branch, confirm meter text/bars and the reflection summary, refresh, then restart.
+4. Confirm a lecturer cannot open a student attempt and a student cannot access lecturer authoring actions.

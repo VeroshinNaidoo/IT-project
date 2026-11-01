@@ -27,9 +27,10 @@ describe('safe spreadsheet formula evaluator', () => {
     expect(evaluateCell({}, 'A1').value).toBe('#REF!');
     expect(evaluateCell({ A1: '=1/0' }, 'A1').value).toBe('#DIV/0!');
     expect(evaluateCell({ A1: '=HACK(1)' }, 'A1').value).toBe('#NAME?');
-    expect(evaluateCell({ A1: '=Function("return 1")()' }, 'A1').value).toBe(
-      '#REF!',
-    );
+    expect(
+      evaluateCell({ A1: '=constructor.constructor("return 1")()' }, 'A1')
+        .value,
+    ).toBe('#REF!');
   });
   it('bounds huge and deeply nested formulas', () => {
     expect(

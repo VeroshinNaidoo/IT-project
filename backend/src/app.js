@@ -32,6 +32,7 @@ import {
 } from './profanity/rate-limit.js';
 import { getGameAvailability } from './games/availability.js';
 import { validateScenarioConfig } from './labs/scenario.js';
+import { evaluateCell } from './labs/formula.js';
 import { registerInfectedRoutes } from './games/infected/routes.js';
 import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
@@ -3555,6 +3556,70 @@ app.patch(
   },
 );
 
+app.post(
+  '/api/v1/labs/:labId/duplicate',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const existing = await labAccess(req.params.labId, req.user);
+      if (!existing)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this lab.',
+          requestId(req),
+        );
+      const result = await pool.query(
+        `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config)
+       SELECT module_id,kind,title || ' (copy)',instructions,difficulty,'draft',$1,config FROM labs WHERE lab_id=$2 RETURNING *`,
+        [req.user.userId, req.params.labId],
+      );
+      res.status(201).json({ lab: result.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.delete(
+  '/api/v1/labs/:labId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const existing = await labAccess(req.params.labId, req.user);
+      if (!existing)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this lab.',
+          requestId(req),
+        );
+      const attempts = await pool.query(
+        'SELECT 1 FROM lab_attempts WHERE lab_id=$1 LIMIT 1',
+        [req.params.labId],
+      );
+      if (attempts.rowCount)
+        return error(
+          res,
+          409,
+          'LAB_LOCKED',
+          'This lab cannot be deleted after student attempts.',
+          requestId(req),
+        );
+      await pool.query('DELETE FROM labs WHERE lab_id=$1', [req.params.labId]);
+      res.status(204).send();
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
 app.get(
   '/api/v1/labs/:labId/attempt',
   requireAuth,
@@ -3568,7 +3633,21 @@ app.get(
         'SELECT * FROM lab_attempts WHERE lab_id=$1 AND student_id=$2',
         [req.params.labId, req.user.userId],
       );
-      res.json({ attempt: result.rows[0] || null });
+      const attempt = result.rows[0] || null;
+      const checks = Array.isArray(lab.config?.checks) ? lab.config.checks : [];
+      const grid = attempt?.submission?.grid || {};
+      const checkResults = checks.map((check) => {
+        const evaluated = evaluateCell(grid, check.cell);
+        const actual = evaluated.value;
+        const passed =
+          !evaluated.error &&
+          typeof actual === 'number' &&
+          Math.abs(actual - check.expected) <= check.tolerance &&
+          (!check.requiresFormula ||
+            String(grid[check.cell] || '').startsWith('='));
+        return { passed, hint: check.hint };
+      });
+      res.json({ attempt, checkResults });
     } catch (e) {
       next(e);
     }

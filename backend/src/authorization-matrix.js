@@ -47,6 +47,8 @@ const routePolicies = {
   'POST /api/v1/labs': { auth: 'lecturer' },
   'GET /api/v1/labs/:labId': { auth: 'student|lecturer' },
   'PATCH /api/v1/labs/:labId': { auth: 'lecturer' },
+  'POST /api/v1/labs/:labId/duplicate': { auth: 'lecturer' },
+  'DELETE /api/v1/labs/:labId': { auth: 'lecturer' },
   'GET /api/v1/labs/:labId/attempt': { auth: 'student' },
   'PUT /api/v1/labs/:labId/attempt': { auth: 'student' },
   'GET /api/v1/modules/:moduleId/labs/activity': { auth: 'lecturer' },

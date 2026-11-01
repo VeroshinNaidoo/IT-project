@@ -230,3 +230,9 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 - FR-30 calculators: automated — `backend/src/labs/formula.test.js` known break-even/VAT values and `frontend/src/main.test.jsx` calculator rendering.
 - FR-30 scenario validation: automated — `backend/src/labs/scenario.test.js` 2/2.
 - Business Lab responsive/accessibility flow: automated — `frontend/e2e/main.spec.js` 6/6 browser projects, 0 axe violations.
+
+## Business Lab gap completion
+
+- Spreadsheet navigation, formula bar, locked cells and hidden check results: automated — `frontend/src/main.test.jsx`, `backend/tests/labs-api.test.js`.
+- Scenario meters, branching, saved progress, reflection and restart: automated — `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`.
+- Lecturer-only authoring and lab lifecycle ownership: automated — `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js`, `frontend/e2e/main.spec.js`.

@@ -28,6 +28,7 @@ import {
   CodeLabPlayer,
   SpreadsheetLabPlayer,
   CalculatorLabPlayer,
+  ScenarioLabPlayer,
 } from './main.jsx';
 
 const bossQuestion = {
@@ -2030,6 +2031,93 @@ it('spreadsheet lab renders headers, locked cells, formulas and errors safely', 
   fireEvent.focus(screen.getByLabelText('B1'));
   expect(screen.getByText(/Computed value/)).toBeTruthy();
   expect(screen.getByText(/Computed value/)).toBeTruthy();
+});
+
+it('spreadsheet lab provides a formula bar, keyboard navigation and check results', async () => {
+  cleanup();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        attempt: null,
+        checkResults: [{ passed: false, hint: 'Add the total.' }],
+      }),
+    }),
+  );
+  render(
+    <SpreadsheetLabPlayer
+      lab={{
+        lab_id: 'sheet-2',
+        title: 'Checks',
+        instructions: 'Use formulas.',
+        difficulty: 1,
+        config: {
+          startingGrid: { A1: '1', B1: '=A1+1' },
+          lockedCells: [],
+          checks: [{ cell: 'B1', hint: 'Add the total.' }],
+        },
+      }}
+      onBack={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText('Formula bar').value).toBe('1');
+  fireEvent.focus(screen.getByLabelText('B1'));
+  expect(screen.getByLabelText('Formula bar').value).toBe('=A1+1');
+  fireEvent.keyDown(screen.getByLabelText('B1'), { key: 'ArrowLeft' });
+  expect(document.activeElement).toBe(screen.getByLabelText('A1'));
+  expect(screen.getByText(/Not yet/)).toBeTruthy();
+  vi.unstubAllGlobals();
+});
+
+it('scenario lab announces meter changes, persists progress and can restart', async () => {
+  cleanup();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ attempt: null }),
+    }),
+  );
+  render(
+    <ScenarioLabPlayer
+      lab={{
+        lab_id: 'scenario-1',
+        title: 'Market choice',
+        instructions: 'Choose wisely.',
+        config: {
+          meters: [
+            { key: 'cash', label: 'Cash', initial: 20 },
+            { key: 'risk', label: 'Risk', initial: 10 },
+            { key: 'trust', label: 'Trust', initial: 50 },
+          ],
+          nodes: [
+            {
+              id: 'start',
+              text: 'Choose a path',
+              choices: [{ label: 'Grow', next: 'end', changes: { cash: 10 } }],
+            },
+            {
+              id: 'end',
+              text: 'Finished',
+              terminal: true,
+              choices: [],
+              reflection: 'Reflect on the trade-off.',
+            },
+          ],
+        },
+      }}
+      onBack={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Grow' }));
+  await waitFor(() => expect(screen.getByText('Cash: 30')).toBeTruthy());
+  expect(screen.getByText('Reflect on the trade-off.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Restart scenario' }));
+  expect(screen.getByText('Choose a path')).toBeTruthy();
+  vi.unstubAllGlobals();
 });
 
 it('calculator lab renders configurable inputs and working', () => {

@@ -46,6 +46,7 @@ const pathFor = (template, values = fixture) =>
   template
     .replace(':moduleId', values.moduleId)
     .replace(':labId', values.labId)
+    .replace(':deleteLabId', values.deleteLabId || values.labId)
     .replace(':groupId', values.groupId)
     .replace(':joinGroupId', values.joinGroupId)
     .replace(':resourceId', values.resourceId)
@@ -357,6 +358,11 @@ const specs = {
   'POST /api/v1/labs': ['/api/v1/labs', 'lecturer'],
   'GET /api/v1/labs/:labId': ['/api/v1/labs/:labId', 'student'],
   'PATCH /api/v1/labs/:labId': ['/api/v1/labs/:labId', 'lecturer'],
+  'POST /api/v1/labs/:labId/duplicate': [
+    '/api/v1/labs/:labId/duplicate',
+    'lecturer',
+  ],
+  'DELETE /api/v1/labs/:labId': ['/api/v1/labs/:deleteLabId', 'lecturer'],
   'GET /api/v1/labs/:labId/attempt': ['/api/v1/labs/:labId/attempt', 'student'],
   'PUT /api/v1/labs/:labId/attempt': ['/api/v1/labs/:labId/attempt', 'student'],
   'GET /api/v1/modules/:moduleId/labs/activity': [
@@ -539,6 +545,21 @@ async function createFixture() {
   const labRow = (
     await pool.query(
       `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config) VALUES($1,'code','Matrix Lab','Build a heading.',1,'published',$2,$3) RETURNING lab_id`,
+      [
+        moduleRow.module_id,
+        ids[users.lecturer.email],
+        {
+          starterHtml: '<h1>Start</h1>',
+          starterCss: '',
+          starterJs: '',
+          checks: [],
+        },
+      ],
+    )
+  ).rows[0];
+  const deleteLabRow = (
+    await pool.query(
+      `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config) VALUES($1,'code','Matrix Delete Lab','Build a heading.',1,'published',$2,$3) RETURNING lab_id`,
       [
         moduleRow.module_id,
         ids[users.lecturer.email],
@@ -824,6 +845,7 @@ async function createFixture() {
     updateId: groupUpdate.update_id,
     moduleId: moduleRow.module_id,
     labId: labRow.lab_id,
+    deleteLabId: deleteLabRow.lab_id,
     joinCode: moduleRow.join_code,
     groupId: group.group_id,
     joinGroupId: joinGroup.group_id,
@@ -953,6 +975,7 @@ async function assertRoute(route, [template, successRole]) {
         ...fixture,
         moduleId: uuid(),
         labId: uuid(),
+        deleteLabId: uuid(),
         groupId: uuid(),
         joinGroupId: uuid(),
         resourceId: uuid(),
@@ -1033,7 +1056,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(83);
+    expect(routeInventory.length).toBe(85);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

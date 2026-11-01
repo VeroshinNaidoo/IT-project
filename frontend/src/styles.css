@@ -601,6 +601,49 @@ button:disabled {
   color: #14213d;
   opacity: 1;
 }
+.formula-bar {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+.scenario-meters,
+.scenario-choices {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+}
+.scenario-meters progress {
+  display: block;
+  width: 100%;
+  min-height: 18px;
+  accent-color: #2f8f5b;
+}
+.scenario-choices button {
+  min-height: 44px;
+  text-align: left;
+}
+.lab-authoring {
+  display: grid;
+  gap: 12px;
+}
+.practice-labs-page input,
+.practice-labs-page select,
+.practice-labs-page textarea,
+.practice-labs-page .muted,
+.lab-authoring label,
+.lab-authoring .eyebrow {
+  color: #14213d !important;
+  opacity: 1;
+}
+.lab-authoring .primary {
+  background: #2432ad !important;
+  color: #fff !important;
+}
+.lab-authoring textarea {
+  min-height: 100px;
+  font-family: 'DM Sans', sans-serif;
+}
 .spreadsheet-card .muted,
 .spreadsheet-card p,
 .spreadsheet-card strong,

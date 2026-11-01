@@ -667,6 +667,7 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
   const [grid, setGrid] = useState(initial);
   const [active, setActive] = useState('A1');
   const [message, setMessage] = useState('');
+  const [checkResults, setCheckResults] = useState([]);
   const columns = Array.from({ length: 26 }, (_, index) =>
     String.fromCharCode(65 + index),
   );
@@ -675,7 +676,7 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
     setGrid((current) => ({ ...current, [cell]: value.slice(0, 500) }));
   const save = async () => {
     try {
-      await api(`/labs/${lab.lab_id}/attempt`, {
+      const saved = await api(`/labs/${lab.lab_id}/attempt`, {
         method: 'PUT',
         body: JSON.stringify({
           submission: { grid },
@@ -684,6 +685,7 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
           completed: false,
         }),
       });
+      setCheckResults(saved.checkResults || []);
       setMessage(
         'Draft saved. Spreadsheet checks are self-checked in your browser.',
       );
@@ -691,7 +693,43 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
       setMessage(error.message);
     }
   };
+  useEffect(() => {
+    api(`/labs/${lab.lab_id}/attempt`)
+      .then((body) => {
+        const savedGrid = body.attempt?.submission?.grid;
+        if (savedGrid) setGrid(savedGrid);
+        setCheckResults(body.checkResults || []);
+      })
+      .catch(() => {});
+  }, [lab.lab_id]);
   const result = evaluateSpreadsheet(grid, active);
+  const activeFormula = grid[active] ?? '';
+  const moveFocus = (column, row, key) => {
+    const columnIndex = columns.indexOf(column);
+    const rowIndex = rows.indexOf(row);
+    const nextColumn =
+      key === 'ArrowLeft'
+        ? columnIndex - 1
+        : key === 'ArrowRight'
+          ? columnIndex + 1
+          : columnIndex;
+    const nextRow =
+      key === 'ArrowUp'
+        ? rowIndex - 1
+        : key === 'ArrowDown'
+          ? rowIndex + 1
+          : rowIndex;
+    if (
+      nextColumn >= 0 &&
+      nextColumn < columns.length &&
+      nextRow >= 0 &&
+      nextRow < rows.length
+    ) {
+      document
+        .querySelector(`[aria-label="${columns[nextColumn]}${rows[nextRow]}"]`)
+        ?.focus();
+    }
+  };
   return (
     <section className="practice-lab-page">
       <button className="link-button" onClick={onBack}>
@@ -715,6 +753,10 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
         </p>
       )}
       <article className="card spreadsheet-card">
+        <label className="formula-bar">
+          Formula bar
+          <input aria-label="Formula bar" value={activeFormula} readOnly />
+        </label>
         <p>
           Active cell: <strong>{active}</strong> · Computed value:{' '}
           <strong>{String(result.value)}</strong>
@@ -754,9 +796,28 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
                           onFocus={() => setActive(cell)}
                           onChange={(event) => update(cell, event.target.value)}
                           onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === 'Tab') {
+                            if (event.key.startsWith('Arrow')) {
                               event.preventDefault();
-                              const next = `${columns[(columns.indexOf(column) + 1) % columns.length]}${row}`;
+                              moveFocus(column, row, event.key);
+                            } else if (
+                              event.key === 'Enter' ||
+                              event.key === 'Tab'
+                            ) {
+                              event.preventDefault();
+                              const nextRow =
+                                event.key === 'Enter'
+                                  ? Math.min(row + 1, rows.length)
+                                  : row;
+                              const nextColumn =
+                                event.key === 'Enter'
+                                  ? column
+                                  : columns[
+                                      Math.min(
+                                        columns.indexOf(column) + 1,
+                                        columns.length - 1,
+                                      )
+                                    ];
+                              const next = `${nextColumn}${nextRow}`;
                               document
                                 .querySelector(`[aria-label="${next}"]`)
                                 ?.focus();
@@ -779,6 +840,21 @@ export function SpreadsheetLabPlayer({ lab, onBack }) {
           <span className="self-checked">Self-checked in your browser</span> ·{' '}
           {lab.config?.checks?.length || 0} checks configured
         </p>
+        <section aria-labelledby="check-results-heading" className="lab-checks">
+          <h3 id="check-results-heading">Check results</h3>
+          {lab.config?.checks?.length ? (
+            lab.config.checks.map((check, index) => (
+              <p key={`${check.cell}-${index}`}>
+                <strong>
+                  {checkResults[index]?.passed ? 'Passed' : 'Not yet'}
+                </strong>{' '}
+                — {checkResults[index]?.hint || check.hint}
+              </p>
+            ))
+          ) : (
+            <p>No checks configured.</p>
+          )}
+        </section>
       </article>
     </section>
   );
@@ -868,8 +944,205 @@ export function CalculatorLabPlayer({ lab, onBack }) {
   );
 }
 
+export function ScenarioLabPlayer({ lab, onBack }) {
+  const nodes = lab.config?.nodes || [];
+  const [nodeId, setNodeId] = useState(nodes[0]?.id);
+  const [meters, setMeters] = useState(
+    Object.fromEntries(
+      (lab.config?.meters || []).map((meter) => [meter.key, meter.initial]),
+    ),
+  );
+  const [summary, setSummary] = useState('');
+  const node = nodes.find((item) => item.id === nodeId) || nodes[0];
+  const save = async (nextNode, nextMeters) => {
+    await api(`/labs/${lab.lab_id}/attempt`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        submission: { nodeId: nextNode, meters: nextMeters },
+        checksPassed: 0,
+        checksTotal: 0,
+        completed: Boolean(
+          nodes.find((item) => item.id === nextNode)?.terminal,
+        ),
+      }),
+    });
+  };
+  useEffect(() => {
+    api(`/labs/${lab.lab_id}/attempt`)
+      .then((body) => {
+        const saved = body.attempt?.submission;
+        if (saved?.nodeId) setNodeId(saved.nodeId);
+        if (saved?.meters) setMeters(saved.meters);
+      })
+      .catch(() => {});
+  }, [lab.lab_id]);
+  const choose = async (choice) => {
+    const nextMeters = { ...meters };
+    Object.entries(choice.changes || {}).forEach(([key, value]) => {
+      nextMeters[key] = (nextMeters[key] || 0) + value;
+    });
+    setMeters(nextMeters);
+    setNodeId(choice.next);
+    if (nodes.find((item) => item.id === choice.next)?.terminal)
+      setSummary(
+        nodes.find((item) => item.id === choice.next)?.reflection ||
+          'You reached the end of this scenario.',
+      );
+    await save(choice.next, nextMeters);
+  };
+  const restart = () => {
+    const initial = Object.fromEntries(
+      (lab.config?.meters || []).map((meter) => [meter.key, meter.initial]),
+    );
+    setMeters(initial);
+    setNodeId(nodes[0]?.id);
+    setSummary('');
+    save(nodes[0]?.id, initial).catch(() => {});
+  };
+  return (
+    <section className="practice-lab-page scenario-player">
+      <button className="link-button" onClick={onBack}>
+        ← Back to Practice Labs
+      </button>
+      <article className="card">
+        <span className="eyebrow">DECISION SCENARIO</span>
+        <h2>{lab.title}</h2>
+        <p>{lab.instructions}</p>
+        <section aria-label="Scenario meters" className="scenario-meters">
+          {(lab.config?.meters || []).map((meter) => (
+            <div key={meter.key}>
+              <strong>
+                {meter.label}: {meters[meter.key]}
+              </strong>
+              <progress
+                max="100"
+                value={Math.max(0, Math.min(100, meters[meter.key] || 0))}
+                aria-label={`${meter.label} meter`}
+              />
+            </div>
+          ))}
+        </section>
+        {summary ? (
+          <div role="status" aria-live="polite">
+            <h3>Reflection summary</h3>
+            <p>{summary}</p>
+            <button className="primary" onClick={restart}>
+              Restart scenario
+            </button>
+          </div>
+        ) : (
+          <div aria-live="polite">
+            <h3>{node?.text}</h3>
+            <div className="scenario-choices">
+              {(node?.choices || []).map((choice) => (
+                <button key={choice.label} onClick={() => choose(choice)}>
+                  {choice.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </article>
+    </section>
+  );
+}
+
+function LabAuthoringPanel({ modules, onCreated }) {
+  const [kind, setKind] = useState('spreadsheet');
+  const [moduleId, setModuleId] = useState(modules[0]?.module_id || '');
+  const [title, setTitle] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [configText, setConfigText] = useState('{}');
+  const [message, setMessage] = useState('');
+  const submit = async (event) => {
+    event.preventDefault();
+    try {
+      const body = await api('/labs', {
+        method: 'POST',
+        body: JSON.stringify({
+          moduleId,
+          kind,
+          title,
+          instructions,
+          difficulty: 1,
+          status: 'draft',
+          config: JSON.parse(configText),
+        }),
+      });
+      setMessage(`Draft created: ${body.lab.title}`);
+      onCreated?.(body.lab);
+    } catch (error) {
+      setMessage(error.message);
+    }
+  };
+  return (
+    <form className="card lab-authoring" onSubmit={submit}>
+      <span className="eyebrow">LECTURER AUTHORING</span>
+      <h2>Create a Business Lab</h2>
+      <label>
+        Module
+        <select
+          value={moduleId}
+          onChange={(event) => setModuleId(event.target.value)}
+        >
+          {modules.map((module) => (
+            <option key={module.module_id} value={module.module_id}>
+              {module.module_code} — {module.module_name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Kind
+        <select value={kind} onChange={(event) => setKind(event.target.value)}>
+          <option value="spreadsheet">Spreadsheet exercise</option>
+          <option value="calculator">Calculator template</option>
+          <option value="scenario">Decision scenario</option>
+        </select>
+      </label>
+      <label>
+        Title
+        <input
+          required
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </label>
+      <label>
+        Instructions
+        <textarea
+          required
+          value={instructions}
+          onChange={(event) => setInstructions(event.target.value)}
+        />
+      </label>
+      <label>
+        Configuration JSON
+        <textarea
+          aria-label="Lab configuration JSON"
+          value={configText}
+          onChange={(event) => setConfigText(event.target.value)}
+        />
+      </label>
+      <button className="primary" type="submit">
+        Save draft
+      </button>
+      {message && <p role="status">{message}</p>}
+      <p className="muted">
+        Use the validated schema for the selected kind. Student code is never
+        executed on the server.
+      </p>
+    </form>
+  );
+}
+
 export function PracticeLabs({ user }) {
   const state = useData('/labs?page=1&pageSize=50');
+  const moduleState = useData(
+    user.role === 'lecturer'
+      ? '/me/modules?page=1&pageSize=50'
+      : '/labs?page=1&pageSize=1',
+  );
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const labs = state.data.filter((lab) =>
@@ -884,10 +1157,17 @@ export function PracticeLabs({ user }) {
       return (
         <CalculatorLabPlayer lab={selected} onBack={() => setSelected(null)} />
       );
+    if (selected.kind === 'scenario')
+      return (
+        <ScenarioLabPlayer lab={selected} onBack={() => setSelected(null)} />
+      );
     return <CodeLabPlayer lab={selected} onBack={() => setSelected(null)} />;
   }
   return (
     <section className="practice-labs-page">
+      {user.role === 'lecturer' && (
+        <LabAuthoringPanel modules={moduleState.data} onCreated={() => {}} />
+      )}
       <div className="card hero">
         <span className="eyebrow">PRACTICE LABS</span>
         <h2>Learn by building</h2>
@@ -918,9 +1198,13 @@ export function PracticeLabs({ user }) {
             <h3>{lab.title}</h3>
             <p>{lab.instructions}</p>
             <span className="tag">Practice only</span>
-            <button className="primary" onClick={() => setSelected(lab)}>
-              Open lab
-            </button>
+            {user.role === 'student' ? (
+              <button className="primary" onClick={() => setSelected(lab)}>
+                Open lab
+              </button>
+            ) : (
+              <span className="tag">Authoring only</span>
+            )}
           </article>
         ))}
       </div>

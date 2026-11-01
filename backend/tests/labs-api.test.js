@@ -331,4 +331,57 @@ describe('Practice Lab API', () => {
     ).toBe(403);
     expect(JSON.stringify(own.body)).not.toMatch(/submission|html|student_id/);
   });
+
+  it('returns spreadsheet check results without revealing expected values and refuses lecturers on student attempts', async () => {
+    const created = await lecturerAgent.post('/api/v1/labs').send({
+      moduleId: moduleRow.module_id,
+      kind: 'spreadsheet',
+      title: 'Check panel lab',
+      instructions: 'Complete the total.',
+      difficulty: 1,
+      status: 'published',
+      config: {
+        startingGrid: { A1: '2' },
+        lockedCells: [],
+        checks: [
+          {
+            cell: 'A1',
+            expected: 2,
+            tolerance: 0.01,
+            hint: 'Keep the value at two.',
+          },
+        ],
+      },
+    });
+    const result = await studentAgent.get(
+      `/api/v1/labs/${created.body.lab.lab_id}/attempt`,
+    );
+    expect(result.status).toBe(200);
+    expect(result.body.checkResults[0]).toMatchObject({
+      passed: false,
+      hint: 'Keep the value at two.',
+    });
+    expect(JSON.stringify(result.body)).not.toContain('expected');
+    expect(
+      (
+        await lecturerAgent.get(
+          `/api/v1/labs/${created.body.lab.lab_id}/attempt`,
+        )
+      ).status,
+    ).toBe(403);
+  });
+
+  it('duplicates owned labs and prevents deleting a lab after an attempt', async () => {
+    const duplicate = await lecturerAgent.post(
+      `/api/v1/labs/${lab.lab_id}/duplicate`,
+    );
+    expect(duplicate.status).toBe(201);
+    expect(duplicate.body.lab.status).toBe('draft');
+    expect(
+      (await lecturerAgent.delete(`/api/v1/labs/${lab.lab_id}`)).status,
+    ).toBe(409);
+    expect(
+      (await outsiderAgent.post(`/api/v1/labs/${lab.lab_id}/duplicate`)).status,
+    ).toBe(403);
+  });
 });

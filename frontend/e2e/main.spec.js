@@ -116,6 +116,93 @@ test('Business Lab spreadsheet and calculator flows are accessible', async ({
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test('Business Lab scenario flow is accessible and resumable', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? { user: { userId: 'student-1', role: 'student' } }
+      : path.endsWith('/labs')
+        ? {
+            data: [
+              {
+                lab_id: 'scenario-1',
+                kind: 'scenario',
+                title: 'Market scenario',
+                instructions: 'Choose a path.',
+                difficulty: 2,
+                config: {
+                  meters: [{ key: 'cash', label: 'Cash', initial: 20 }],
+                  nodes: [
+                    {
+                      id: 'start',
+                      text: 'Choose a path',
+                      choices: [
+                        { label: 'Grow', next: 'end', changes: { cash: 10 } },
+                      ],
+                    },
+                    {
+                      id: 'end',
+                      text: 'Finished',
+                      terminal: true,
+                      choices: [],
+                      reflection: 'Reflect on the trade-off.',
+                    },
+                  ],
+                },
+              },
+            ],
+          }
+        : { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Practice Labs' }).click();
+  await page.getByRole('button', { name: 'Open lab' }).click();
+  await page.getByRole('button', { name: 'Grow' }).click();
+  await expect(page.getByText('Reflect on the trade-off.')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('Business Lab lecturer sees authoring controls only', async ({ page }) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? { user: { userId: 'lecturer-1', role: 'lecturer' } }
+      : path.endsWith('/me/modules')
+        ? {
+            data: [
+              {
+                module_id: 'module-1',
+                module_code: 'BUS101',
+                module_name: 'Business',
+              },
+            ],
+          }
+        : path.endsWith('/labs')
+          ? { data: [] }
+          : { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Practice Labs' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Create a Business Lab' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Kind')).toBeVisible();
+  await page.waitForTimeout(350);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('authentication screen is usable at the required viewport', async ({
   page,
 }) => {
