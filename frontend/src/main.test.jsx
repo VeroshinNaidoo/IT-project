@@ -1196,6 +1196,60 @@ describe('frontend authentication and role routing', () => {
     );
   });
 
+  it('mirrors split-name registration, student type and password strength rules', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ error: { message: 'Not signed in.' } }, false),
+      )
+      .mockResolvedValueOnce(
+        response({
+          user: {
+            role: 'student',
+            full_name: 'Ada Lovelace',
+            first_name: 'Ada',
+          },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App />);
+    await waitFor(() => screen.getByText('Welcome back'));
+    fireEvent.click(screen.getByRole('button', { name: 'Create an account' }));
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: 'Ada' },
+    });
+    fireEvent.change(screen.getByLabelText('Last name (optional)'), {
+      target: { value: 'Lovelace' },
+    });
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'ada@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'SecureAda9!' },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: 'SecureAda9!' },
+    });
+    expect(
+      screen.getByText(/Password strength: 5 of 5 rules met/),
+    ).toBeTruthy();
+    fireEvent.submit(
+      screen.getByRole('button', { name: 'Register' }).closest('form'),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeTruthy(),
+    );
+    const registration = fetchMock.mock.calls.find(([url]) =>
+      url.endsWith('/auth/register'),
+    );
+    expect(JSON.parse(registration[1].body)).toMatchObject({
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      studentType: 'it',
+      confirmPassword: 'SecureAda9!',
+    });
+  });
+
   it('shows lecturer-only navigation after a real login response', async () => {
     const fetchMock = vi
       .fn()

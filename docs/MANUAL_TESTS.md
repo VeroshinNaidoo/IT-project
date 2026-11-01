@@ -87,3 +87,12 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 4. Confirm a competitive quiz before its scored attempt explains the lock, a short quiz gives its minimum-question reason, and a closed or unpublished quiz gives its exact reason.
 5. Start an available quiz. Return to **Games** and confirm the game card and quiz row show **Resume** and **Continue**. Confirm Continue resumes through the existing start route.
 6. Sign in as a lecturer. Confirm **Games** is visible as a read-only preview of owned-module quizzes and never starts a student play.
+
+## Registration and email verification
+
+1. Open registration and enter a Unicode first name, optional last name, student type, and a password meeting all five strength rules.
+2. Confirm the password and register.
+3. Confirm the account is created with a verification banner.
+4. In development, open the matching ignored file under `docs/dev-mail/` and use the verification link once.
+5. Confirm the first use succeeds and refreshing/reusing the same link is rejected.
+6. Try digits or symbols in the name, a weak password, a mismatched confirmation, and a duplicate email; each must be rejected with a generic validation response.

@@ -5,6 +5,7 @@ const routePolicies = {
   'GET /health': { auth: 'public' },
   'POST /api/v1/auth/register': { auth: 'public' },
   'POST /api/v1/auth/login': { auth: 'public' },
+  'GET /api/v1/auth/verify-email': { auth: 'public' },
   'POST /api/v1/auth/logout': { auth: 'student|lecturer' },
   'GET /api/v1/auth/me': { auth: 'student|lecturer' },
   'PUT /api/v1/auth/me': { auth: 'student|lecturer' },

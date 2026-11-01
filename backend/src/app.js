@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { mkdir, readFile, unlink } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -89,7 +89,7 @@ const visibleText = (field, req, res, value) => {
   error(res, 422, 'TEXT_NOT_ALLOWED', profanityMessage, requestId(req));
   return false;
 };
-const parse = (schema, value, req, res) => {
+const parse = (schema, value, req, res, validationStatus = 400) => {
   const result = schema.safeParse(value);
   if (!result.success) {
     const hasProfanity = result.error.issues.some(
@@ -97,7 +97,7 @@ const parse = (schema, value, req, res) => {
     );
     error(
       res,
-      hasProfanity ? 422 : 400,
+      hasProfanity ? 422 : validationStatus,
       hasProfanity ? 'TEXT_NOT_ALLOWED' : 'VALIDATION_ERROR',
       hasProfanity ? profanityMessage : 'Please check the submitted fields.',
       requestId(req),
@@ -118,7 +118,7 @@ const requireAuth = async (req, res, next) => {
         requestId(req),
       );
     const result = await pool.query(
-      `SELECT u.user_id, u.role, u.full_name, u.email FROM sessions s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now()`,
+      `SELECT u.user_id, u.role, u.full_name, u.first_name, u.last_name, u.student_type, u.email, u.email_verified_at FROM sessions s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now()`,
       [sessionHash(token)],
     );
     if (!result.rowCount)
@@ -133,6 +133,11 @@ const requireAuth = async (req, res, next) => {
       userId: result.rows[0].user_id,
       role: result.rows[0].role,
       fullName: result.rows[0].full_name,
+      firstName: result.rows[0].first_name,
+      lastName: result.rows[0].last_name,
+      studentType: result.rows[0].student_type,
+      emailVerifiedAt: result.rows[0].email_verified_at,
+      needsEmailVerification: !result.rows[0].email_verified_at,
       email: result.rows[0].email,
     };
     if (isProfanityCooldownActive(req.user.userId))
@@ -171,20 +176,73 @@ const issueSession = async (userId, res) => {
     maxAge: 8 * 60 * 60 * 1000,
   });
 };
+const issueVerificationMail = async (userId, email) => {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await pool.query(
+    `INSERT INTO email_verification_tokens(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '24 hours')`,
+    [userId, sessionHash(token)],
+  );
+  const mailDir = path.resolve('docs/dev-mail');
+  await mkdir(mailDir, { recursive: true });
+  await writeFile(
+    path.join(mailDir, `${userId}.txt`),
+    `To: ${email}\nVerify your EduQuest email: http://localhost:5173/verify-email?token=${token}\n`,
+    'utf8',
+  );
+};
 
+const personNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(50)
+  .regex(
+    /^[\p{L}]+(?:[ '\u002D][\p{L}]+)*$/u,
+    'Use letters, spaces, hyphens or apostrophes only.',
+  )
+  .refine(noProfanity(), { message: profanityMessage });
 const nameSchema = z
   .string()
   .trim()
   .min(1)
   .max(120)
   .refine(noProfanity(), { message: profanityMessage });
+const emailSchema = z.string().trim().toLowerCase().max(254).email();
+const passwordSchema = z
+  .string()
+  .min(10)
+  .max(200)
+  .regex(/[A-Z]/, 'Password needs an uppercase letter.')
+  .regex(/[a-z]/, 'Password needs a lowercase letter.')
+  .regex(/[0-9]/, 'Password needs a number.')
+  .regex(/[^A-Za-z0-9]/, 'Password needs a special character.');
 const registerSchema = z
   .object({
-    email: z.string().email().max(254),
-    password: z.string().min(8).max(200),
-    fullName: nameSchema,
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string().max(200).optional(),
+    firstName: personNameSchema.optional(),
+    lastName: personNameSchema.optional().nullable(),
+    studentType: z.enum(['it', 'business']).optional(),
+    // Kept temporarily so existing users and offline fixtures can migrate safely.
+    fullName: z.string().trim().max(101).optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => data.firstName || data.fullName, {
+    message: 'First name is required.',
+    path: ['firstName'],
+  })
+  .refine(
+    (data) => !data.confirmPassword || data.password === data.confirmPassword,
+    {
+      message: 'Passwords do not match.',
+      path: ['confirmPassword'],
+    },
+  )
+  .refine((data) => data.fullName || data.studentType, {
+    message: 'Student type is required.',
+    path: ['studentType'],
+  });
 const moduleSchema = z
   .object({
     moduleCode: z.string().trim().min(1).max(30),
@@ -199,22 +257,81 @@ const titleSchema = z
   .max(200)
   .refine(noProfanity(), { message: profanityMessage });
 
+const commonPasswords = new Set([
+  'password123!',
+  'password1234!',
+  'qwerty1234!',
+  'welcome123!',
+  'letmein123!',
+]);
+const normalizePersonName = (value) => value.trim().replace(/\s+/g, ' ');
+const splitLegacyName = (value) => {
+  const normalized = normalizePersonName(value);
+  const firstSpace = normalized.indexOf(' ');
+  return firstSpace < 0
+    ? { firstName: normalized, lastName: null }
+    : {
+        firstName: normalized.slice(0, firstSpace),
+        lastName: normalized.slice(firstSpace + 1),
+      };
+};
+const passwordIsAllowed = (password, email, firstName) => {
+  const lowered = password.toLowerCase();
+  return (
+    !commonPasswords.has(lowered) &&
+    !lowered.includes(email.toLowerCase()) &&
+    !lowered.includes(firstName.toLowerCase())
+  );
+};
+
 app.get('/health', async (_req, res) => {
   const result = await pool.query('SELECT 1 AS ok');
   res.json({ ok: result.rows[0].ok === 1 });
 });
 app.post('/api/v1/auth/register', async (req, res, next) => {
   try {
-    const data = parse(registerSchema, req.body, req, res);
+    const data = parse(registerSchema, req.body, req, res, 422);
     if (!data) return;
-    if (!visibleText('fullName', req, res, data.fullName)) return;
+    const identity = data.firstName
+      ? {
+          firstName: normalizePersonName(data.firstName),
+          lastName: data.lastName ? normalizePersonName(data.lastName) : null,
+        }
+      : splitLegacyName(data.fullName);
+    if (!visibleText('firstName', req, res, identity.firstName)) return;
+    if (
+      identity.lastName &&
+      !visibleText('lastName', req, res, identity.lastName)
+    )
+      return;
+    if (!passwordIsAllowed(data.password, data.email, identity.firstName))
+      return error(
+        res,
+        422,
+        'VALIDATION_ERROR',
+        'Choose a less common password that does not contain your email or first name.',
+        requestId(req),
+      );
     const hash = await bcrypt.hash(data.password, 12);
+    const fullName = [identity.firstName, identity.lastName]
+      .filter(Boolean)
+      .join(' ');
     const result = await pool.query(
-      `INSERT INTO users(email,password_hash,role,full_name) VALUES($1,$2,'student',$3) RETURNING user_id,role,full_name,email`,
-      [data.email.toLowerCase(), hash, data.fullName],
+      `INSERT INTO users(email,password_hash,role,full_name,first_name,last_name,student_type) VALUES($1,$2,'student',$3,$4,$5,$6) RETURNING user_id,role,full_name,first_name,last_name,student_type,email,email_verified_at`,
+      [
+        data.email,
+        hash,
+        fullName,
+        identity.firstName,
+        identity.lastName,
+        data.studentType || 'it',
+      ],
     );
+    await issueVerificationMail(result.rows[0].user_id, data.email);
     await issueSession(result.rows[0].user_id, res);
-    res.status(201).json({ user: result.rows[0] });
+    res.status(201).json({
+      user: { ...result.rows[0], needs_email_verification: true },
+    });
   } catch (e) {
     if (e.code === '23505')
       return error(
@@ -227,17 +344,47 @@ app.post('/api/v1/auth/register', async (req, res, next) => {
     next(e);
   }
 });
+app.get('/api/v1/auth/verify-email', async (req, res, next) => {
+  try {
+    const data = parse(
+      z.object({ token: z.string().min(20).max(200) }).strict(),
+      req.query,
+      req,
+      res,
+    );
+    if (!data) return;
+    const result = await pool.query(
+      `UPDATE email_verification_tokens SET used_at=now() WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now() RETURNING user_id`,
+      [sessionHash(data.token)],
+    );
+    if (!result.rowCount)
+      return error(
+        res,
+        422,
+        'INVALID_VERIFICATION_TOKEN',
+        'This verification link is invalid or expired.',
+        requestId(req),
+      );
+    await pool.query(
+      'UPDATE users SET email_verified_at=now() WHERE user_id=$1',
+      [result.rows[0].user_id],
+    );
+    res.json({ verified: true });
+  } catch (e) {
+    next(e);
+  }
+});
 app.post('/api/v1/auth/login', async (req, res, next) => {
   try {
     const data = parse(
-      z.object({ email: z.string().email(), password: z.string() }).strict(),
+      z.object({ email: emailSchema, password: z.string() }).strict(),
       req.body,
       req,
       res,
     );
     if (!data) return;
     const result = await pool.query('SELECT * FROM users WHERE email=$1', [
-      data.email.toLowerCase(),
+      data.email,
     ]);
     if (
       !result.rowCount ||
@@ -256,6 +403,11 @@ app.post('/api/v1/auth/login', async (req, res, next) => {
         user_id: result.rows[0].user_id,
         role: result.rows[0].role,
         full_name: result.rows[0].full_name,
+        first_name: result.rows[0].first_name,
+        last_name: result.rows[0].last_name,
+        student_type: result.rows[0].student_type,
+        email_verified_at: result.rows[0].email_verified_at,
+        needs_email_verification: !result.rows[0].email_verified_at,
         email: result.rows[0].email,
       },
     });
@@ -282,15 +434,37 @@ app.get('/api/v1/auth/me', requireAuth, (req, res) =>
 app.put('/api/v1/auth/me', requireAuth, async (req, res, next) => {
   try {
     const data = parse(
-      z.object({ fullName: nameSchema }).strict(),
+      z
+        .object({
+          firstName: personNameSchema.optional(),
+          lastName: personNameSchema.optional().nullable(),
+          fullName: z.string().trim().max(101).optional(),
+        })
+        .strict()
+        .refine((value) => value.firstName || value.fullName, {
+          message: 'First name is required.',
+          path: ['firstName'],
+        }),
       req.body,
       req,
       res,
     );
-    if (!data || !visibleText('fullName', req, res, data.fullName)) return;
+    if (!data) return;
+    const identity = data.firstName
+      ? {
+          firstName: normalizePersonName(data.firstName),
+          lastName: data.lastName ? normalizePersonName(data.lastName) : null,
+        }
+      : splitLegacyName(data.fullName);
+    if (!visibleText('firstName', req, res, identity.firstName)) return;
     const result = await pool.query(
-      'UPDATE users SET full_name=$1 WHERE user_id=$2 RETURNING user_id,role,full_name,email',
-      [data.fullName, req.user.userId],
+      'UPDATE users SET first_name=$1,last_name=$2,full_name=$3 WHERE user_id=$4 RETURNING user_id,role,full_name,first_name,last_name,student_type,email,email_verified_at',
+      [
+        identity.firstName,
+        identity.lastName,
+        [identity.firstName, identity.lastName].filter(Boolean).join(' '),
+        req.user.userId,
+      ],
     );
     res.json({ user: result.rows[0] });
   } catch (e) {

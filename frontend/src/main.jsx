@@ -16,7 +16,14 @@ const api = async (path, options = {}) => {
 
 function Auth({ onLogin }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ email: '', password: '', fullName: '' });
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    studentType: 'it',
+  });
   const [error, setError] = useState('');
   const submit = async (event) => {
     event.preventDefault();
@@ -72,15 +79,26 @@ function Auth({ onLogin }) {
         </p>
         {mode === 'register' && (
           <label>
-            Full name
+            First name
             <input
-              value={form.fullName}
+              value={form.firstName}
               onChange={(event) =>
-                setForm({ ...form, fullName: event.target.value })
+                setForm({ ...form, firstName: event.target.value })
               }
               required
             />
             {error && <small className="field-error">{error}</small>}
+          </label>
+        )}
+        {mode === 'register' && (
+          <label>
+            Last name (optional)
+            <input
+              value={form.lastName}
+              onChange={(event) =>
+                setForm({ ...form, lastName: event.target.value })
+              }
+            />
           </label>
         )}
         <label>
@@ -103,11 +121,49 @@ function Auth({ onLogin }) {
               setForm({ ...form, password: event.target.value })
             }
             required
-            minLength="8"
+            minLength="10"
           />
         </label>
         {mode === 'register' && (
-          <p className="muted">Registration creates a student account.</p>
+          <>
+            <label>
+              Confirm password
+              <input
+                type="password"
+                value={form.confirmPassword}
+                onChange={(event) =>
+                  setForm({ ...form, confirmPassword: event.target.value })
+                }
+                required
+              />
+            </label>
+            <label>
+              Student type
+              <select
+                value={form.studentType}
+                onChange={(event) =>
+                  setForm({ ...form, studentType: event.target.value })
+                }
+              >
+                <option value="it">IT</option>
+                <option value="business">Business</option>
+              </select>
+            </label>
+            <p className="muted">
+              Password strength:{' '}
+              {
+                [
+                  form.password.length >= 10,
+                  /[A-Z]/.test(form.password),
+                  /[a-z]/.test(form.password),
+                  /[0-9]/.test(form.password),
+                  /[^A-Za-z0-9]/.test(form.password),
+                ].filter(Boolean).length
+              }{' '}
+              of 5 rules met
+            </p>
+            <p className="muted">Registration creates a student account.</p>
+          </>
         )}
         <button className="primary" type="submit">
           {mode === 'login' ? 'Log in' : 'Register'}

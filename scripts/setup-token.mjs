@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { appendFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -25,4 +25,16 @@ if (!existing) {
   console.log('AI_SERVICE_TOKEN=created');
 } else {
   console.log('AI_SERVICE_TOKEN=present');
+}
+
+const refreshed = await readFile(envPath, 'utf8');
+if (!/^MFA_ENCRYPTION_KEY\s*=\s*\S+/m.test(refreshed)) {
+  await appendFile(
+    envPath,
+    `MFA_ENCRYPTION_KEY=${randomBytes(32).toString('hex')}\n`,
+    'utf8',
+  );
+  console.log('MFA_ENCRYPTION_KEY=created');
+} else {
+  console.log('MFA_ENCRYPTION_KEY=present');
 }

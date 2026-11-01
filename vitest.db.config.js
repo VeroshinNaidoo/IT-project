@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     include: [
       'backend/tests/ai-worker.test.js',
+      'backend/tests/identity-api.test.js',
       'backend/tests/api.test.js',
       'backend/tests/authorization-matrix.test.js',
       'backend/tests/database.invariants.test.js',

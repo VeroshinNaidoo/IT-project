@@ -1,5 +1,6 @@
 // @ts-nocheck - this suite drives runtime Express routes and dynamic fixtures.
 import 'dotenv/config';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -39,6 +40,7 @@ const users = {
   },
 };
 let fixture;
+const verificationToken = 'matrix-verification-token-1234567890';
 
 const pathFor = (template, values = fixture) =>
   template
@@ -197,6 +199,10 @@ const specs = {
   'GET /health': ['/health', null],
   'POST /api/v1/auth/register': ['/api/v1/auth/register', null],
   'POST /api/v1/auth/login': ['/api/v1/auth/login', null],
+  'GET /api/v1/auth/verify-email': [
+    `/api/v1/auth/verify-email?token=${verificationToken}`,
+    null,
+  ],
   'POST /api/v1/auth/logout': ['/api/v1/auth/logout', 'lecturer'],
   'GET /api/v1/auth/me': ['/api/v1/auth/me', 'student'],
   'PUT /api/v1/auth/me': ['/api/v1/auth/me', 'student'],
@@ -387,6 +393,13 @@ async function createFixture() {
   );
   const ids = Object.fromEntries(
     result.rows.map((row) => [row.email, row.user_id]),
+  );
+  await pool.query(
+    `INSERT INTO email_verification_tokens(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 hour')`,
+    [
+      ids[users.lecturer.email],
+      crypto.createHash('sha256').update(verificationToken).digest('hex'),
+    ],
   );
   const moduleRow = (
     await pool.query(
@@ -776,19 +789,23 @@ async function assertRoute(route, [template, successRole]) {
     'GET /api/v1/games/quiz-picker',
   ].includes(route)
     ? await invalidAgent.get(path).query({ unknownField: 'true' })
-    : route === 'POST /api/v1/groups/:groupId/join'
-      ? await send(
-          invalidAgent,
-          method,
-          pathFor(template, { ...fixture, joinGroupId: uuid() }),
-          invalidBody,
-        )
-      : route === 'POST /api/v1/modules/:moduleId/resources'
-        ? await invalidAgent
-            .post(path)
-            .field('title', 'fuck')
-            .attach('file', Buffer.from('%PDF-1.4 matrix'), 'matrix.pdf')
-        : await send(invalidAgent, method, path, invalidBody);
+    : route === 'GET /api/v1/auth/verify-email'
+      ? await invalidAgent
+          .get('/api/v1/auth/verify-email')
+          .query({ token: verificationToken, unknownField: 'true' })
+      : route === 'POST /api/v1/groups/:groupId/join'
+        ? await send(
+            invalidAgent,
+            method,
+            pathFor(template, { ...fixture, joinGroupId: uuid() }),
+            invalidBody,
+          )
+        : route === 'POST /api/v1/modules/:moduleId/resources'
+          ? await invalidAgent
+              .post(path)
+              .field('title', 'fuck')
+              .attach('file', Buffer.from('%PDF-1.4 matrix'), 'matrix.pdf')
+          : await send(invalidAgent, method, path, invalidBody);
   if (
     method === 'GET' &&
     !route.startsWith('GET /api/v1/games/infected') &&
@@ -810,7 +827,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(52);
+    expect(routeInventory.length).toBe(53);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

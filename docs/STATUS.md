@@ -90,3 +90,13 @@ FR-25 solo is green: three complete pre-enable gates each passed 248/248 JavaScr
 FR-26 solo-vs-Bot is green: three complete pre-enable gates each passed 277/277 JavaScript tests with zero skipped (128 pure/frontend and 149 DB/API), lint, formatting, type-check, production build, and all 42 Playwright/axe project runs. Pixel Car Racer is covered by 10 engine/property tests, 9 API integration tests, 7 component test cases, three executable authorization-matrix routes, and a stateful race/competitive-lock flow in Chromium and Firefox at 390, 768, and 1280 pixels. Migration 011 enables `pixel_racer`; multiplayer remains out of scope.
 
 FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API integration tests, 4 component tests, four executable authorization-matrix routes, and a six-project Playwright/axe board/answer flow in Chromium and Firefox at 390, 768, and 1280 pixels. The seed asserts at least 10 distinct topic/level cells with explanations. Migration 013 enables `timer_trivia`; multiplayer remains out of scope.
+
+## Registration and login improvement — current slice
+
+| Area                                                                   | Status          | Evidence                                                                                |
+| ---------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------- |
+| Split first/last names, Unicode validation and student type            | done and tested | `db/migrations/016_identity_and_verification.sql`, `backend/tests/identity-api.test.js` |
+| Password policy and confirmation                                       | done and tested | `backend/src/app.js`, identity API tests, frontend authentication test                  |
+| Case-insensitive email normalization and duplicate rejection           | done and tested | identity API tests and existing authorization matrix                                    |
+| Development email verification token                                   | done and tested | verification API test; ignored `docs/dev-mail/` file mailer                             |
+| MFA enrolment, two-step login, recovery codes and lecturer enforcement | not started     | Storage/key scaffolding exists, executable MFA flows are not implemented                |

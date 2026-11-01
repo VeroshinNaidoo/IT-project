@@ -76,3 +76,12 @@
 
 Game access policy is centralized in `canAccessGame`: lecturers always have access; students on competitive quizzes require their own completed scored attempt. Infected, Island Escape, Memory Match, Boss Battle, Pixel Car Racer, and Timer Trivia are enabled. Flashcards stays disabled.
 The Games chooser invariants are exercised by `backend/tests/game-availability.test.js`, `backend/tests/api.test.js`, `backend/tests/authorization-matrix.test.js`, `frontend/src/main.test.jsx`, and the six-project Playwright/axe chooser flow. The chooser is read-only and never returns question text, options, correctness, or another player's play state.
+
+## Identity invariants
+
+| Invariant                                                                                   | Enforcement                                                   | Evidence                                       |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
+| Names contain only Unicode letters, spaces, hyphens and apostrophes, with normalized length | Strict Zod schema and server normalization                    | `backend/tests/identity-api.test.js`           |
+| Student registrations store a student type                                                  | Registration schema and migration trigger for legacy fixtures | Identity registration test and migration 016   |
+| Verification tokens are hashed, single-use and time-limited                                 | Hashed token table and conditional update                     | Verification API test                          |
+| Passwords meet the composition policy and confirmation matches                              | Strict Zod schema and server-side checks                      | Identity API and frontend authentication tests |

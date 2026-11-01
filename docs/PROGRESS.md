@@ -208,3 +208,12 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added a lecturer-only Create a module form on the Modules page.
 - The form posts the module code and name to the existing secured `POST /api/v1/modules` endpoint, displays the generated JoinCode, and keeps the existing student enrolment flow unchanged.
 - Evidence: focused frontend suite 43/43 passed; full suite passed 163 pure/frontend and 171 DB/API tests with zero skips on the final run; lint and type-check passed.
+
+## Registration and login improvement — identity slice
+
+- Added migration 016 for split names, student type, email verification state, hashed verification tokens, and MFA storage/key scaffolding while preserving existing `full_name` data and legacy fixtures.
+- Added server-side Zod validation for Unicode names, email normalization, password composition, password confirmation, student type, duplicate emails, and profanity.
+- Added development-only file mailer and single-use 24-hour verification endpoint.
+- Added frontend split-name fields, student type selection, live text strength meter, and 44 frontend identity tests plus 7 identity API tests.
+- Gate result: 179 pure/frontend and 179 DB/API tests passed with zero skips; lint and type-check passed.
+- Remaining: MFA enrolment, TOTP two-step login, recovery codes, lockout/rate limiting, lecturer enforcement, and the required new browser/axe flows are not complete yet.

@@ -5,6 +5,7 @@ test-results/
 dist/
 build/
 uploads/
+docs/dev-mail/
 .pgdata/
 .pglite-*.pid
 .eduquest-db.pid
