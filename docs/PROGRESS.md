@@ -181,3 +181,10 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added a seeded board-cell coverage assertion and six-project Playwright/axe coverage in Chromium and Firefox at 390, 768, and 1280 pixels.
 - The Timer-specific pre-enable checks passed: lint, formatting, type-check, build, 153 pure/frontend tests and 164 DB/API tests with zero skipped; the initial full browser run found a real contrast defect, fixed in the gate work, and the targeted rerun passed 6/6.
 - Migration 013 enables `timer_trivia` only after the complete three-gate verification. Multiplayer and all other unfinished work remain out of scope.
+
+## 2026-11-01 — Duplicate quiz cleanup and test isolation
+
+- Created and verified the pre-cleanup JSON backup at `C:\Users\User\Desktop\EduQuest-backups\20261101-092536\eduquest-dev.json` before changing the development database.
+- Removed only the identified Browser smoke quizzes and duplicate Demo competitive/practice records, with dependent rows deleted transactionally. The development database now has 8 quizzes, 91 questions, 5 attempts and 0 game plays; DEMO101 and the presentation module data were retained.
+- Browser tests now create and seed a fresh `.pgdata/e2e-suite` database on port 55434 and run their own backend/AI/frontend stack on ports 4191/8191/5191. Three complete browser runs passed with 54/54 each and zero skipped.
+- `npm run seed` is stable-key idempotent; `npm run test:seed` passed with unchanged counts after a second seed, preserved play data, cancellation, and production refusal. Quiz lists now support newest-first pagination and title search.

@@ -88,3 +88,9 @@
 - Timer Trivia is solo and practice-only in this stage. It uses 10 rounds, 30 seconds per round, up to five topics, and point rows 10/20/30/40/50 mapped to difficulty levels 1–5.
 - The server owns deadlines and timeout decisions. The `extended_time` profile preference doubles the server deadline; clients cannot supply timing, score, correctness, or status.
 - Each cell maps to one distinct question and cannot be reused. Results are stored only as generic practice plays/personal bests and never enter scored attempts, leaderboards, or analytics. Multiplayer is explicitly deferred.
+
+## 2026-11-01 — Demo-data and browser-test isolation
+
+- Browser and axe tests use a fresh per-run PGlite instance in `.pgdata/e2e-suite` on port 55434, with backend, AI service and frontend ports 4191, 8191 and 5191. The runner waits for `select 1`, seeds that database, and tears it down; a guard rejects the development database target.
+- `npm run seed` is intentionally idempotent and non-destructive, using stable demo keys and preserving existing attempts and game plays. `npm run seed:reset` is a separate interactive operation, disabled in production.
+- The quizzes API and UI use server pagination (20 by default), title search, and newest-first ordering so accumulated data cannot flood the page.

@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
 
+test('browser suite uses an isolated database, never the dev database', () => {
+  expect(process.env.DATABASE_URL).not.toContain(':5432/eduquest');
+  expect(process.env.DATABASE_URL).toContain(':55434/eduquest_e2e');
+});
+
 test('seeded lecturer logs in, generates a quiz and publishes it', async ({
   page,
 }) => {

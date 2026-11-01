@@ -17,6 +17,7 @@ import {
   PixelRacerGame,
   QuizGames,
   QuizTaking,
+  Quizzes,
   ResourceRow,
 } from './main.jsx';
 
@@ -233,6 +234,64 @@ describe('Boss Battle frontend', () => {
       ).toBeNull();
       view.unmount();
     }
+  });
+});
+
+describe('Quiz list pagination', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('searches and paginates the quiz list without rendering every record', async () => {
+    const fetchMock = vi.fn((url) => {
+      if (url.endsWith('/modules'))
+        return Promise.resolve(
+          response({ data: [{ module_id: 'module-1', module_name: 'Demo' }] }),
+        );
+      return Promise.resolve(
+        response({
+          data: [
+            {
+              quiz_id: 'quiz-1',
+              title: 'Newest API quiz',
+              is_competitive: false,
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, total: 21, pages: 2 },
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <Quizzes
+        onTake={() => {}}
+        onPlayInfected={() => {}}
+        onPlayIslandEscape={() => {}}
+        onPlayMemoryMatch={() => {}}
+        onPlayBossBattle={() => {}}
+        onPlayPixelRacer={() => {}}
+        onPlayTimerTrivia={() => {}}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: 'Demo' })).toBeTruthy(),
+    );
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'module-1' },
+    });
+    await waitFor(() =>
+      expect(screen.getByText('Newest API quiz')).toBeTruthy(),
+    );
+    fireEvent.change(screen.getByLabelText('Search quizzes'), {
+      target: { value: 'API' },
+    });
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) => url.includes('search=API')),
+      ).toBe(true),
+    );
+    expect(screen.getByText('Page 1 of 2')).toBeTruthy();
   });
 });
 

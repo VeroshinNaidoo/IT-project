@@ -80,12 +80,19 @@ try {
     resourcePath,
     'Normalization, keys, dependencies, and relational design.',
   );
-  const resource = (
+  let resource = (
     await client.query(
-      `INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,'Demo revision notes','txt',$3,$4) RETURNING resource_id`,
-      [lecturer, moduleRow.module_id, resourcePath, 58],
+      `SELECT resource_id FROM resources WHERE module_id=$1 AND title='Demo revision notes' ORDER BY created_date LIMIT 1`,
+      [moduleRow.module_id],
     )
   ).rows[0];
+  if (!resource)
+    resource = (
+      await client.query(
+        `INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,'Demo revision notes','txt',$3,$4) RETURNING resource_id`,
+        [lecturer, moduleRow.module_id, resourcePath, 58],
+      )
+    ).rows[0];
   const topics = [];
   for (const name of [
     'Normalization',
@@ -103,93 +110,135 @@ try {
         )
       ).rows[0],
     );
-  const quiz = (
-    await client.query(
-      `INSERT INTO quizzes(module_id,resource_id,created_by,title,is_competitive,status) VALUES($1,$2,$3,'Demo competitive quiz',true,'published') RETURNING quiz_id`,
-      [moduleRow.module_id, resource.resource_id, lecturer],
-    )
-  ).rows[0];
-  const practice = (
-    await client.query(
-      `INSERT INTO quizzes(module_id,resource_id,created_by,title,is_competitive,status) VALUES($1,$2,$3,'Demo practice quiz',false,'published') RETURNING quiz_id`,
-      [moduleRow.module_id, resource.resource_id, lecturer],
-    )
-  ).rows[0];
+  const getOrCreateQuiz = async (title, competitive) => {
+    let row = (
+      await client.query(
+        `SELECT quiz_id FROM quizzes WHERE module_id=$1 AND title=$2 ORDER BY created_at LIMIT 1`,
+        [moduleRow.module_id, title],
+      )
+    ).rows[0];
+    if (!row)
+      row = (
+        await client.query(
+          `INSERT INTO quizzes(module_id,resource_id,created_by,title,is_competitive,status) VALUES($1,$2,$3,$4,$5,'published') RETURNING quiz_id`,
+          [
+            moduleRow.module_id,
+            resource.resource_id,
+            lecturer,
+            title,
+            competitive,
+          ],
+        )
+      ).rows[0];
+    return row;
+  };
+  const quiz = await getOrCreateQuiz('Demo competitive quiz', true);
+  const practice = await getOrCreateQuiz('Demo practice quiz', false);
   let question;
   let correct;
   let wrong;
   const difficultyLevels = [1, 2, 3, 4, 5];
-  for (let index = 0; index < 40; index += 1) {
-    const inserted = (
-      await client.query(
-        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
+  const competitiveQuestionCount = await client.query(
+    'SELECT count(*)::int AS count FROM questions WHERE quiz_id=$1',
+    [quiz.quiz_id],
+  );
+  if (competitiveQuestionCount.rows[0].count === 0)
+    for (let index = 0; index < 40; index += 1) {
+      const inserted = (
+        await client.query(
+          `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
          VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
-        [
-          quiz.quiz_id,
-          topics[index % topics.length].topic_id,
-          `Which database principle is demonstrated in scenario ${index + 1}?`,
-          difficultyLevels[index % difficultyLevels.length],
-          `Scenario ${index + 1} demonstrates a core normalization or key-design principle.`,
-        ],
-      )
-    ).rows[0];
-    const correctOption = (
-      await client.query(
-        `INSERT INTO question_options(question_id,option_text,is_correct)
-         VALUES($1,$2,true) RETURNING option_id`,
-        [inserted.question_id, `Supported database principle ${index + 1}`],
-      )
-    ).rows[0].option_id;
-    const wrongOption = (
-      await client.query(
-        `INSERT INTO question_options(question_id,option_text,is_correct)
-         VALUES($1,$2,false) RETURNING option_id`,
-        [inserted.question_id, `Unrelated display choice ${index + 1}`],
-      )
-    ).rows[0].option_id;
-    await client.query(
-      `INSERT INTO question_options(question_id,option_text,is_correct) VALUES
-       ($1,$2,false),($1,$3,false)`,
-      [
-        inserted.question_id,
-        `Unsupported claim ${index + 1}`,
-        `Contradictory claim ${index + 1}`,
-      ],
-    );
-    if (index === 0) {
-      question = inserted;
-      correct = correctOption;
-      wrong = wrongOption;
-    }
-  }
-  for (let index = 0; index < 25; index += 1) {
-    const practiceQuestion = (
-      await client.query(
-        `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
-         VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
-        [
-          practice.quiz_id,
-          topics[index % topics.length].topic_id,
-          `Practice database question ${index + 1}?`,
-          difficultyLevels[
-            Math.floor(index / topics.length) % difficultyLevels.length
+          [
+            quiz.quiz_id,
+            topics[index % topics.length].topic_id,
+            `Which database principle is demonstrated in scenario ${index + 1}?`,
+            difficultyLevels[index % difficultyLevels.length],
+            `Scenario ${index + 1} demonstrates a core normalization or key-design principle.`,
           ],
-          `The correct option follows from the supplied database notes.`,
+        )
+      ).rows[0];
+      const correctOption = (
+        await client.query(
+          `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,$2,true) RETURNING option_id`,
+          [inserted.question_id, `Supported database principle ${index + 1}`],
+        )
+      ).rows[0].option_id;
+      const wrongOption = (
+        await client.query(
+          `INSERT INTO question_options(question_id,option_text,is_correct)
+         VALUES($1,$2,false) RETURNING option_id`,
+          [inserted.question_id, `Unrelated display choice ${index + 1}`],
+        )
+      ).rows[0].option_id;
+      await client.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct) VALUES
+       ($1,$2,false),($1,$3,false)`,
+        [
+          inserted.question_id,
+          `Unsupported claim ${index + 1}`,
+          `Contradictory claim ${index + 1}`,
         ],
+      );
+      if (index === 0) {
+        question = inserted;
+        correct = correctOption;
+        wrong = wrongOption;
+      }
+    }
+  if (!question) {
+    question = (
+      await client.query(
+        `SELECT question_id FROM questions WHERE quiz_id=$1 ORDER BY question_id LIMIT 1`,
+        [quiz.quiz_id],
       )
     ).rows[0];
-    await client.query(
-      `INSERT INTO question_options(question_id,option_text,is_correct) VALUES
-       ($1,$2,true),($1,$3,false),($1,$4,false),($1,$5,false)`,
-      [
-        practiceQuestion.question_id,
-        `Practice answer ${index + 1}`,
-        `Practice distractor A${index + 1}`,
-        `Practice distractor B${index + 1}`,
-        `Practice distractor C${index + 1}`,
-      ],
-    );
+    correct = (
+      await client.query(
+        `SELECT option_id FROM question_options WHERE question_id=$1 AND is_correct=true ORDER BY option_id LIMIT 1`,
+        [question.question_id],
+      )
+    ).rows[0].option_id;
+    wrong = (
+      await client.query(
+        `SELECT option_id FROM question_options WHERE question_id=$1 AND is_correct=false ORDER BY option_id LIMIT 1`,
+        [question.question_id],
+      )
+    ).rows[0].option_id;
   }
+  const practiceQuestionCount = await client.query(
+    'SELECT count(*)::int AS count FROM questions WHERE quiz_id=$1',
+    [practice.quiz_id],
+  );
+  if (practiceQuestionCount.rows[0].count === 0)
+    for (let index = 0; index < 25; index += 1) {
+      const practiceQuestion = (
+        await client.query(
+          `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation)
+         VALUES($1,$2,$3,1,$4,$5) RETURNING question_id`,
+          [
+            practice.quiz_id,
+            topics[index % topics.length].topic_id,
+            `Practice database question ${index + 1}?`,
+            difficultyLevels[
+              Math.floor(index / topics.length) % difficultyLevels.length
+            ],
+            `The correct option follows from the supplied database notes.`,
+          ],
+        )
+      ).rows[0];
+      await client.query(
+        `INSERT INTO question_options(question_id,option_text,is_correct) VALUES
+       ($1,$2,true),($1,$3,false),($1,$4,false),($1,$5,false)`,
+        [
+          practiceQuestion.question_id,
+          `Practice answer ${index + 1}`,
+          `Practice distractor A${index + 1}`,
+          `Practice distractor B${index + 1}`,
+          `Practice distractor C${index + 1}`,
+        ],
+      );
+    }
   const practiceCoverage = (
     await client.query(
       `SELECT
@@ -254,6 +303,11 @@ try {
     throw new Error('Demo practice quiz does not satisfy game seed coverage.');
   }
   for (const [index, student] of students.slice(0, 3).entries()) {
+    const existingAttempt = await client.query(
+      'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 AND student_id=$2 LIMIT 1',
+      [quiz.quiz_id, student],
+    );
+    if (existingAttempt.rowCount) continue;
     const attempt = (
       await client.query(
         `INSERT INTO quiz_attempts(quiz_id,student_id,score,start_time,completion_time,is_scored) VALUES($1,$2,$3,now()-interval '10 minutes',now()-($4 || ' minutes')::interval,true) RETURNING attempt_id`,

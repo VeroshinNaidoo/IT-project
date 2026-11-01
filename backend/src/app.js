@@ -714,11 +714,39 @@ app.get(
             requestId(req),
           );
       }
-      const result = await pool.query(
-        "SELECT quiz_id,title,is_competitive,closes_at,status FROM quizzes WHERE module_id=$1 AND status='published' ORDER BY title",
-        [req.params.moduleId],
+      const page = Math.max(
+        1,
+        Math.min(10000, Number.parseInt(req.query.page || '1', 10) || 1),
       );
-      res.json({ data: result.rows });
+      const pageSize = Math.max(
+        1,
+        Math.min(100, Number.parseInt(req.query.pageSize || '20', 10) || 20),
+      );
+      const search = String(req.query.search || '').trim();
+      const result = await pool.query(
+        `SELECT quiz_id,title,is_competitive,closes_at,status
+         FROM quizzes
+         WHERE module_id=$1 AND status='published'
+           AND ($2='' OR title ILIKE '%' || $2 || '%')
+         ORDER BY created_at DESC, quiz_id DESC
+         LIMIT $3 OFFSET $4`,
+        [req.params.moduleId, search, pageSize, (page - 1) * pageSize],
+      );
+      const total = await pool.query(
+        `SELECT count(*)::int AS count FROM quizzes
+         WHERE module_id=$1 AND status='published'
+           AND ($2='' OR title ILIKE '%' || $2 || '%')`,
+        [req.params.moduleId, search],
+      );
+      res.json({
+        data: result.rows,
+        pagination: {
+          page,
+          pageSize,
+          total: total.rows[0].count,
+          pages: Math.max(1, Math.ceil(total.rows[0].count / pageSize)),
+        },
+      });
     } catch (e) {
       next(e);
     }

@@ -33,6 +33,12 @@ const configs = {
     dir: path.join(dataRoot, 'test-suite'),
     pid: path.join(root, '.pglite-suite.pid'),
   },
+  e2e: {
+    port: Number(process.env.PGLITE_E2E_PORT ?? 55434),
+    database: 'eduquest_e2e',
+    dir: path.join(dataRoot, 'e2e-suite'),
+    pid: path.join(root, '.pglite-e2e.pid'),
+  },
 };
 
 function errorText(error) {

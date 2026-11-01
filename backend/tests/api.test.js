@@ -452,6 +452,18 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     ).toBe(false);
   });
 
+  it('paginates and searches quizzes newest first without flooding the response', async () => {
+    const response = await lecturerAgent.get(
+      `/api/v1/modules/${moduleRecord.module_id}/quizzes?page=1&pageSize=1&search=API`,
+    );
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0].title).toContain('API');
+    expect(response.body.pagination).toEqual(
+      expect.objectContaining({ page: 1, pageSize: 1, total: 1, pages: 1 }),
+    );
+  });
+
   it('returns a lecturer-only aggregate game activity projection without student state', async () => {
     const response = await lecturerAgent.get(
       `/api/v1/modules/${moduleRecord.module_id}/games/activity`,

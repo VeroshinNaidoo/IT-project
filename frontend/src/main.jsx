@@ -299,6 +299,7 @@ function useData(path) {
           setState({
             loading: false,
             error: '',
+            ...body,
             data: body.data || body.weakTopics || [],
           }),
       )
@@ -831,7 +832,7 @@ function Analytics({ user }) {
     </section>
   );
 }
-function Quizzes({
+export function Quizzes({
   onTake,
   onPlayInfected,
   onPlayIslandEscape,
@@ -842,8 +843,12 @@ function Quizzes({
 }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const quizzes = useData(
-    moduleId ? `/modules/${moduleId}/quizzes` : '/modules',
+    moduleId
+      ? `/modules/${moduleId}/quizzes?page=${page}&pageSize=20&search=${encodeURIComponent(search)}`
+      : '/modules',
   );
   return (
     <section className="card">
@@ -854,7 +859,10 @@ function Quizzes({
       </p>
       <select
         value={moduleId}
-        onChange={(event) => setModuleId(event.target.value)}
+        onChange={(event) => {
+          setModuleId(event.target.value);
+          setPage(1);
+        }}
       >
         <option value="">Choose a module</option>
         {modules.data.map((module) => (
@@ -865,6 +873,16 @@ function Quizzes({
       </select>
       {moduleId ? (
         <>
+          <label htmlFor="quiz-search">Search quizzes</label>
+          <input
+            id="quiz-search"
+            value={search}
+            placeholder="Search by title"
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+          />
           <State state={quizzes} empty="No published quizzes yet." />
           {quizzes.data.map((quiz) => (
             <div className="quiz-entry" key={quiz.quiz_id}>
@@ -895,6 +913,27 @@ function Quizzes({
               />
             </div>
           ))}
+          {quizzes.pagination && quizzes.pagination.pages > 1 ? (
+            <div className="list-row pagination" aria-label="Quiz pages">
+              <button
+                className="secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                Previous
+              </button>
+              <span>
+                Page {quizzes.pagination.page} of {quizzes.pagination.pages}
+              </span>
+              <button
+                className="secondary"
+                disabled={page >= quizzes.pagination.pages}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+              </button>
+            </div>
+          ) : null}
         </>
       ) : (
         <p className="empty-state">Choose a module to view quizzes.</p>

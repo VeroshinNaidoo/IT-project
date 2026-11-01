@@ -53,6 +53,10 @@ npm run test:e2e
 
 The browser suite covers 390px mobile, 768px tablet and 1280px desktop in both Chromium and Firefox, including an axe scan of the authentication screen.
 
+Browser tests use a fresh isolated PGlite database in `.pgdata/e2e-suite` on port 55434 and a separate local app stack on ports 4191, 8191 and 5191. They never use the development database. If a previous run left a local test process behind, stop only the process using those test ports and rerun `npm run test:e2e`.
+
+The quiz list is paginated to 20 items by default and supports title search. Repeated demo data is not expected: `npm run seed` is idempotent. To intentionally reload only the demo records, run `npm run seed:reset` and type `RESET DEMO DATA`; it refuses to run in production.
+
 To reset the test database manually:
 
 ```powershell
