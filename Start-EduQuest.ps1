@@ -1,5 +1,23 @@
+param([switch]$DryRun)
+
 $ErrorActionPreference = 'Stop'
-Set-Location $PSScriptRoot
+$ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+  Write-Error "EduQuest project folder does not exist: $ProjectRoot"
+  exit 1
+}
+Set-Location -LiteralPath $ProjectRoot
+
+if ($DryRun) {
+  Write-Host "DRY RUN: project root = $ProjectRoot"
+  Write-Host "Would run: npm run db:start"
+  Write-Host "Would run: npm run db:migrate"
+  Write-Host "Would run: npm run seed"
+  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
+  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
+  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
+  exit 0
+}
 
 function Stop-ProjectProcess($port) {
   $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
@@ -36,11 +54,14 @@ $token = $tokenLine.Substring('AI_SERVICE_TOKEN='.Length)
 $env:AI_SERVICE_TOKEN = $token
 
 Write-Host 'Starting backend...'
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','Set-Location $args[0]; node backend/src/index.js','--',$PSScriptRoot -WorkingDirectory $PSScriptRoot
+Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
+Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-backend.ps1" -WorkingDirectory $ProjectRoot
 Write-Host 'Starting AI service...'
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','Set-Location $args[0]; python ai-service/run.py','--',$PSScriptRoot -WorkingDirectory $PSScriptRoot
+Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
+Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-ai-service.ps1" -WorkingDirectory $ProjectRoot
 Write-Host 'Starting frontend...'
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-Command','Set-Location $args[0]; npm run dev -- --host 127.0.0.1','--',$PSScriptRoot -WorkingDirectory $PSScriptRoot
+Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
+Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-frontend.ps1" -WorkingDirectory $ProjectRoot
 
 try {
   Wait-Health 'http://127.0.0.1:4000/health'
