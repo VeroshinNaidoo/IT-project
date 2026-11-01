@@ -403,6 +403,10 @@ export function App() {
 function useData(path) {
   const [state, setState] = useState({ loading: true, error: '', data: [] });
   useEffect(() => {
+    if (!path) {
+      setState({ loading: false, error: '', data: [] });
+      return undefined;
+    }
     let live = true;
     api(path)
       .then(
@@ -2555,8 +2559,8 @@ function blankQuestion(questionType = 'multiple_choice') {
     code_after: '',
     expected_output: '',
     options: [
-      { optionText: '', isCorrect: true },
-      { optionText: '', isCorrect: false },
+      { optionText: 'Option A', isCorrect: true },
+      { optionText: 'Option B', isCorrect: false },
     ],
   };
 }
@@ -2566,11 +2570,14 @@ export function QuizEditor({ quizId, onDone }) {
   const [open, setOpen] = useState({});
   const [saved, setSaved] = useState({});
   const [message, setMessage] = useState('');
+  const saveQueues = useRef(new Map());
+  const nextDisplayOrder = useRef(0);
   useEffect(() => {
     api(`/quizzes/${quizId}`)
       .then((body) => {
         const quiz = body.quiz;
         setState({ loading: false, error: '', quiz });
+        nextDisplayOrder.current = quiz.questions.length;
         setOpen(
           Object.fromEntries(
             (quiz.questions || []).map((q) => [q.questionId, true]),
@@ -2599,41 +2606,55 @@ export function QuizEditor({ quizId, onDone }) {
     }));
   const saveQuestion = async (question) => {
     setSaved((current) => ({ ...current, [question.questionId]: 'saving' }));
-    try {
-      await api(`/quizzes/${quizId}/questions/${question.questionId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          questionId: question.questionId,
-          questionType:
-            question.questionType ||
-            question.question_type ||
-            'multiple_choice',
-          questionText: question.questionText || question.question_text,
-          marks: Number(question.marks || 1),
-          difficultyLevel: Number(
-            question.difficultyLevel || question.difficulty_level || 3,
-          ),
-          explanation: question.explanation || null,
-          options: (question.options || []).map((option) => ({
-            optionText: option.optionText,
-            isCorrect: option.isCorrect ?? option.correct ?? false,
-          })),
-          acceptedAnswers:
-            question.acceptedAnswers || question.accepted_answers || [],
-          ignorePunctuation:
-            question.ignorePunctuation || question.ignore_punctuation || false,
-          codeLanguage: question.codeLanguage || question.code_language || null,
-          codeBefore: question.codeBefore || question.code_before || null,
-          codeAfter: question.codeAfter || question.code_after || null,
-          expectedOutput:
-            question.expectedOutput || question.expected_output || null,
-          displayOrder: question.displayOrder || question.display_order || 0,
+    const previous =
+      saveQueues.current.get(question.questionId) || Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(() =>
+        api(`/quizzes/${quizId}/questions/${question.questionId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            questionId: question.questionId,
+            questionType:
+              question.questionType ||
+              question.question_type ||
+              'multiple_choice',
+            questionText: question.questionText || question.question_text,
+            marks: Number(question.marks || 1),
+            difficultyLevel: Number(
+              question.difficultyLevel || question.difficulty_level || 3,
+            ),
+            explanation: question.explanation || null,
+            options: (question.options || []).map((option) => ({
+              optionText: option.optionText,
+              isCorrect: option.isCorrect ?? option.correct ?? false,
+            })),
+            acceptedAnswers:
+              question.acceptedAnswers || question.accepted_answers || [],
+            ignorePunctuation:
+              question.ignorePunctuation ||
+              question.ignore_punctuation ||
+              false,
+            codeLanguage:
+              question.codeLanguage || question.code_language || null,
+            codeBefore: question.codeBefore || question.code_before || null,
+            codeAfter: question.codeAfter || question.code_after || null,
+            expectedOutput:
+              question.expectedOutput || question.expected_output || null,
+            displayOrder: question.displayOrder || question.display_order || 0,
+          }),
         }),
-      });
+      );
+    saveQueues.current.set(question.questionId, next);
+    try {
+      await next;
       setSaved((current) => ({ ...current, [question.questionId]: 'saved' }));
     } catch (reason) {
       setSaved((current) => ({ ...current, [question.questionId]: 'error' }));
       setMessage(reason.message);
+    } finally {
+      if (saveQueues.current.get(question.questionId) === next)
+        saveQueues.current.delete(question.questionId);
     }
   };
   const addQuestion = async (event) => {
@@ -2644,22 +2665,21 @@ export function QuizEditor({ quizId, onDone }) {
       const result = await api(`/quizzes/${quizId}/questions`, {
         method: 'POST',
         body: JSON.stringify({
-          ...blankQuestion(questionType),
           questionType,
           questionText: 'New question',
+          marks: 1,
           difficultyLevel: 3,
-          displayOrder: questions.length,
+          displayOrder: nextDisplayOrder.current++,
           acceptedAnswers: questionType === 'short_answer' ? ['Answer'] : [],
           options:
             questionType === 'short_answer' ? [] : blankQuestion().options,
         }),
       });
-      setState((current) => ({
+      const refreshed = await api(`/quizzes/${quizId}`);
+      setState((current) => ({ ...current, quiz: refreshed.quiz }));
+      setOpen((current) => ({
         ...current,
-        quiz: {
-          ...current.quiz,
-          questions: [...current.quiz.questions, result.question],
-        },
+        [result.question.question_id || result.question.questionId]: true,
       }));
       setMessage('Question added.');
     } catch (reason) {
@@ -2715,6 +2735,18 @@ export function QuizEditor({ quizId, onDone }) {
     }));
   };
   const publishCheck = async () => {
+    const incomplete = questions
+      .map((question, index) => ({ question, index }))
+      .filter(
+        ({ question }) =>
+          !(question.questionText || question.question_text)?.trim(),
+      );
+    if (incomplete.length) {
+      setMessage(
+        `Publish blocked: Question ${incomplete[0].index + 1} is incomplete.`,
+      );
+      return;
+    }
     const result = await api(`/quizzes/${quizId}/publish-check`, {
       method: 'POST',
       body: JSON.stringify({}),
@@ -2961,12 +2993,10 @@ export function QuizEditor({ quizId, onDone }) {
                           acceptedAnswers: [event.target.value],
                         })
                       }
-                      onBlur={() =>
+                      onBlur={(event) =>
                         saveQuestion({
                           ...question,
-                          acceptedAnswers:
-                            question.acceptedAnswers ||
-                            question.accepted_answers,
+                          acceptedAnswers: [event.target.value],
                         })
                       }
                     />
@@ -2987,6 +3017,20 @@ export function QuizEditor({ quizId, onDone }) {
                             };
                             updateQuestion(id, { options });
                           }}
+                          onBlur={(event) =>
+                            saveQuestion({
+                              ...question,
+                              options: (question.options || []).map(
+                                (item, itemIndex) =>
+                                  itemIndex === optionIndex
+                                    ? {
+                                        ...item,
+                                        optionText: event.target.value,
+                                      }
+                                    : item,
+                              ),
+                            })
+                          }
                         />
                         <button
                           type="button"
@@ -3023,6 +3067,12 @@ export function QuizEditor({ quizId, onDone }) {
                         onChange={(event) =>
                           updateQuestion(id, { codeBefore: event.target.value })
                         }
+                        onBlur={(event) =>
+                          saveQuestion({
+                            ...question,
+                            codeBefore: event.target.value,
+                          })
+                        }
                       />
                     </label>
                     <label>
@@ -3031,6 +3081,12 @@ export function QuizEditor({ quizId, onDone }) {
                         value={question.code_after || question.codeAfter || ''}
                         onChange={(event) =>
                           updateQuestion(id, { codeAfter: event.target.value })
+                        }
+                        onBlur={(event) =>
+                          saveQuestion({
+                            ...question,
+                            codeAfter: event.target.value,
+                          })
                         }
                       />
                     </label>
@@ -3044,6 +3100,12 @@ export function QuizEditor({ quizId, onDone }) {
                         }
                         onChange={(event) =>
                           updateQuestion(id, {
+                            expectedOutput: event.target.value,
+                          })
+                        }
+                        onBlur={(event) =>
+                          saveQuestion({
+                            ...question,
                             expectedOutput: event.target.value,
                           })
                         }
@@ -3440,7 +3502,7 @@ export function QuizGames({
   onPlayPixelRacer,
   onPlayTimerTrivia,
 }) {
-  const games = useData(`/quizzes/${quizId}/games`);
+  const games = useData(quizId ? `/quizzes/${quizId}/games` : '');
   if (games.loading) return <p className="muted">Loading games…</p>;
   if (games.error) return <p className="field-error">{games.error}</p>;
   if (!games.data.length)
@@ -5376,10 +5438,10 @@ export function QuizTaking({ quizId }) {
                 value={answers[question.question_id] || ''}
                 maxLength={2000}
                 onChange={(event) =>
-                  setAnswers({
-                    ...answers,
+                  setAnswers((current) => ({
+                    ...current,
                     [question.question_id]: event.target.value,
-                  })
+                  }))
                 }
               />
             </label>
@@ -5395,10 +5457,10 @@ export function QuizTaking({ quizId }) {
                     name={question.question_id}
                     checked={answers[question.question_id] === option.optionId}
                     onChange={() =>
-                      setAnswers({
-                        ...answers,
+                      setAnswers((current) => ({
+                        ...current,
                         [question.question_id]: option.optionId,
-                      })
+                      }))
                     }
                   />
                   {option.optionText}
@@ -5413,10 +5475,10 @@ export function QuizTaking({ quizId }) {
                   name={question.question_id}
                   checked={answers[question.question_id] === option.optionId}
                   onChange={() =>
-                    setAnswers({
-                      ...answers,
+                    setAnswers((current) => ({
+                      ...current,
                       [question.question_id]: option.optionId,
-                    })
+                    }))
                   }
                 />
                 {option.optionText}
