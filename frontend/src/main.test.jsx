@@ -22,6 +22,7 @@ import {
   Quizzes,
   ResourceRow,
   Resources,
+  Groups,
   ProfilePage,
 } from './main.jsx';
 
@@ -313,6 +314,50 @@ describe('Student module and resource catalogues', () => {
         fetchMock.mock.calls.some(([url]) => url.includes('search=Revision')),
       ).toBe(true),
     );
+  });
+});
+
+describe('Study groups frontend', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders recommended group cards, language chips and join action', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => {
+        if (url.includes('/groups'))
+          return Promise.resolve(
+            response({
+              data: [
+                {
+                  group_id: 'g1',
+                  group_name: 'Python Circle',
+                  module_code: 'CAT101',
+                  module_name: 'Foundations',
+                  leaders: [{ name: 'Ada', role: 'leader' }],
+                  member_count: 3,
+                  languages: ['Python', 'SQL'],
+                  focus: 'Databases',
+                  recommendation_reason: 'Matches your languages: Python, SQL',
+                  is_member: false,
+                  next_up: [],
+                },
+              ],
+              pagination: { page: 1, pageSize: 20, total: 1, pageCount: 1 },
+            }),
+          );
+        return Promise.resolve(
+          response({ data: [{ module_id: 'm1', module_name: 'Foundations' }] }),
+        );
+      }),
+    );
+    render(<Groups user={{ role: 'student' }} />);
+    expect(await screen.findByText('Python Circle')).toBeTruthy();
+    expect(screen.getAllByText('Python').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Matches your languages/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Join' })).toBeTruthy();
   });
 });
 

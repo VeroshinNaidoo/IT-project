@@ -96,3 +96,12 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 | Look-ahead is available only to first-year students and contains no resources, quizzes, answers or enrolment action | Year/programme filter and preview-only projection                              | `backend/tests/module-resource-catalogue-api.test.js`                               |
 | Resource tiles and lists expose only permitted modules and preserve group visibility                                | Lecturer ownership or student enrollment predicates and existing group filters | `backend/tests/module-resource-catalogue-api.test.js`                               |
 | Catalogue search and pagination are validated server-side                                                           | Strict query schema and bounded pagination                                     | `backend/tests/module-resource-catalogue-api.test.js`, `frontend/src/main.test.jsx` |
+
+## Study group invariants
+
+| Invariant                                                                      | Enforcement                                                | Evidence                                                                               |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Students see groups only for enrolled modules; lecturers see their own modules | Scoped SQL predicates and ownership checks                 | `backend/tests/study-groups-api.test.js`, authorization matrix                         |
+| New student-created groups have a leader and the last leader cannot leave      | Transactional create, leader index and last-leader trigger | migration 020, `backend/tests/study-groups-api.test.js`                                |
+| Only leaders post/edit group content and text is profanity-checked             | Zod schemas, profanity check and leader authorization      | `backend/tests/study-groups-api.test.js`                                               |
+| Recommendations are deterministic and privacy-safe                             | Pure scoring/reason functions and aggregate projection     | `backend/src/groups/recommendations.test.js`, `backend/tests/study-groups-api.test.js` |

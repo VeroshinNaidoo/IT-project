@@ -1025,49 +1025,244 @@ export function ResourceRow({ resource, lecturer }) {
     </div>
   );
 }
-function Groups({ user }) {
-  const modules = useData('/modules');
+export function Groups({ user }) {
+  const modules = useData('/me/modules?page=1&pageSize=50&sort=code');
+  const [search, setSearch] = useState('');
   const [moduleId, setModuleId] = useState('');
-  const [groupName, setGroupName] = useState('');
+  const [language, setLanguage] = useState('');
+  const [recommended, setRecommended] = useState(false);
+  const [sort, setSort] = useState('recommended');
+  const [refresh, setRefresh] = useState(0);
+  const groups = useData(
+    `/groups?page=1&pageSize=20&search=${encodeURIComponent(search)}${moduleId ? `&moduleId=${moduleId}` : ''}${language ? `&language=${encodeURIComponent(language)}` : ''}${recommended ? '&recommended=true' : ''}&sort=${sort}&refresh=${refresh}`,
+  );
+  const [form, setForm] = useState({
+    moduleId: '',
+    groupName: '',
+    focus: '',
+    description: '',
+    languages: [],
+  });
   const [message, setMessage] = useState('');
-  const create = async (event) => {
+  const languages = [
+    'JavaScript',
+    'TypeScript',
+    'Python',
+    'Java',
+    'C#',
+    'SQL',
+    'HTML/CSS',
+    'PHP',
+    'C',
+    'C++',
+  ];
+  const submit = async (event) => {
     event.preventDefault();
     try {
-      await api(`/modules/${moduleId}/groups`, {
-        method: 'POST',
-        body: JSON.stringify({ groupName }),
-      });
+      await api('/groups', { method: 'POST', body: JSON.stringify(form) });
       setMessage('Study group created.');
+      setForm({
+        moduleId: '',
+        groupName: '',
+        focus: '',
+        description: '',
+        languages: [],
+      });
+      setRefresh((value) => value + 1);
+    } catch (reason) {
+      setMessage(reason.message);
+    }
+  };
+  const act = async (group) => {
+    try {
+      await api(
+        `/groups/${group.group_id}/${group.is_member ? 'leave' : 'join'}`,
+        { method: 'POST', body: JSON.stringify({}) },
+      );
+      setRefresh((value) => value + 1);
     } catch (reason) {
       setMessage(reason.message);
     }
   };
   return (
-    <section className="card">
-      <h2>Study groups</h2>
-      <p className="muted">Groups are scoped to an enrolled module.</p>
-      <form onSubmit={create}>
-        <select
-          value={moduleId}
-          onChange={(event) => setModuleId(event.target.value)}
-          required
-        >
-          <option value="">Choose a module</option>
-          {modules.data.map((module) => (
-            <option key={module.module_id} value={module.module_id}>
-              {module.module_name}
-            </option>
-          ))}
-        </select>
-        <input
-          placeholder="Group name"
-          value={groupName}
-          onChange={(event) => setGroupName(event.target.value)}
-          required
-        />
-        <button className="primary">Create group</button>
-      </form>
-      {message && <p className="muted">{message}</p>}
+    <section className="groups-page">
+      <div className="card">
+        <span className="eyebrow">COLLABORATE</span>
+        <h2>Study groups</h2>
+        <p className="muted">
+          Find classmates studying the same topics, languages and modules.
+        </p>
+        <div className="catalogue-controls">
+          <input
+            aria-label="Search groups"
+            placeholder="Search groups"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <select
+            aria-label="Filter by module"
+            value={moduleId}
+            onChange={(event) => setModuleId(event.target.value)}
+          >
+            <option value="">All modules</option>
+            {modules.data.map((module) => (
+              <option key={module.module_id} value={module.module_id}>
+                {module.module_name}
+              </option>
+            ))}
+          </select>
+          <input
+            aria-label="Filter by language"
+            placeholder="Language, e.g. Python"
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+          />
+          <select
+            aria-label="Sort groups"
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
+          >
+            <option value="recommended">Recommended</option>
+            <option value="newest">Newest</option>
+            <option value="name">Name</option>
+          </select>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={recommended}
+              onChange={(event) => setRecommended(event.target.checked)}
+            />{' '}
+            Recommended for me
+          </label>
+        </div>
+      </div>
+      {user.role === 'student' && (
+        <form className="card group-create-form" onSubmit={submit}>
+          <h3>Create a study group</h3>
+          <select
+            aria-label="Group module"
+            required
+            value={form.moduleId}
+            onChange={(event) =>
+              setForm({ ...form, moduleId: event.target.value })
+            }
+          >
+            <option value="">Choose an enrolled module</option>
+            {modules.data.map((module) => (
+              <option key={module.module_id} value={module.module_id}>
+                {module.module_name}
+              </option>
+            ))}
+          </select>
+          <input
+            aria-label="Group name"
+            placeholder="Group name"
+            required
+            value={form.groupName}
+            onChange={(event) =>
+              setForm({ ...form, groupName: event.target.value })
+            }
+          />
+          <input
+            aria-label="Group focus"
+            placeholder="Current focus"
+            value={form.focus}
+            onChange={(event) =>
+              setForm({ ...form, focus: event.target.value })
+            }
+          />
+          <textarea
+            aria-label="Group description"
+            maxLength="500"
+            placeholder="Short description"
+            value={form.description}
+            onChange={(event) =>
+              setForm({ ...form, description: event.target.value })
+            }
+          />
+          <label>
+            Languages
+            <select
+              multiple
+              aria-label="Group languages"
+              value={form.languages}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  languages: [...event.target.selectedOptions].map(
+                    (option) => option.value,
+                  ),
+                })
+              }
+            >
+              {languages.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+          <button className="primary">Create group</button>
+          {message && <p className="field-error">{message}</p>}
+        </form>
+      )}
+      {groups.loading && <p className="muted">Loading groups…</p>}
+      {groups.error && <p className="field-error">{groups.error}</p>}
+      {!groups.loading && !groups.data.length && (
+        <p className="empty-state">No study groups match these filters.</p>
+      )}
+      <div className="group-grid">
+        {groups.data.map((group) => (
+          <article className="card group-card" key={group.group_id}>
+            <span className="eyebrow">
+              {group.module_code} · {group.module_name}
+            </span>
+            <h3>{group.group_name}</h3>
+            <p>{group.description || 'A focused study group.'}</p>
+            <p>
+              <strong>Leaders:</strong>{' '}
+              {group.leaders
+                .map((leader) => `${leader.name} (${leader.role})`)
+                .join(', ') || 'Being organised'}
+            </p>
+            <div className="chip-row">
+              {group.languages.map((item) => (
+                <span className="chip" key={item}>
+                  {item}
+                </span>
+              ))}
+            </div>
+            <p>
+              <strong>Focus:</strong> {group.focus || 'Not set'}
+            </p>
+            <p>
+              <strong>{group.member_count}</strong> members
+            </p>
+            {group.latest_doing_now && (
+              <p className="update-line">
+                <strong>Doing now:</strong> {group.latest_doing_now.text}
+              </p>
+            )}
+            {!!group.next_up.length && (
+              <div>
+                <strong>Next up</strong>
+                {group.next_up.map((item) => (
+                  <small className="update-line" key={item.update_id}>
+                    {item.text}
+                    {item.planned_for
+                      ? ` · ${new Date(item.planned_for).toLocaleDateString()}`
+                      : ''}
+                  </small>
+                ))}
+              </div>
+            )}
+            <p className="recommendation">
+              Why recommended: {group.recommendation_reason}
+            </p>
+            <button className="secondary" onClick={() => act(group)}>
+              {group.is_member ? 'Leave' : 'Join'}
+            </button>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

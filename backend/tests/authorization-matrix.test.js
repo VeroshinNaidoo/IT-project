@@ -52,6 +52,8 @@ const pathFor = (template, values = fixture) =>
     .replace(':startQuizId', values.startQuizId)
     .replace(':jobId', values.jobId)
     .replace(':attemptId', values.attemptId)
+    .replace(':studentId', values.studentId)
+    .replace(':updateId', values.updateId)
     .replace(
       ':id',
       template.includes('island-escape')
@@ -148,6 +150,23 @@ const bodies = {
   'POST /api/v1/modules/:moduleId/groups': () => ({
     groupName: `Matrix Group ${Date.now()}`,
   }),
+  'POST /api/v1/groups': () => ({
+    moduleId: fixture.moduleId,
+    groupName: `Matrix Direct Group ${Date.now()}`,
+  }),
+  'PATCH /api/v1/groups/:groupId': () => ({
+    groupName: 'Updated Matrix Group',
+  }),
+  'POST /api/v1/groups/:groupId/leaders': () => ({
+    studentId: fixture.studentId,
+  }),
+  'DELETE /api/v1/groups/:groupId/leaders/:studentId': () => ({}),
+  'POST /api/v1/groups/:groupId/updates': () => ({
+    kind: 'doing_now',
+    text: 'Reviewing the module notes',
+  }),
+  'DELETE /api/v1/groups/:groupId/updates/:updateId': () => ({}),
+  'POST /api/v1/groups/:groupId/leave': () => ({}),
   'POST /api/v1/quizzes': () => ({
     moduleId: fixture.moduleId,
     title: 'Matrix Quiz',
@@ -254,6 +273,29 @@ const specs = {
   'POST /api/v1/modules/:moduleId/groups': [
     '/api/v1/modules/:moduleId/groups',
     'lecturer',
+  ],
+  'GET /api/v1/groups': ['/api/v1/groups', 'student'],
+  'POST /api/v1/groups': ['/api/v1/groups', 'student'],
+  'PATCH /api/v1/groups/:groupId': ['/api/v1/groups/:groupId', 'student'],
+  'POST /api/v1/groups/:groupId/leaders': [
+    '/api/v1/groups/:groupId/leaders',
+    'student',
+  ],
+  'DELETE /api/v1/groups/:groupId/leaders/:studentId': [
+    '/api/v1/groups/:groupId/leaders/:studentId',
+    'student',
+  ],
+  'POST /api/v1/groups/:groupId/updates': [
+    '/api/v1/groups/:groupId/updates',
+    'student',
+  ],
+  'DELETE /api/v1/groups/:groupId/updates/:updateId': [
+    '/api/v1/groups/:groupId/updates/:updateId',
+    'student',
+  ],
+  'POST /api/v1/groups/:groupId/leave': [
+    '/api/v1/groups/:groupId/leave',
+    'outsider',
   ],
   'POST /api/v1/groups/:groupId/join': [
     '/api/v1/groups/:joinGroupId/join',
@@ -476,6 +518,14 @@ async function createFixture() {
   await pool.query(
     'INSERT INTO group_members(group_id,student_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
     [group.group_id, ids[users.student.email]],
+  );
+  await pool.query(
+    `INSERT INTO group_leaders(group_id,student_id,role) VALUES($1,$2,'leader') ON CONFLICT DO NOTHING`,
+    [group.group_id, ids[users.student.email]],
+  );
+  await pool.query(
+    'INSERT INTO group_members(group_id,student_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+    [group.group_id, ids[users.outsider.email]],
   );
   const resource = (
     await pool.query(
@@ -707,7 +757,15 @@ async function createFixture() {
       [timerChoose.body.data.question.questionId],
     )
   ).rows[0];
+  const groupUpdate = (
+    await pool.query(
+      `INSERT INTO group_updates(group_id,author_id,kind,text) VALUES($1,$2,'doing_now','Matrix update') RETURNING update_id`,
+      [group.group_id, ids[users.student.email]],
+    )
+  ).rows[0];
   fixture = {
+    studentId: ids[users.outsider.email],
+    updateId: groupUpdate.update_id,
     moduleId: moduleRow.module_id,
     joinCode: moduleRow.join_code,
     groupId: group.group_id,
@@ -917,7 +975,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(65);
+    expect(routeInventory.length).toBe(73);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

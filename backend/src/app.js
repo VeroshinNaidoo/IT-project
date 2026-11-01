@@ -37,6 +37,7 @@ import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
 import { registerBossBattleRoutes } from './games/boss_battle/routes.js';
 import { registerPixelRacerRoutes } from './games/pixel_racer/routes.js';
 import { registerTimerTriviaRoutes } from './games/timer_trivia/routes.js';
+import { recommendationReason, scoreGroup } from './groups/recommendations.js';
 import {
   codesMatch,
   decryptSecret,
@@ -261,6 +262,48 @@ const moduleSchema = z
   })
   .strict();
 const groupSchema = z.object({ groupName: nameSchema }).strict();
+const groupDetailsSchema = z
+  .object({
+    groupName: nameSchema,
+    focus: z
+      .string()
+      .trim()
+      .max(200)
+      .refine(noProfanity(), { message: profanityMessage })
+      .optional(),
+    description: z
+      .string()
+      .trim()
+      .max(500)
+      .refine(noProfanity(), { message: profanityMessage })
+      .optional(),
+    visibility: z.enum(['module', 'members', 'private']).optional(),
+    languages: z.array(z.string().trim().min(1).max(40)).max(10).optional(),
+  })
+  .strict();
+const groupQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  search: z.string().trim().max(100).optional(),
+  moduleId: z.string().uuid().optional(),
+  language: z.string().trim().max(300).optional(),
+  recommended: z.enum(['true', 'false']).optional(),
+  sort: z.enum(['recommended', 'newest', 'name']).default('recommended'),
+  refresh: z.coerce.number().int().optional(),
+});
+const groupUpdateSchema = z
+  .object({
+    kind: z.enum(['doing_now', 'next_up']),
+    text: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .refine(noProfanity(), { message: profanityMessage }),
+    topicId: z.string().uuid().optional().nullable(),
+    plannedFor: z.string().datetime().optional().nullable(),
+  })
+  .strict();
 const titleSchema = z
   .string()
   .trim()
@@ -549,6 +592,489 @@ app.post('/api/v1/mfa/disable', requireAuth, async (req, res, next) => {
     next(e);
   }
 });
+const groupCreateSchema = groupDetailsSchema.extend({
+  moduleId: z.string().uuid(),
+});
+
+const sanitizeGroupText = (value) =>
+  typeof value === 'string'
+    ? value
+        .replace(/[<>]/g, '')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    : value;
+const sanitizeUpdate = (update) =>
+  update && {
+    ...update,
+    text: sanitizeGroupText(update.text),
+    topic: sanitizeGroupText(update.topic),
+  };
+const groupResponse = (row, student) => {
+  const group = {
+    ...row,
+    group_name: sanitizeGroupText(row.group_name),
+    focus: sanitizeGroupText(row.focus),
+    description: sanitizeGroupText(row.description),
+    leaders: row.leaders || [],
+    languages: row.languages || [],
+    latest_doing_now: sanitizeUpdate(row.latest_doing_now),
+    next_up: (row.next_up || []).map(sanitizeUpdate),
+    is_member: Boolean(row.is_member),
+    can_join: !row.is_member,
+  };
+  group.recommendation_score = scoreGroup(student, group);
+  group.recommendation_reason = recommendationReason(student, group);
+  return group;
+};
+
+app.get('/api/v1/groups', requireAuth, async (req, res, next) => {
+  try {
+    const query = parse(groupQuerySchema, req.query, req, res, 422);
+    if (!query) return;
+    const params = [req.user.userId];
+    const conditions = [];
+    if (req.user.role === 'student') {
+      conditions.push(
+        `EXISTS (SELECT 1 FROM enrollments en WHERE en.module_id=g.module_id AND en.student_id=$1)`,
+      );
+      conditions.push(
+        `(g.visibility='module' OR EXISTS (SELECT 1 FROM group_members vm WHERE vm.group_id=g.group_id AND vm.student_id=$1))`,
+      );
+    } else {
+      conditions.push(`m.lecturer_id=$1`);
+    }
+    if (query.moduleId) {
+      params.push(query.moduleId);
+      conditions.push(`g.module_id=$${params.length}`);
+    }
+    if (query.search) {
+      params.push(`%${query.search}%`);
+      conditions.push(
+        `(g.group_name ILIKE $${params.length} OR g.focus ILIKE $${params.length} OR g.description ILIKE $${params.length})`,
+      );
+    }
+    const languageNames = query.language
+      ? query.language
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    if (languageNames.length) {
+      params.push(languageNames);
+      conditions.push(
+        `EXISTS (SELECT 1 FROM group_languages glf JOIN programming_languages plf ON plf.language_id=glf.language_id WHERE glf.group_id=g.group_id AND plf.name = ANY($${params.length}::text[]))`,
+      );
+    }
+    const result = await pool.query(
+      `SELECT g.group_id,g.module_id,g.group_name,g.focus,g.description,g.visibility,g.created_date,
+        m.module_code,m.module_name,m.year,m.programme,
+        (SELECT count(*)::int FROM group_members gm_count WHERE gm_count.group_id=g.group_id) AS member_count,
+        EXISTS(SELECT 1 FROM group_members gm_me WHERE gm_me.group_id=g.group_id AND gm_me.student_id=$1) AS is_member,
+        (SELECT COALESCE(json_agg(json_build_object('student_id',gl.student_id,'name',u.full_name,'role',gl.role) ORDER BY gl.role,u.full_name),'[]'::json) FROM group_leaders gl JOIN users u ON u.user_id=gl.student_id WHERE gl.group_id=g.group_id) AS leaders,
+        (SELECT COALESCE(json_agg(pl.name ORDER BY pl.name),'[]'::json) FROM group_languages gl JOIN programming_languages pl ON pl.language_id=gl.language_id WHERE gl.group_id=g.group_id) AS languages,
+        (SELECT json_build_object('update_id',gu.update_id,'text',gu.text,'planned_for',gu.planned_for,'created_at',gu.created_at,'topic',t.name) FROM group_updates gu LEFT JOIN topics t ON t.topic_id=gu.topic_id WHERE gu.group_id=g.group_id AND gu.kind='doing_now' ORDER BY gu.created_at DESC LIMIT 1) AS latest_doing_now,
+        (SELECT COALESCE(json_agg(nu.item ORDER BY nu.planned_for NULLS LAST, nu.created_at DESC),'[]'::json) FROM (SELECT json_build_object('update_id',gu.update_id,'text',gu.text,'planned_for',gu.planned_for,'created_at',gu.created_at,'topic',t.name) AS item,gu.planned_for,gu.created_at FROM group_updates gu LEFT JOIN topics t ON t.topic_id=gu.topic_id WHERE gu.group_id=g.group_id AND gu.kind='next_up' ORDER BY gu.planned_for NULLS LAST,gu.created_at DESC LIMIT 3) nu) AS next_up
+       FROM study_groups g JOIN modules m ON m.module_id=g.module_id
+      WHERE ${conditions.join(' AND ')} ORDER BY g.created_date DESC LIMIT 500`,
+      params,
+    );
+    const preferred = await pool.query(
+      `SELECT pl.name FROM user_preferred_languages upl JOIN programming_languages pl ON pl.language_id=upl.language_id WHERE upl.user_id=$1 ORDER BY pl.name`,
+      [req.user.userId],
+    );
+    const enrolled = await pool.query(
+      `SELECT module_id FROM enrollments WHERE student_id=$1`,
+      [req.user.userId],
+    );
+    const student = {
+      ...req.user,
+      moduleIds: enrolled.rows.map((row) => row.module_id),
+      preferredLanguages: preferred.rows.map((row) => row.name),
+    };
+    let data = result.rows.map((row) => groupResponse(row, student));
+    if (query.recommended === 'true' || query.sort === 'recommended')
+      data.sort(
+        (a, b) =>
+          b.recommendation_score - a.recommendation_score ||
+          a.group_name.localeCompare(b.group_name),
+      );
+    else if (query.sort === 'name')
+      data.sort((a, b) => a.group_name.localeCompare(b.group_name));
+    const total = data.length;
+    const start = (query.page - 1) * query.pageSize;
+    res.json({
+      data: data.slice(start, start + query.pageSize),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        pageCount: Math.max(1, Math.ceil(total / query.pageSize)),
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post(
+  '/api/v1/groups',
+  requireAuth,
+  requireRole('student'),
+  async (req, res, next) => {
+    const data = parse(groupCreateSchema, req.body, req, res, 422);
+    if (!data) return;
+    if (data.focus !== undefined && !visibleText('focus', req, res, data.focus))
+      return;
+    if (
+      data.description !== undefined &&
+      !visibleText('description', req, res, data.description)
+    )
+      return;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const enrolled = await client.query(
+        'SELECT 1 FROM enrollments WHERE student_id=$1 AND module_id=$2',
+        [req.user.userId, data.moduleId],
+      );
+      if (!enrolled.rowCount) {
+        await client.query('ROLLBACK');
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You are not enrolled in this module.',
+          requestId(req),
+        );
+      }
+      const languages = data.languages || [];
+      const languageRows = languages.length
+        ? await client.query(
+            'SELECT language_id,name FROM programming_languages WHERE name = ANY($1::text[])',
+            [languages],
+          )
+        : { rows: [] };
+      if (languageRows.rows.length !== languages.length) {
+        await client.query('ROLLBACK');
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Choose languages from the available list.',
+          requestId(req),
+        );
+      }
+      const group = await client.query(
+        `INSERT INTO study_groups(module_id,created_by,group_name,focus,description,visibility) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [
+          data.moduleId,
+          req.user.userId,
+          data.groupName,
+          data.focus || '',
+          data.description || '',
+          data.visibility || 'module',
+        ],
+      );
+      const groupId = group.rows[0].group_id;
+      await client.query(
+        'INSERT INTO group_members(group_id,student_id) VALUES($1,$2)',
+        [groupId, req.user.userId],
+      );
+      await client.query(
+        `INSERT INTO group_leaders(group_id,student_id,role) VALUES($1,$2,'leader')`,
+        [groupId, req.user.userId],
+      );
+      for (const language of languageRows.rows)
+        await client.query(
+          'INSERT INTO group_languages(group_id,language_id) VALUES($1,$2)',
+          [groupId, language.language_id],
+        );
+      await client.query('COMMIT');
+      res.status(201).json({ group: group.rows[0] });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      next(e);
+    } finally {
+      client.release();
+    }
+  },
+);
+
+app.patch('/api/v1/groups/:groupId', requireAuth, async (req, res, next) => {
+  try {
+    const data = parse(groupDetailsSchema.partial(), req.body, req, res, 422);
+    if (!data) return;
+    for (const [field, value] of [
+      ['groupName', data.groupName],
+      ['focus', data.focus],
+      ['description', data.description],
+    ])
+      if (value !== undefined && !visibleText(field, req, res, value)) return;
+    const leader = await pool.query(
+      `SELECT 1 FROM group_leaders WHERE group_id=$1 AND student_id=$2`,
+      [req.params.groupId, req.user.userId],
+    );
+    if (!leader.rowCount)
+      return error(
+        res,
+        403,
+        'FORBIDDEN',
+        'Only group leaders can edit this group.',
+        requestId(req),
+      );
+    const existing = await pool.query(
+      'SELECT * FROM study_groups WHERE group_id=$1',
+      [req.params.groupId],
+    );
+    if (!existing.rowCount)
+      return error(
+        res,
+        404,
+        'NOT_FOUND',
+        'Study group not found.',
+        requestId(req),
+      );
+    const current = existing.rows[0];
+    const languages = data.languages || null;
+    if (languages) {
+      const rows = await pool.query(
+        'SELECT language_id,name FROM programming_languages WHERE name = ANY($1::text[])',
+        [languages],
+      );
+      if (rows.rowCount !== languages.length)
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Choose languages from the available list.',
+          requestId(req),
+        );
+      await pool.query('DELETE FROM group_languages WHERE group_id=$1', [
+        req.params.groupId,
+      ]);
+      for (const row of rows.rows)
+        await pool.query(
+          'INSERT INTO group_languages(group_id,language_id) VALUES($1,$2)',
+          [req.params.groupId, row.language_id],
+        );
+    }
+    const updated = await pool.query(
+      `UPDATE study_groups SET group_name=COALESCE($1,group_name),focus=COALESCE($2,focus),description=COALESCE($3,description),visibility=COALESCE($4,visibility) WHERE group_id=$5 RETURNING *`,
+      [
+        data.groupName ?? null,
+        data.focus ?? null,
+        data.description ?? null,
+        data.visibility ?? null,
+        req.params.groupId,
+      ],
+    );
+    res.json({ group: updated.rows[0] });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post(
+  '/api/v1/groups/:groupId/leaders',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = parse(
+        z.object({ studentId: z.string().uuid() }).strict(),
+        req.body,
+        req,
+        res,
+        422,
+      );
+      if (!data) return;
+      const leader = await pool.query(
+        'SELECT 1 FROM group_leaders WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, req.user.userId],
+      );
+      if (!leader.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'Only group leaders can manage co-leaders.',
+          requestId(req),
+        );
+      const member = await pool.query(
+        'SELECT 1 FROM group_members WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, data.studentId],
+      );
+      if (!member.rowCount)
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'A co-leader must be a group member.',
+          requestId(req),
+        );
+      const existing = await pool.query(
+        'SELECT role FROM group_leaders WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, data.studentId],
+      );
+      if (existing.rowCount && existing.rows[0].role === 'leader')
+        return res.status(200).json({
+          leader: {
+            group_id: req.params.groupId,
+            student_id: data.studentId,
+            role: 'leader',
+          },
+        });
+      const result = await pool.query(
+        `INSERT INTO group_leaders(group_id,student_id,role) VALUES($1,$2,'co-leader') ON CONFLICT (group_id,student_id) DO UPDATE SET role='co-leader' RETURNING *`,
+        [req.params.groupId, data.studentId],
+      );
+      res.status(201).json({ leader: result.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.delete(
+  '/api/v1/groups/:groupId/leaders/:studentId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const leader = await pool.query(
+        'SELECT role FROM group_leaders WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, req.user.userId],
+      );
+      if (!leader.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'Only group leaders can manage co-leaders.',
+          requestId(req),
+        );
+      const target = await pool.query(
+        "DELETE FROM group_leaders WHERE group_id=$1 AND student_id=$2 AND role='co-leader' RETURNING student_id",
+        [req.params.groupId, req.params.studentId],
+      );
+      if (!target.rowCount)
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Co-leader not found.',
+          requestId(req),
+        );
+      res.json({ removed: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/groups/:groupId/updates',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = parse(groupUpdateSchema, req.body, req, res, 422);
+      if (!data) return;
+      if (!visibleText('text', req, res, data.text)) return;
+      const leader = await pool.query(
+        'SELECT 1 FROM group_leaders WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, req.user.userId],
+      );
+      if (!leader.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'Only group leaders can post updates.',
+          requestId(req),
+        );
+      const result = await pool.query(
+        `INSERT INTO group_updates(group_id,author_id,kind,text,topic_id,planned_for) VALUES($1,$2,$3,$4,$5,$6) RETURNING update_id,group_id,author_id,kind,text,topic_id,planned_for,created_at`,
+        [
+          req.params.groupId,
+          req.user.userId,
+          data.kind,
+          data.text,
+          data.topicId || null,
+          data.plannedFor || null,
+        ],
+      );
+      res.status(201).json({ update: result.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.delete(
+  '/api/v1/groups/:groupId/updates/:updateId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const result = await pool.query(
+        `DELETE FROM group_updates gu WHERE gu.update_id=$1 AND gu.group_id=$2 AND (gu.author_id=$3 OR EXISTS (SELECT 1 FROM group_leaders gl WHERE gl.group_id=gu.group_id AND gl.student_id=$3)) RETURNING update_id`,
+        [req.params.updateId, req.params.groupId, req.user.userId],
+      );
+      if (!result.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You cannot remove this update.',
+          requestId(req),
+        );
+      res.json({ removed: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/groups/:groupId/leave',
+  requireAuth,
+  requireRole('student'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const member = await pool.query(
+        'SELECT 1 FROM group_members WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, req.user.userId],
+      );
+      if (!member.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You are not a member of this study group.',
+          requestId(req),
+        );
+      const leader = await pool.query(
+        'SELECT role FROM group_leaders WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, req.user.userId],
+      );
+      if (leader.rowCount && leader.rows[0].role === 'leader')
+        return error(
+          res,
+          409,
+          'LEADER_HANDOVER_REQUIRED',
+          'Hand over leadership before leaving this group.',
+          requestId(req),
+        );
+      await pool.query(
+        'DELETE FROM group_members WHERE group_id=$1 AND student_id=$2',
+        [req.params.groupId, req.user.userId],
+      );
+      res.json({ left: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
 app.post(
   '/api/v1/mfa/recovery-codes/regenerate',
   requireAuth,
@@ -1249,6 +1775,11 @@ app.post(
           'INSERT INTO group_members(group_id,student_id) VALUES($1,$2)',
           [group.rows[0].group_id, req.user.userId],
         );
+      if (req.user.role === 'student')
+        await pool.query(
+          `INSERT INTO group_leaders(group_id,student_id,role) VALUES($1,$2,'leader') ON CONFLICT DO NOTHING`,
+          [group.rows[0].group_id, req.user.userId],
+        );
       res.status(201).json({ group: group.rows[0] });
     } catch (e) {
       next(e);
@@ -1275,7 +1806,7 @@ app.post(
           requestId(req),
         );
       await pool.query(
-        'INSERT INTO group_members(group_id,student_id) VALUES($1,$2)',
+        'INSERT INTO group_members(group_id,student_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
         [req.params.groupId, req.user.userId],
       );
       res.status(201).json({ joined: true });

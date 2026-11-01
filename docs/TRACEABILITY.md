@@ -189,3 +189,12 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 | First-year look-ahead is read-only and excludes resources, quizzes and answers         | automated | `GET /api/v1/me/modules/lookahead`, `backend/tests/module-resource-catalogue-api.test.js`                                                     |
 | Resource tiles, module jump list, title search and pagination are owner/group scoped   | automated | `GET /api/v1/resources/modules`, filtered resource route, `backend/tests/module-resource-catalogue-api.test.js`, `frontend/src/main.test.jsx` |
 | New catalogue routes are authorization-matrix covered                                  | automated | `backend/src/authorization-matrix.js`, `backend/tests/authorization-matrix.test.js`                                                           |
+
+## Study groups
+
+| Requirement                                                                | Status    | Evidence                                                                                        |
+| -------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
+| Group languages, focus, description, visibility, leaders and updates       | automated | migration 020, `backend/tests/study-groups-api.test.js`                                         |
+| Scoped listing, filters, pagination, recommendation reasons and membership | automated | `GET /api/v1/groups`, `backend/tests/study-groups-api.test.js`, `frontend/src/main.test.jsx`    |
+| Leadership, updates, join/leave and profanity authorization                | automated | `backend/src/authorization-matrix.js`, `backend/tests/authorization-matrix.test.js` (75 routes) |
+| Responsive accessible group page                                           | automated | `frontend/e2e/main.spec.js`, Chromium/Firefox at 390/768/1280 with axe                          |

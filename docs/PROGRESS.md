@@ -226,3 +226,9 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added responsive module cards, first-year read-only preview, resource tiles, module picker, search and pagination. Added API, component, authorization-matrix, Playwright and axe coverage.
 - Gates: lint, format, type-check, production build, 169 unit/frontend tests, 210 DB/API tests, and 72 browser projects passed with zero skips. Dedicated catalogue browser checks passed at Chromium/Firefox 390/768/1280 with zero axe violations.
 - Remaining: no new game or multiplayer work was started. The feature is not committed yet in this working turn.
+
+## 2026-11-01 — Study groups
+
+- Added group languages, focus, description, visibility, leaders/co-leaders, updates and last-leader protection.
+- Added scoped group routes with profanity checks and deterministic recommendations.
+- Added study-group cards with filters, recommendation reasons, language chips and membership actions, plus API/unit/frontend/browser/axe tests.

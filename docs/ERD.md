@@ -81,3 +81,4 @@ erDiagram
 ### Module catalogue additions
 
 `USERS.StudentYear` is nullable for lecturers and required 1–3 for students. `MODULES.Year` is 1–3, `MODULES.Programme` is `it|business|both`, `MODULES.Offering` is a non-empty offering label, and `MODULES.Description` is bounded text. The enrolled-module and resource-tile endpoints project only owner/enrollment-visible data. The look-ahead endpoint projects year-2 module metadata and topic/prerequisite hints only; it does not return resources, quizzes, answers or enrolment actions.
+Study-group collaboration adds `GROUP_LANGUAGES(GroupID, LanguageID)`, `GROUP_LEADERS(GroupID, StudentID, Role)`, and `GROUP_UPDATES(UpdateID, GroupID, AuthorID, Kind, Text, TopicID, PlannedFor, CreatedAt)`. `STUDY_GROUPS` now also has `Focus`, `Description`, and `Visibility`. A database trigger prevents removing or demoting the last leader.

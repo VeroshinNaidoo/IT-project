@@ -9,6 +9,7 @@ process.env.PG_POOL_MAX = '4';
 export default defineConfig({
   test: {
     include: [
+      'backend/tests/study-groups-api.test.js',
       'backend/tests/ai-worker.test.js',
       'backend/tests/identity-api.test.js',
       'backend/tests/mfa-api.test.js',
@@ -28,6 +29,11 @@ export default defineConfig({
     maxWorkers: 1,
     minWorkers: 1,
     pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     isolate: true,
     globalSetup: ['./backend/tests/helpers/pglite-global-setup.js'],
     setupFiles: ['./backend/tests/helpers/database-lifecycle.js'],

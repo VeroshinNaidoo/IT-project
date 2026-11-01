@@ -20,6 +20,7 @@ const databaseTests = [
 export default defineConfig({
   test: {
     exclude: [
+      'backend/tests/study-groups-api.test.js',
       '**/node_modules/**',
       '**/dist/**',
       'frontend/e2e/**',

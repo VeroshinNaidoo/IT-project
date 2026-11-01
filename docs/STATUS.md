@@ -112,3 +112,12 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 | First-year look-ahead preview                                    | implemented and tested | `GET /api/v1/me/modules/lookahead`, `backend/tests/module-resource-catalogue-api.test.js`                                          |
 | Resource module tiles, jump list, search and pagination          | implemented and tested | `GET /api/v1/resources/modules`, `backend/tests/module-resource-catalogue-api.test.js`, `frontend/src/main.test.jsx`               |
 | Dedicated browser/axe evidence for this slice                    | done and tested        | `frontend/e2e/main.spec.js` module/resource scenario; 6 browser projects (Chromium/Firefox at 390/768/1280), all axe-clean         |
+
+## Study groups
+
+| Area                                                   | Status                 | Evidence                                                                           |
+| ------------------------------------------------------ | ---------------------- | ---------------------------------------------------------------------------------- |
+| Group metadata, languages, leaders and updates         | implemented and tested | migration 020 and `backend/tests/study-groups-api.test.js`                         |
+| Scoped listing, filters, recommendations, join/leave   | implemented and tested | `/api/v1/groups`, API and recommendation tests                                     |
+| Leader-only editing/posting and last-leader protection | implemented and tested | group API tests and 75-route authorization matrix                                  |
+| Group cards and accessible responsive page             | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js` |

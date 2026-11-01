@@ -182,6 +182,65 @@ test('module and resource catalogues show enrolled data and first-year preview',
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test('study groups show recommendations, chips and membership action', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? {
+          user: {
+            userId: 'student-1',
+            role: 'student',
+            studentYear: 1,
+            studentType: 'it',
+          },
+        }
+      : path.endsWith('/me/modules')
+        ? {
+            data: [
+              {
+                module_id: 'm1',
+                module_name: 'Foundations',
+                module_code: 'CAT101',
+              },
+            ],
+          }
+        : {
+            data: [
+              {
+                group_id: 'g1',
+                group_name: 'Python Circle',
+                module_code: 'CAT101',
+                module_name: 'Foundations',
+                leaders: [{ name: 'Ada', role: 'leader' }],
+                member_count: 3,
+                languages: ['Python', 'SQL'],
+                focus: 'Databases',
+                recommendation_reason: 'Matches your languages: Python, SQL',
+                is_member: false,
+                next_up: [],
+              },
+            ],
+            pagination: { page: 1, pageSize: 20, total: 1, pageCount: 1 },
+          };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Study groups' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Study groups', level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByText('Python Circle')).toBeVisible();
+  await expect(page.getByText('Matches your languages')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Join' })).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('Infected solo flow is responsive, keyboard operable and axe clean', async ({
   page,
 }) => {

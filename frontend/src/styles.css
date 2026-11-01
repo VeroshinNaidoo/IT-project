@@ -120,7 +120,8 @@ h1 {
   animation: none;
 }
 .modules-page .card,
-.resources-page .card {
+.resources-page .card,
+.groups-page .card {
   animation: none;
 }
 .games-page .muted {
@@ -2230,6 +2231,59 @@ input[type='radio'] {
   gap: 16px;
   margin-top: 18px;
 }
+.groups-page {
+  display: grid;
+  gap: 20px;
+}
+.group-create-form {
+  display: grid;
+  gap: 10px;
+}
+.group-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.group-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.group-card p {
+  margin: 0;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #e4e7fb;
+  color: #14213d;
+  font-size: 12px;
+  font-weight: 700;
+}
+.recommendation {
+  color: #6b4400 !important;
+  background: #fce9c4;
+  padding: 8px;
+  border-radius: 8px;
+}
+.update-line {
+  display: block;
+  margin-top: 5px;
+}
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.inline-check input {
+  min-height: 20px;
+}
 .module-card {
   display: grid;
   gap: 8px;
@@ -2316,7 +2370,8 @@ input[type='radio'] {
 }
 @media (max-width: 760px) {
   .module-card-grid,
-  .resource-module-grid {
+  .resource-module-grid,
+  .group-grid {
     grid-template-columns: 1fr;
   }
   .section-heading {

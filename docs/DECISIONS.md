@@ -109,3 +109,10 @@
 - Student profiles and registrations carry `StudentYear` (1–3). Legacy callers that omit it retain the safe Year 1 default; the student-facing form presents an explicit year choice.
 - The first-year look-ahead is a read-only year-2 projection filtered by programme and contains no resource, quiz, answer, enrolment, or availability fields.
 - “New resources” on module cards means resources created in the preceding 14 days. Resource tiles and lists remain constrained by enrollment, lecturer ownership, and existing study-group visibility.
+
+## 2026-11-01 — Study group collaboration
+
+- Groups use the existing programming-language lookup through `group_languages`. New groups default to `module` visibility; `members` and `private` are available for future moderation needs.
+- Recommendation score is deterministic: +30 matching module, +20 matching Year, +20 matching programme (including `both`), +10 per preferred-language overlap capped at +20, and +10 for a focus match. Reasons expose only aggregate matches.
+- A student creator becomes leader. Leaders can add/remove co-leaders. A leader must hand over before leaving; a database trigger prevents deleting or demoting the last leader.
+- Group updates are leader-authored, profanity-checked, sanitized plain text capped at 200 characters. The UI displays one latest `Doing now` item and up to three `Next up` items.
