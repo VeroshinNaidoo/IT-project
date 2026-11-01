@@ -1,6 +1,40 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('Lecturer can open the manual quiz authoring form without exposing it to students', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? {
+          user: {
+            userId: 'lecturer-1',
+            role: 'lecturer',
+            full_name: 'Demo Lecturer',
+          },
+        }
+      : path.endsWith('/modules')
+        ? { data: [{ module_id: 'module-1', module_name: 'Web foundations' }] }
+        : { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Quizzes' }).click();
+  await page.getByRole('button', { name: 'Create quiz' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Create quiz' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Unlimited attempts; no leaderboard.'),
+  ).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('Practice Lab uses a scripts-only sandbox and exposes accessible editor controls', async ({
   page,
 }) => {

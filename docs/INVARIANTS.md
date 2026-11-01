@@ -125,3 +125,10 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 - Spreadsheet checks are evaluated server-side for displayed pass/not-yet results, while expected values remain absent from student responses.
 - Scenario state is saved per student and every accepted transition is validated against the finite scenario graph.
 - Lecturers can author only within owned modules; students cannot access lecturer authoring or another student's attempt.
+
+## Manual quiz authoring invariants
+
+- INV-24: published quizzes require at least one valid question with exactly one correct fixed option where applicable; duplicate options and placeholder text are rejected.
+- INV-25: short-answer accepted answers remain server-side until submission; blank answers score zero.
+- INV-26: code snippets are escaped and never executed by the server.
+- INV-27: destructive edits to a published quiz with attempts are rejected; duplication creates a new draft.

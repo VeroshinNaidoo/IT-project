@@ -259,3 +259,7 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 
 - Final Business Lab gate evidence: formula/scenario 7/7, frontend JS 183/183, DB/API 244/244, Python 43/43, and Business Lab browser/axe 6/6 across Chromium/Firefox at 390/768/1280 with zero axe violations.
 - Business Lab completion gate: 185 JavaScript tests, 248 DB/API tests, 43 Python tests, and 18 dedicated Business Lab browser/axe tests passed with zero skips. The full browser matrix produced 107/108 on its first run because one existing Firefox mobile seed smoke test was transiently empty; that exact test passed on an isolated rerun.
+
+### Manual quiz authoring slice
+
+Added the additive quiz authoring schema migration, shared strict validation, lecturer-only draft/publish/question routes, and a lecturer create-quiz form. Remaining: complete behavioural route assertions for destructive-route fixtures, short-answer submission integration, full authoring editor/preview polish, frontend component tests, and Playwright/axe coverage.

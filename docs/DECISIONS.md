@@ -130,3 +130,8 @@
 - Spreadsheet checks are tolerance-based and expected values remain lecturer-only in the student projection. Student progress is explicitly self-checked.
 - Calculator templates are declarative configurations. The first seeded templates are break-even, ROI, loan repayment, gross profit margin and VAT; scenario nodes must be finite and terminate before publishing.
 - Business lab outcomes remain practice-only and are excluded from leaderboards, scored attempts and quiz analytics.
+
+## Manual quiz authoring
+
+- Lecturers can create draft quizzes manually or publish them through the same strict question validation boundary used by the manual authoring API. A published quiz with attempts is treated as immutable for destructive question edits; lecturers duplicate it into a new draft instead.
+- Code-question snippets are escaped display data only. EduQuest never executes lecturer or student code on the server; previews use the existing isolated client sandbox rules where applicable.

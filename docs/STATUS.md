@@ -163,3 +163,7 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 - Student scenario gameplay now persists node and meter progress, announces changes, shows bars and text, provides reflection and restart.
 - Lecturer authoring now exposes validated draft creation, publish/unpublish through the existing patch route, duplication, deletion protection after attempts, aggregate activity, and no student practice editor.
 - Evidence: frontend component tests 55, Business Lab API tests 11, authorization matrix 87, and Business Lab browser/axe coverage 18/18 across Chromium and Firefox at 390/768/1280.
+
+### Manual quiz authoring
+
+Implemented in the backend and lecturer frontend: draft creation, mode selection, question-type validation, publish checklist, ownership-protected question CRUD, reorder and duplication endpoints. Full browser coverage and the richer live preview/editor workflow remain to be completed.

@@ -260,7 +260,7 @@ h1 {
   max-width: 460px;
 }
 .card p {
-  color: #4b5572;
+  color: #14213d;
   line-height: 1.6;
 }
 label {
@@ -297,7 +297,7 @@ button:disabled {
 }
 .list-row small,
 .muted {
-  color: #4b5572;
+  color: #14213d;
 }
 .resource-generation {
   margin-top: 12px;
@@ -375,7 +375,7 @@ button:disabled {
 }
 .secondary {
   background: #e4e7fb;
-  color: #3b4bdb;
+  color: #14213d;
 }
 .secondary:disabled {
   background: #e4e7fb;
@@ -2669,6 +2669,21 @@ input[type='radio'] {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+.quiz-authoring,
+.quiz-authoring * {
+  opacity: 1 !important;
+}
+.quiz-authoring label,
+.quiz-authoring .muted,
+.quiz-authoring input,
+.quiz-authoring select,
+.quiz-authoring textarea,
+.quiz-authoring .link-button {
+  color: #14213d !important;
+}
+.quiz-authoring .secondary {
+  color: #14213d !important;
 }
 .success {
   color: #2f8f5b;

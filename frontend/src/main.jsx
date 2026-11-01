@@ -327,6 +327,7 @@ export function App() {
         {screen === 'Practice Labs' && <PracticeLabs user={user} />}
         {screen === 'Quizzes' && (
           <Quizzes
+            user={user}
             onTake={(id) => {
               setQuizId(id);
               setScreen('Quiz');
@@ -2297,7 +2298,179 @@ function Analytics({ user }) {
     </section>
   );
 }
+export function QuizAuthoring({ onDone }) {
+  const modules = useData('/modules');
+  const [moduleId, setModuleId] = useState('');
+  const [title, setTitle] = useState('');
+  const [mode, setMode] = useState('practice');
+  const [startingPoint, setStartingPoint] = useState('manual');
+  const [questionText, setQuestionText] = useState('');
+  const [options, setOptions] = useState(['', '']);
+  const [correct, setCorrect] = useState(0);
+  const [type, setType] = useState('multiple_choice');
+  const [message, setMessage] = useState('');
+  const submit = async (status = 'draft') => {
+    setMessage('');
+    const result = await api('/quizzes/manual', {
+      method: 'POST',
+      body: JSON.stringify({
+        moduleId,
+        title,
+        status,
+        isCompetitive: mode === 'competitive',
+        questions: [
+          {
+            questionType: type,
+            questionText,
+            marks: 1,
+            difficultyLevel: 3,
+            options:
+              type === 'multiple_choice'
+                ? options.map((optionText, index) => ({
+                    optionText,
+                    isCorrect: index === correct,
+                  }))
+                : [],
+            acceptedAnswers: type === 'short_answer' ? [options[0] || ''] : [],
+          },
+        ],
+      }),
+    });
+    if (!result) return;
+    if (result.error)
+      setMessage(result.error.message || 'Please check the fields.');
+    else {
+      setMessage(status === 'published' ? 'Quiz published.' : 'Draft saved.');
+      onDone?.();
+    }
+  };
+  return (
+    <section
+      className="card quiz-authoring"
+      aria-labelledby="create-quiz-title"
+    >
+      <h2 id="create-quiz-title">Create quiz</h2>
+      <p className="muted">
+        Build a quiz manually, start with an AI draft, or combine both.
+      </p>
+      <label>
+        Starting point
+        <select
+          value={startingPoint}
+          onChange={(e) => setStartingPoint(e.target.value)}
+        >
+          <option value="manual">Write questions manually</option>
+          <option value="ai">Generate with AI</option>
+          <option value="both">AI draft, then edit manually</option>
+        </select>
+      </label>
+      <label>
+        Quiz title
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Web foundations"
+        />
+      </label>
+      <label>
+        Module
+        <select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
+          <option value="">Choose a module</option>
+          {modules.data.map((m) => (
+            <option key={m.module_id} value={m.module_id}>
+              {m.module_name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <fieldset>
+        <legend>Quiz mode</legend>
+        <label>
+          <input
+            type="radio"
+            checked={mode === 'practice'}
+            onChange={() => setMode('practice')}
+          />{' '}
+          Practice <small>Unlimited attempts; no leaderboard.</small>
+        </label>
+        <label>
+          <input
+            type="radio"
+            checked={mode === 'competitive'}
+            onChange={() => setMode('competitive')}
+          />{' '}
+          Competitive{' '}
+          <small>One scored attempt; appears on the leaderboard.</small>
+        </label>
+      </fieldset>
+      <label>
+        Question type
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="multiple_choice">Multiple choice</option>
+          <option value="true_false">True or false</option>
+          <option value="short_answer">Short answer</option>
+          <option value="code">Code question</option>
+        </select>
+      </label>
+      <label>
+        Question text
+        <textarea
+          value={questionText}
+          onChange={(e) => setQuestionText(e.target.value)}
+        />
+      </label>
+      {(type === 'multiple_choice' ||
+        type === 'true_false' ||
+        type === 'short_answer') && (
+        <div className="author-options">
+          <label>Answer options / accepted answer</label>
+          {options.map((value, index) => (
+            <div className="list-row" key={index}>
+              <input
+                aria-label={`Answer ${index + 1}`}
+                value={value}
+                onChange={(e) =>
+                  setOptions((current) =>
+                    current.map((item, i) =>
+                      i === index ? e.target.value : item,
+                    ),
+                  )
+                }
+              />
+              {type === 'multiple_choice' && (
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setCorrect(index)}
+                  aria-pressed={correct === index}
+                >
+                  {correct === index ? 'Correct' : 'Set correct'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {message && (
+        <p role="status" className="form-success">
+          {message}
+        </p>
+      )}
+      <div className="button-row">
+        <button onClick={() => submit('draft')}>Save draft</button>
+        <button className="secondary" onClick={() => submit('published')}>
+          Publish quiz
+        </button>
+        <button className="link-button" onClick={onDone}>
+          Cancel
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function Quizzes({
+  user,
   onTake,
   onPlayInfected,
   onPlayIslandEscape,
@@ -2306,6 +2479,7 @@ export function Quizzes({
   onPlayPixelRacer,
   onPlayTimerTrivia,
 }) {
+  const [creating, setCreating] = useState(false);
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
   const [page, setPage] = useState(1);
@@ -2315,9 +2489,14 @@ export function Quizzes({
       ? `/modules/${moduleId}/quizzes?page=${page}&pageSize=20&search=${encodeURIComponent(search)}`
       : '/modules',
   );
+  if (creating && user?.role === 'lecturer')
+    return <QuizAuthoring onDone={() => setCreating(false)} />;
   return (
     <section className="card">
       <h2>Quizzes</h2>
+      {user?.role === 'lecturer' && (
+        <button onClick={() => setCreating(true)}>Create quiz</button>
+      )}
       <p className="muted">
         Published quizzes are loaded from the API. AI generation progress is
         reported by the job status endpoint.

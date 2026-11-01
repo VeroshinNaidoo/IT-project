@@ -20,6 +20,7 @@ import {
   QuizGames,
   QuizTaking,
   Quizzes,
+  QuizAuthoring,
   ResourceRow,
   Resources,
   Groups,
@@ -30,6 +31,22 @@ import {
   CalculatorLabPlayer,
   ScenarioLabPlayer,
 } from './main.jsx';
+
+describe('manual quiz authoring', () => {
+  it('shows lecturer-only starting points, mode explanations and question types', async () => {
+    window.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ module_id: 'm1', module_name: 'Web' }] }),
+    });
+    render(<QuizAuthoring />);
+    expect(
+      await screen.findByRole('heading', { name: 'Create quiz' }),
+    ).toBeTruthy();
+    expect(screen.getByText(/unlimited attempts/i)).toBeTruthy();
+    expect(screen.getByText(/one scored attempt/i)).toBeTruthy();
+    expect(screen.getByLabelText('Question type')).toBeTruthy();
+  });
+});
 
 const bossQuestion = {
   questionId: 'boss-question-1',

@@ -131,3 +131,11 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 2. As a student enrolled in the module, open the spreadsheet, move with arrows/Enter/Tab, confirm locked cells cannot be edited, save, and inspect the check panel without seeing expected values.
 3. Open the scenario, choose a branch, confirm meter text/bars and the reflection summary, refresh, then restart.
 4. Confirm a lecturer cannot open a student attempt and a student cannot access lecturer authoring actions.
+
+### Manual quiz authoring
+
+1. Log in as a lecturer and open Quizzes > Create quiz.
+2. Select a module, choose Practice or Competitive, add a multiple-choice question, and save a draft.
+3. Try publishing with placeholder text or two correct answers; confirm the checklist blocks it.
+4. Add a short-answer and code question, preview them, then publish a valid draft.
+5. Log in as a student and confirm authoring routes return 403 and answers are not visible before submission.

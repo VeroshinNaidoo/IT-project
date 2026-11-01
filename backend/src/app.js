@@ -33,6 +33,13 @@ import {
 import { getGameAvailability } from './games/availability.js';
 import { validateScenarioConfig } from './labs/scenario.js';
 import { evaluateCell } from './labs/formula.js';
+import {
+  authorQuizSchema,
+  authorQuestionSchema,
+  matchesShortAnswer,
+  publishChecklist,
+  lineDiff,
+} from './quizzes/validation.js';
 import { registerInfectedRoutes } from './games/infected/routes.js';
 import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
@@ -2280,6 +2287,608 @@ app.post(
         throw e;
       } finally {
         tx.release();
+      }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+async function lecturerQuizOwner(quizId, userId) {
+  const result = await pool.query(
+    'SELECT q.*,m.module_id,m.lecturer_id FROM quizzes q JOIN modules m ON m.module_id=q.module_id WHERE q.quiz_id=$1 AND m.lecturer_id=$2',
+    [quizId, userId],
+  );
+  return result.rows[0] || null;
+}
+
+async function insertAuthorQuestion(client, quizId, question) {
+  let topicId = question.topicId || null;
+  if (question.topic) {
+    topicId = (
+      await client.query(
+        'INSERT INTO topics(module_id,name) SELECT module_id,$1 FROM quizzes WHERE quiz_id=$2 ON CONFLICT(module_id,name) DO UPDATE SET name=EXCLUDED.name RETURNING topic_id',
+        [question.topic, quizId],
+      )
+    ).rows[0].topic_id;
+  }
+  const created = (
+    await client.query(
+      `INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation,question_type,accepted_answers,ignore_punctuation,code_language,code_before,code_after,expected_output,display_order)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING question_id`,
+      [
+        quizId,
+        topicId,
+        question.questionText,
+        question.marks,
+        question.difficultyLevel,
+        question.explanation || null,
+        question.questionType,
+        JSON.stringify(question.acceptedAnswers || []),
+        question.ignorePunctuation,
+        question.codeLanguage || null,
+        question.codeBefore || null,
+        question.codeAfter || null,
+        question.expectedOutput || null,
+        question.displayOrder,
+      ],
+    )
+  ).rows[0];
+  for (const option of question.options || [])
+    await client.query(
+      'INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,$2,$3)',
+      [created.question_id, option.optionText, option.isCorrect],
+    );
+  return created;
+}
+
+app.post(
+  '/api/v1/quizzes/manual',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(authorQuizSchema, req.body, req, res, 422);
+      if (!data) return;
+      if (!visibleText('quizTitle', req, res, data.title)) return;
+      for (const question of data.questions) {
+        if (!visibleText('questionText', req, res, question.questionText))
+          return;
+        if (
+          question.topic &&
+          !visibleText('topicName', req, res, question.topic)
+        )
+          return;
+        if (
+          question.explanation &&
+          !visibleText('explanation', req, res, question.explanation)
+        )
+          return;
+        for (const option of question.options)
+          if (!visibleText('optionText', req, res, option.optionText)) return;
+        for (const answer of question.acceptedAnswers)
+          if (!visibleText('acceptedAnswer', req, res, answer)) return;
+      }
+      const owner = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [data.moduleId, req.user.userId],
+      );
+      if (!owner.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      if (data.status === 'published') {
+        const checklist = publishChecklist(data);
+        if (!checklist.ok)
+          return error(
+            res,
+            422,
+            'PUBLISH_CHECKLIST',
+            'Complete the publish checklist before publishing.',
+            requestId(req),
+          );
+      }
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const quiz = (
+          await client.query(
+            `INSERT INTO quizzes(module_id,created_by,title,is_competitive,max_scored_attempts,status,closes_at) VALUES($1,$2,$3,$4,1,$5,$6) RETURNING *`,
+            [
+              data.moduleId,
+              req.user.userId,
+              data.title,
+              data.isCompetitive,
+              data.status,
+              data.closesAt || null,
+            ],
+          )
+        ).rows[0];
+        for (const question of data.questions)
+          await insertAuthorQuestion(client, quiz.quiz_id, question);
+        await client.query('COMMIT');
+        res.status(201).json({ quiz });
+      } catch (caught) {
+        await client.query('ROLLBACK');
+        throw caught;
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/quizzes/:quizId/publish',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const rows = await pool.query(
+        "SELECT q.*,json_agg(json_build_object('optionText',o.option_text,'isCorrect',o.is_correct)) FILTER (WHERE o.option_id IS NOT NULL) options FROM questions q LEFT JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 GROUP BY q.question_id",
+        [req.params.quizId],
+      );
+      const checklist = publishChecklist({
+        moduleId: quiz.module_id,
+        title: quiz.title,
+        isCompetitive: quiz.is_competitive,
+        closesAt: quiz.closes_at,
+        questions: rows.rows.map((question) => ({
+          questionText: question.question_text,
+          questionType: question.question_type,
+          difficultyLevel: question.difficulty_level,
+          marks: Number(question.marks),
+          options: question.options || [],
+          acceptedAnswers: question.accepted_answers || [],
+          ignorePunctuation: question.ignore_punctuation,
+          codeLanguage: question.code_language,
+          codeBefore: question.code_before,
+          codeAfter: question.code_after,
+          expectedOutput: question.expected_output,
+          explanation: question.explanation,
+          displayOrder: question.display_order,
+          source: 'manual',
+        })),
+      });
+      if (!checklist.ok)
+        return error(
+          res,
+          422,
+          'PUBLISH_CHECKLIST',
+          'Complete the publish checklist before publishing.',
+          requestId(req),
+        );
+      const updated = await pool.query(
+        "UPDATE quizzes SET status='published' WHERE quiz_id=$1 RETURNING *",
+        [req.params.quizId],
+      );
+      res.json({ quiz: updated.rows[0], checklist: { ok: true } });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/quizzes/:quizId/questions',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(authorQuestionSchema, req.body, req, res, 422);
+      if (!data) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const attempts = await pool.query(
+        'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 LIMIT 1',
+        [req.params.quizId],
+      );
+      if (quiz.status === 'published' && attempts.rowCount)
+        return error(
+          res,
+          409,
+          'QUIZ_LOCKED',
+          'Duplicate this quiz before editing attempted questions.',
+          requestId(req),
+        );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const question = await insertAuthorQuestion(
+          client,
+          req.params.quizId,
+          data,
+        );
+        await client.query('COMMIT');
+        res.status(201).json({ question });
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.patch(
+  '/api/v1/quizzes/:quizId/questions/:questionId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(authorQuestionSchema, req.body, req, res, 422);
+      if (!data) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const attempts = await pool.query(
+        'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 LIMIT 1',
+        [req.params.quizId],
+      );
+      if (quiz.status === 'published' && attempts.rowCount)
+        return error(
+          res,
+          409,
+          'QUIZ_LOCKED',
+          'Duplicate this quiz before editing attempted questions.',
+          requestId(req),
+        );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          'UPDATE questions SET question_text=$1,marks=$2,difficulty_level=$3,explanation=$4,question_type=$5,accepted_answers=$6,ignore_punctuation=$7,code_language=$8,code_before=$9,code_after=$10,expected_output=$11,display_order=$12 WHERE question_id=$13 AND quiz_id=$14',
+          [
+            data.questionText,
+            data.marks,
+            data.difficultyLevel,
+            data.explanation || null,
+            data.questionType,
+            JSON.stringify(data.acceptedAnswers || []),
+            data.ignorePunctuation,
+            data.codeLanguage || null,
+            data.codeBefore || null,
+            data.codeAfter || null,
+            data.expectedOutput || null,
+            data.displayOrder,
+            req.params.questionId,
+            req.params.quizId,
+          ],
+        );
+        await client.query(
+          'DELETE FROM question_options WHERE question_id=$1',
+          [req.params.questionId],
+        );
+        for (const option of data.options)
+          await client.query(
+            'INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,$2,$3)',
+            [req.params.questionId, option.optionText, option.isCorrect],
+          );
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.delete(
+  '/api/v1/quizzes/:quizId/questions/:questionId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const attempts = await pool.query(
+        'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 LIMIT 1',
+        [req.params.quizId],
+      );
+      if (quiz.status === 'published' && attempts.rowCount)
+        return error(
+          res,
+          409,
+          'QUIZ_LOCKED',
+          'Duplicate this quiz before deleting questions.',
+          requestId(req),
+        );
+      await pool.query(
+        'DELETE FROM questions WHERE question_id=$1 AND quiz_id=$2',
+        [req.params.questionId, req.params.quizId],
+      );
+      res.status(204).send();
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/quizzes/:quizId/questions/reorder',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(
+        z.object({ questionIds: z.array(z.string().uuid()).min(1) }).strict(),
+        req.body,
+        req,
+        res,
+        422,
+      );
+      if (!data) return;
+      if (!(await lecturerQuizOwner(req.params.quizId, req.user.userId)))
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        for (const [index, id] of data.questionIds.entries())
+          await client.query(
+            'UPDATE questions SET display_order=$1 WHERE question_id=$2 AND quiz_id=$3',
+            [index, id, req.params.quizId],
+          );
+        await client.query('COMMIT');
+        res.json({ ok: true });
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/quizzes/:quizId/duplicate',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const source = await lecturerQuizOwner(
+        req.params.quizId,
+        req.user.userId,
+      );
+      if (!source)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const copy = (
+          await client.query(
+            "INSERT INTO quizzes(module_id,created_by,title,is_competitive,max_scored_attempts,status,closes_at) VALUES($1,$2,$3,$4,1,'draft',$5) RETURNING *",
+            [
+              source.module_id,
+              req.user.userId,
+              `${source.title} (copy)`,
+              source.is_competitive,
+              source.closes_at,
+            ],
+          )
+        ).rows[0];
+        const qs = (
+          await client.query(
+            'SELECT * FROM questions WHERE quiz_id=$1 ORDER BY display_order,question_id',
+            [req.params.quizId],
+          )
+        ).rows;
+        for (const q of qs) {
+          const nq = (
+            await client.query(
+              'INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation,question_type,accepted_answers,ignore_punctuation,code_language,code_before,code_after,expected_output,display_order) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING question_id',
+              [
+                copy.quiz_id,
+                q.topic_id,
+                q.question_text,
+                q.marks,
+                q.difficulty_level,
+                q.explanation,
+                q.question_type,
+                q.accepted_answers,
+                q.ignore_punctuation,
+                q.code_language,
+                q.code_before,
+                q.code_after,
+                q.expected_output,
+                q.display_order,
+              ],
+            )
+          ).rows[0];
+          const os = await client.query(
+            'SELECT option_text,is_correct FROM question_options WHERE question_id=$1',
+            [q.question_id],
+          );
+          for (const o of os.rows)
+            await client.query(
+              'INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,$2,$3)',
+              [nq.question_id, o.option_text, o.is_correct],
+            );
+        }
+        await client.query('COMMIT');
+        res.status(201).json({ quiz: copy });
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.delete(
+  '/api/v1/quizzes/:quizId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const attempts = await pool.query(
+        'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 LIMIT 1',
+        [req.params.quizId],
+      );
+      if (attempts.rowCount)
+        return error(
+          res,
+          409,
+          'QUIZ_LOCKED',
+          'Attempted quizzes cannot be deleted.',
+          requestId(req),
+        );
+      await pool.query('DELETE FROM quizzes WHERE quiz_id=$1', [
+        req.params.quizId,
+      ]);
+      res.status(204).send();
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/quizzes/:quizId/questions/:questionId/duplicate',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const q = (
+          await client.query(
+            'SELECT * FROM questions WHERE question_id=$1 AND quiz_id=$2',
+            [req.params.questionId, req.params.quizId],
+          )
+        ).rows[0];
+        if (!q) {
+          await client.query('ROLLBACK');
+          return error(
+            res,
+            404,
+            'NOT_FOUND',
+            'Question not found.',
+            requestId(req),
+          );
+        }
+        const nq = (
+          await client.query(
+            'INSERT INTO questions(quiz_id,topic_id,question_text,marks,difficulty_level,explanation,question_type,accepted_answers,ignore_punctuation,code_language,code_before,code_after,expected_output,display_order) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *',
+            [
+              q.quiz_id,
+              q.topic_id,
+              `${q.question_text} (copy)`,
+              q.marks,
+              q.difficulty_level,
+              q.explanation,
+              q.question_type,
+              q.accepted_answers,
+              q.ignore_punctuation,
+              q.code_language,
+              q.code_before,
+              q.code_after,
+              q.expected_output,
+              q.display_order + 1,
+            ],
+          )
+        ).rows[0];
+        const os = await client.query(
+          'SELECT option_text,is_correct FROM question_options WHERE question_id=$1',
+          [q.question_id],
+        );
+        for (const o of os.rows)
+          await client.query(
+            'INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,$2,$3)',
+            [nq.question_id, o.option_text, o.is_correct],
+          );
+        await client.query('COMMIT');
+        res.status(201).json({ question: nq });
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
       }
     } catch (e) {
       next(e);

@@ -98,3 +98,7 @@ erDiagram
   LABS { uuid lab_id PK uuid module_id FK text kind text title text instructions smallint difficulty text status uuid created_by FK jsonb config }
   LAB_ATTEMPTS { uuid attempt_id PK uuid lab_id FK uuid student_id FK jsonb submission int checks_passed int checks_total boolean completed timestamptz updated_at }
 ```
+
+### Manual quiz authoring additions
+
+`questions` now stores `question_type`, `accepted_answers`, `ignore_punctuation`, bounded code display fields and `display_order`. `student_answers.option_id` is nullable when a short-answer response is stored in `answer_text`; the check constraint requires one of those answer forms. Authoring routes remain owned by the lecturer who owns the quiz module.

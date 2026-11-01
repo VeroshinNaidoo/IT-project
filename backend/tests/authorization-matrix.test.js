@@ -51,6 +51,13 @@ const pathFor = (template, values = fixture) =>
     .replace(':joinGroupId', values.joinGroupId)
     .replace(':resourceId', values.resourceId)
     .replace(':quizId', values.quizId)
+    .replace(':authorQuizId', values.authorQuizId || values.quizId)
+    .replace(':authorQuestionId', values.authorQuestionId || values.questionId)
+    .replace(':startQuestionId', values.startQuestionId || values.questionId)
+    .replace(
+      ':questionId',
+      values.questionId || values.memoryQuestionId || values.questionId,
+    )
     .replace(':startQuizId', values.startQuizId)
     .replace(':jobId', values.jobId)
     .replace(':attemptId', values.attemptId)
@@ -185,6 +192,52 @@ const bodies = {
       },
     ],
   }),
+  'POST /api/v1/quizzes/manual': () => ({
+    moduleId: fixture.moduleId,
+    title: 'Matrix Manual Quiz',
+    status: 'draft',
+    questions: [
+      {
+        questionType: 'multiple_choice',
+        questionText: 'Which matrix value is correct?',
+        marks: 1,
+        difficultyLevel: 3,
+        topic: 'Matrices',
+        options: [
+          { optionText: 'Correct answer', isCorrect: true },
+          { optionText: 'Other answer', isCorrect: false },
+        ],
+      },
+    ],
+  }),
+  'POST /api/v1/quizzes/:quizId/publish': () => ({}),
+  'POST /api/v1/quizzes/:quizId/questions': () => ({
+    questionType: 'multiple_choice',
+    questionText: 'Added matrix question',
+    marks: 1,
+    difficultyLevel: 3,
+    options: [
+      { optionText: 'Yes', isCorrect: true },
+      { optionText: 'No', isCorrect: false },
+    ],
+  }),
+  'PATCH /api/v1/quizzes/:quizId/questions/:questionId': () => ({
+    questionType: 'multiple_choice',
+    questionText: 'Changed matrix question',
+    marks: 1,
+    difficultyLevel: 3,
+    options: [
+      { optionText: 'Yes', isCorrect: true },
+      { optionText: 'No', isCorrect: false },
+    ],
+  }),
+  'DELETE /api/v1/quizzes/:quizId/questions/:questionId': () => ({}),
+  'POST /api/v1/quizzes/:quizId/questions/reorder': () => ({
+    questionIds: [fixture.questionId],
+  }),
+  'POST /api/v1/quizzes/:quizId/duplicate': () => ({}),
+  'DELETE /api/v1/quizzes/:quizId': () => ({}),
+  'POST /api/v1/quizzes/:quizId/questions/:questionId/duplicate': () => ({}),
   'POST /api/v1/resources/:resourceId/generation-jobs': () => ({
     questionCount: 5,
     difficulty: 'mixed',
@@ -333,6 +386,39 @@ const specs = {
     'lecturer',
   ],
   'POST /api/v1/quizzes': ['/api/v1/quizzes', 'lecturer'],
+  'POST /api/v1/quizzes/manual': ['/api/v1/quizzes/manual', 'lecturer'],
+  'POST /api/v1/quizzes/:quizId/publish': [
+    '/api/v1/quizzes/:authorQuizId/publish',
+    'lecturer',
+  ],
+  'POST /api/v1/quizzes/:quizId/questions': [
+    '/api/v1/quizzes/:authorQuizId/questions',
+    'lecturer',
+  ],
+  'PATCH /api/v1/quizzes/:quizId/questions/:questionId': [
+    '/api/v1/quizzes/:authorQuizId/questions/:authorQuestionId',
+    'lecturer',
+  ],
+  'DELETE /api/v1/quizzes/:quizId/questions/:questionId': [
+    '/api/v1/quizzes/:authorQuizId/questions/:authorQuestionId',
+    'lecturer',
+  ],
+  'POST /api/v1/quizzes/:quizId/questions/reorder': [
+    '/api/v1/quizzes/:authorQuizId/questions/reorder',
+    'lecturer',
+  ],
+  'POST /api/v1/quizzes/:quizId/duplicate': [
+    '/api/v1/quizzes/:authorQuizId/duplicate',
+    'lecturer',
+  ],
+  'DELETE /api/v1/quizzes/:quizId': [
+    '/api/v1/quizzes/:authorQuizId',
+    'lecturer',
+  ],
+  'POST /api/v1/quizzes/:quizId/questions/:questionId/duplicate': [
+    '/api/v1/quizzes/:startQuizId/questions/:startQuestionId/duplicate',
+    'lecturer',
+  ],
   'GET /api/v1/modules/:moduleId/quizzes': [
     '/api/v1/modules/:moduleId/quizzes',
     'lecturer',
@@ -622,15 +708,31 @@ async function createFixture() {
       [moduleRow.module_id, resource.resource_id, ids[users.lecturer.email]],
     )
   ).rows[0];
+  const authorQuiz = (
+    await pool.query(
+      "INSERT INTO quizzes(module_id,resource_id,created_by,title,is_competitive,status) VALUES($1,$2,$3,'Matrix Author Quiz',false,'draft') RETURNING *",
+      [moduleRow.module_id, resource.resource_id, ids[users.lecturer.email]],
+    )
+  ).rows[0];
   const question = (
     await pool.query(
       "INSERT INTO questions(quiz_id,question_text,marks) VALUES($1,'Matrix question',1) RETURNING *",
       [quiz.quiz_id],
     )
   ).rows[0];
+  const authorQuestion = (
+    await pool.query(
+      "INSERT INTO questions(quiz_id,question_text,marks,difficulty_level) VALUES($1,'Author matrix question',1,3) RETURNING *",
+      [authorQuiz.quiz_id],
+    )
+  ).rows[0];
   await pool.query(
     "INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,'Matrix option',true)",
     [question.question_id],
+  );
+  await pool.query(
+    "INSERT INTO question_options(question_id,option_text,is_correct) VALUES($1,'Author correct',true),($1,'Author wrong',false)",
+    [authorQuestion.question_id],
   );
   await pool.query(
     "UPDATE game_types SET is_enabled=true WHERE key='memory_match'",
@@ -781,6 +883,12 @@ async function createFixture() {
       [ids[users.lecturer.email], resource.resource_id],
     )
   ).rows[0];
+  const startQuestionId = (
+    await pool.query(
+      'SELECT question_id FROM questions WHERE quiz_id=$1 ORDER BY question_id LIMIT 1',
+      [startQuiz.quiz_id],
+    )
+  ).rows[0].question_id;
   const attempt = (
     await pool.query(
       'INSERT INTO quiz_attempts(quiz_id,student_id) VALUES($1,$2) RETURNING *',
@@ -851,6 +959,10 @@ async function createFixture() {
     joinGroupId: joinGroup.group_id,
     resourceId: resource.resource_id,
     quizId: quiz.quiz_id,
+    questionId: question.question_id,
+    authorQuizId: authorQuiz.quiz_id,
+    authorQuestionId: authorQuestion.question_id,
+    startQuestionId,
     startQuizId: startQuiz.quiz_id,
     jobId: job.job_id,
     attemptId: attempt.attempt_id,
@@ -980,6 +1092,8 @@ async function assertRoute(route, [template, successRole]) {
         joinGroupId: uuid(),
         resourceId: uuid(),
         quizId: uuid(),
+        authorQuizId: uuid(),
+        authorQuestionId: uuid(),
         startQuizId: uuid(),
         jobId: uuid(),
         attemptId: uuid(),
@@ -1056,7 +1170,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(85);
+    expect(routeInventory.length).toBe(94);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

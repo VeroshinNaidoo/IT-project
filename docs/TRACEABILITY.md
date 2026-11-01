@@ -236,3 +236,12 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 - Spreadsheet navigation, formula bar, locked cells and hidden check results: automated — `frontend/src/main.test.jsx`, `backend/tests/labs-api.test.js`.
 - Scenario meters, branching, saved progress, reflection and restart: automated — `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`.
 - Lecturer-only authoring and lab lifecycle ownership: automated — `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js`, `frontend/e2e/main.spec.js`.
+
+## Manual quiz authoring
+
+| Requirement                                             | Evidence                                                                                                                                       |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lecturer-only manual creation and ownership             | `backend/src/app.js` manual/question authoring routes; executable authorization matrix entries in `backend/tests/authorization-matrix.test.js` |
+| Strict MC, true/false, short-answer and code validation | `backend/src/quizzes/validation.js`; `backend/src/quizzes/validation.test.js`                                                                  |
+| Publish checklist and attempted-quiz locking            | `POST /api/v1/quizzes/:quizId/publish`, question mutation routes; authorization matrix                                                         |
+| No server-side code execution                           | code fields are persisted/displayed as text; validation tests cover bounded snippets                                                           |
