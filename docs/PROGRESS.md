@@ -202,3 +202,9 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Full browser gate: 3 consecutive runs, each 60/60 passed with zero skips across Chromium and Firefox at 390, 768, and 1280 pixels.
 - Full offline gate: 3 runs passed lint, format, type-check, production build, 162 pure/frontend tests, and 171 DB/API tests with zero skips.
 - Fixed a real repeated-run PGlite infrastructure race: Windows could retain the prior fixed `test-suite` directory while the next reset recreated it, producing `could not create directory "base/5": File exists`. Each DB test process now gets a unique fresh suite directory and removes it after teardown. No application logic or test assertions were weakened.
+
+## Lecturer module creation
+
+- Added a lecturer-only Create a module form on the Modules page.
+- The form posts the module code and name to the existing secured `POST /api/v1/modules` endpoint, displays the generated JoinCode, and keeps the existing student enrolment flow unchanged.
+- Evidence: focused frontend suite 43/43 passed; full suite passed 163 pure/frontend and 171 DB/API tests with zero skips on the final run; lint and type-check passed.

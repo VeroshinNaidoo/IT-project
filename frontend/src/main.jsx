@@ -374,10 +374,32 @@ function Dashboard({ user }) {
     </section>
   );
 }
-function Modules({ user }) {
+export function Modules({ user }) {
   const state = useData('/modules');
+  const [createdModules, setCreatedModules] = useState([]);
+  const [moduleCode, setModuleCode] = useState('');
+  const [moduleName, setModuleName] = useState('');
+  const [createMessage, setCreateMessage] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [message, setMessage] = useState('');
+  const createModule = async (event) => {
+    event.preventDefault();
+    setCreateMessage('');
+    try {
+      const body = await api('/modules', {
+        method: 'POST',
+        body: JSON.stringify({ moduleCode, moduleName }),
+      });
+      setCreatedModules((items) => [body.module, ...items]);
+      setModuleCode('');
+      setModuleName('');
+      setCreateMessage(
+        `Module created. Share JoinCode ${body.module.join_code} with students.`,
+      );
+    } catch (reason) {
+      setCreateMessage(reason.message);
+    }
+  };
   const join = async (event) => {
     event.preventDefault();
     try {
@@ -396,7 +418,7 @@ function Modules({ user }) {
       <article className="card">
         <span className="eyebrow">MODULES</span>
         <State state={state} empty="No modules are visible yet." />
-        {state.data.map((module) => (
+        {[...createdModules, ...state.data].map((module) => (
           <div className="list-row" key={module.module_id}>
             <span>
               <b>{module.module_name}</b>
@@ -408,6 +430,38 @@ function Modules({ user }) {
           </div>
         ))}
       </article>
+      {user.role === 'lecturer' && (
+        <form className="card" onSubmit={createModule}>
+          <span className="eyebrow">LECTURER TOOLS</span>
+          <h2>Create a module</h2>
+          <p className="muted">
+            Add a module first, then upload resources and generate quizzes from
+            them.
+          </p>
+          <label>
+            Module code
+            <input
+              value={moduleCode}
+              onChange={(event) => setModuleCode(event.target.value)}
+              placeholder="e.g. CS101"
+              required
+            />
+          </label>
+          <label>
+            Module name
+            <input
+              value={moduleName}
+              onChange={(event) => setModuleName(event.target.value)}
+              placeholder="e.g. Introduction to Computing"
+              required
+            />
+          </label>
+          <button className="primary" type="submit">
+            Create module
+          </button>
+          {createMessage && <p className="muted">{createMessage}</p>}
+        </form>
+      )}
       {user.role === 'student' && (
         <form className="card" onSubmit={join}>
           <h2>Enrol with a JoinCode</h2>

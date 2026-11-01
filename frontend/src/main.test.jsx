@@ -16,6 +16,7 @@ import {
   MemoryMatchGame,
   PixelRacerGame,
   GamesPage,
+  Modules,
   QuizGames,
   QuizTaking,
   Quizzes,
@@ -150,6 +151,49 @@ describe('Games chooser', () => {
     expect(screen.getByDisplayValue('Resume')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(onStartGame).toHaveBeenCalledWith('infected', 'q1');
+  });
+});
+
+describe('Lecturer module creation', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('creates a module and displays the generated JoinCode', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path, options) => {
+        if (path === '/api/v1/modules' && options?.method === 'POST')
+          return Promise.resolve(
+            response({
+              module: {
+                module_id: 'new-module',
+                module_code: 'CS101',
+                module_name: 'Introduction to Computing',
+                join_code: 'JOIN-123',
+              },
+            }),
+          );
+        return Promise.resolve(response({ data: [] }));
+      }),
+    );
+
+    render(<Modules user={{ role: 'lecturer' }} />);
+    await screen.findByRole('heading', { name: 'Create a module' });
+    fireEvent.change(screen.getByLabelText('Module code'), {
+      target: { value: 'CS101' },
+    });
+    fireEvent.change(screen.getByLabelText('Module name'), {
+      target: { value: 'Introduction to Computing' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create module' }));
+
+    expect(
+      await screen.findByText(/Share JoinCode JOIN-123 with students/),
+    ).toBeTruthy();
+    expect(screen.getByText('Introduction to Computing')).toBeTruthy();
+    expect(screen.getByText('JoinCode: JOIN-123')).toBeTruthy();
   });
 });
 
