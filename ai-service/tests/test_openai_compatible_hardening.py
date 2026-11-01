@@ -53,6 +53,20 @@ def test_base_url_is_normalized():
     assert provider.base_url == "https://example.test/openai/"
 
 
+def test_localhost_http_is_allowed_and_remote_http_is_refused():
+    fake, _ = client([payload()])
+    assert OpenAICompatibleProvider(fake, base_url="http://127.0.0.1:11434/v1/", api_key="ollama", model="m").is_local
+    with pytest.raises(RuntimeError, match="https"):
+        OpenAICompatibleProvider(fake, base_url="http://remote.example/v1/", api_key="k", model="m")
+
+
+def test_local_timeout_defaults_to_300_seconds(monkeypatch):
+    monkeypatch.delenv("AI_TIMEOUT_SECONDS", raising=False)
+    fake, _ = client([payload()])
+    provider = OpenAICompatibleProvider(fake, base_url="http://localhost:11434/v1/", api_key="ollama", model="m")
+    assert provider.timeout_seconds == 300
+
+
 def test_timeout_uses_model_fallback():
     timeout = TimeoutError("upstream timeout")
     fake, calls = client([timeout, payload()])
@@ -94,6 +108,36 @@ def test_429_retry_after_is_respected():
 
 def test_timeout_is_reported_without_secret():
     fake, _ = client([TimeoutError("private-key timeout")])
-    with pytest.raises(RuntimeError, match="AI generation failed") as error:
+    with pytest.raises(RuntimeError, match="timed out") as error:
         OpenAICompatibleProvider(fake, base_url="https://example.test/openai/", api_key="private-key", model="m", retries=0, sleep=lambda _: None).generate_quiz(request())
     assert "private-key" not in str(error.value)
+
+
+def test_messy_output_extracts_first_valid_json():
+    fake, _ = client(["Here is your quiz:\n```json\n" + payload() + "\n```\nDone."])
+    provider = OpenAICompatibleProvider(fake, base_url="http://127.0.0.1:11434/v1/", api_key="ollama", model="m", sleep=lambda _: None)
+    assert provider.generate_quiz(request()).questions
+
+
+def test_validation_error_is_fed_back_on_retry():
+    fake, calls = client([payload().replace('"question_text": "Database indexing speeds up lookups"', '"question_text": ""'), payload()])
+    provider = OpenAICompatibleProvider(fake, base_url="http://127.0.0.1:11434/v1/", api_key="ollama", model="m", retries=1, max_requests=2, sleep=lambda _: None)
+    provider.generate_quiz(request())
+    assert len(calls.calls) >= 2
+    assert "failed validation" in calls.calls[1]["messages"][0]["content"]
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("connection refused", "not running"),
+        ("404 model not found", "not downloaded"),
+        ("out of memory", "out of memory"),
+        ("request timed out", "timed out"),
+    ],
+)
+def test_ollama_failure_messages(message, expected):
+    fake, _ = client([RuntimeError(message)])
+    provider = OpenAICompatibleProvider(fake, base_url="http://127.0.0.1:11434/v1/", api_key="ollama", model="m", retries=0, sleep=lambda _: None)
+    with pytest.raises(RuntimeError, match=expected):
+        provider.generate_quiz(request())
