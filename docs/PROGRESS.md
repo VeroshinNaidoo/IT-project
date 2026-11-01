@@ -188,3 +188,17 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Removed only the identified Browser smoke quizzes and duplicate Demo competitive/practice records, with dependent rows deleted transactionally. The development database now has 8 quizzes, 91 questions, 5 attempts and 0 game plays; DEMO101 and the presentation module data were retained.
 - Browser tests now create and seed a fresh `.pgdata/e2e-suite` database on port 55434 and run their own backend/AI/frontend stack on ports 4191/8191/5191. Three complete browser runs passed with 54/54 each and zero skipped.
 - `npm run seed` is stable-key idempotent; `npm run test:seed` passed with unchanged counts after a second seed, preserved play data, cancellation, and production refusal. Quiz lists now support newest-first pagination and title search.
+
+## Games chooser — completed
+
+- Added the data-driven Games catalogue page and student/lecturer navigation entry.
+- Added shared availability logic for catalogue cards, quiz picker, and quiz Games area, including enrollment, publication, closure, competitive-attempt, and minimum-question reasons.
+- Added search, newest-first pagination, resume badges, continue actions, responsive cards, accessible status text, and a disabled multiplayer Coming soon card.
+- Added four API routes, unit/API/frontend/matrix coverage, and six-project Chromium/Firefox axe coverage at 390, 768, and 1280.
+- Gate evidence: 162 pure/frontend tests and 171 DB/API tests passed, 0 skipped; lint, format, type-check, build, and chooser browser/axe checks passed. Remaining action is the required repeated full browser gate, then commit.
+
+## Games chooser — final gate and infrastructure hardening
+
+- Full browser gate: 3 consecutive runs, each 60/60 passed with zero skips across Chromium and Firefox at 390, 768, and 1280 pixels.
+- Full offline gate: 3 runs passed lint, format, type-check, production build, 162 pure/frontend tests, and 171 DB/API tests with zero skips.
+- Fixed a real repeated-run PGlite infrastructure race: Windows could retain the prior fixed `test-suite` directory while the next reset recreated it, producing `could not create directory "base/5": File exists`. Each DB test process now gets a unique fresh suite directory and removes it after teardown. No application logic or test assertions were weakened.

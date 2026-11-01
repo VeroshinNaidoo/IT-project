@@ -242,6 +242,13 @@ const specs = {
     '/api/v1/quizzes/:quizId/games',
     'lecturer',
   ],
+  'GET /api/v1/games/catalogue': ['/api/v1/games/catalogue', 'student'],
+  'GET /api/v1/games/availability/:quizId': [
+    '/api/v1/games/availability/:quizId',
+    'student',
+  ],
+  'GET /api/v1/games/in-progress': ['/api/v1/games/in-progress', 'student'],
+  'GET /api/v1/games/quiz-picker': ['/api/v1/games/quiz-picker', 'student'],
   'POST /api/v1/attempts/:attemptId/submit': [
     '/api/v1/attempts/:attemptId/submit',
     'student',
@@ -762,8 +769,14 @@ async function assertRoute(route, [template, successRole]) {
     route === 'POST /api/v1/resources/:resourceId/generation-jobs'
       ? { questionCount: 0, difficulty: 'mixed' }
       : { unknownField: true };
-  const invalid =
-    route === 'POST /api/v1/groups/:groupId/join'
+  const invalid = [
+    'GET /api/v1/games/catalogue',
+    'GET /api/v1/games/availability/:quizId',
+    'GET /api/v1/games/in-progress',
+    'GET /api/v1/games/quiz-picker',
+  ].includes(route)
+    ? await invalidAgent.get(path).query({ unknownField: 'true' })
+    : route === 'POST /api/v1/groups/:groupId/join'
       ? await send(
           invalidAgent,
           method,
@@ -797,7 +810,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(48);
+    expect(routeInventory.length).toBe(52);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

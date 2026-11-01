@@ -112,6 +112,133 @@ h1 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
+.games-page {
+  display: grid;
+  gap: 24px;
+}
+.games-page .card {
+  animation: none;
+}
+.games-page .muted {
+  color: #5d6678;
+}
+.games-page .card p {
+  color: #5d6678;
+}
+.games-page .eyebrow {
+  color: #4d5870;
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+.compact-heading {
+  margin-bottom: 12px;
+}
+.game-catalogue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.game-catalogue-card {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 12px;
+  min-height: 300px;
+}
+.game-catalogue-card.selected {
+  border-color: #3b4bdb;
+  box-shadow: 0 0 0 3px #e4e7fb;
+}
+.game-catalogue-card.coming-soon {
+  background: #f6f4ef;
+}
+.game-icon {
+  width: 68px;
+  height: 68px;
+  fill: #e4e7fb;
+  stroke: #3b4bdb;
+  stroke-width: 3;
+}
+.game-icon text {
+  fill: #3b4bdb;
+  stroke: none;
+  font: 700 24px 'Space Grotesk';
+}
+.game-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.game-card-heading h3,
+.game-catalogue-card h3,
+.quiz-picker-row h3 {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+}
+.game-catalogue-card p {
+  margin: 0;
+}
+.tag-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+.tag-row span,
+.resume-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: #e4e7fb;
+  color: #3b4bdb;
+  font-size: 12px;
+  font-weight: 700;
+}
+.resume-badge {
+  background: #fce9c4;
+  color: #6b4400;
+}
+.game-picker {
+  display: grid;
+  gap: 12px;
+}
+.quiz-picker-list {
+  display: grid;
+  gap: 2px;
+}
+.quiz-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid #e3dfd5;
+}
+.quiz-picker-row p {
+  margin: 6px 0 0;
+}
+.quiz-picker-status {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  text-align: right;
+}
+.status-good {
+  color: #1f6840;
+  font-weight: 700;
+}
+.status-warning {
+  color: #6b4400;
+  font-weight: 700;
+}
 .card {
   background: #fff;
   border: 1px solid #e3dfd5;
@@ -901,8 +1028,24 @@ input[type='radio'] {
   .grid {
     grid-template-columns: 1fr;
   }
+  .game-catalogue-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .hero {
     grid-column: auto;
+  }
+}
+@media (max-width: 520px) {
+  .game-catalogue-grid {
+    grid-template-columns: 1fr;
+  }
+  .quiz-picker-row {
+    align-items: start;
+    flex-direction: column;
+  }
+  .quiz-picker-status {
+    justify-content: start;
+    text-align: left;
   }
 }
 @media (max-width: 760px) {

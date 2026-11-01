@@ -516,6 +516,55 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     ).toBe(404);
   });
 
+  it('serves a data-driven game chooser with availability, search and resume-safe data', async () => {
+    const unauthenticated = await request(app).get('/api/v1/games/catalogue');
+    expect(unauthenticated.status).toBe(401);
+    const catalogue = await studentAgent.get('/api/v1/games/catalogue');
+    expect(catalogue.status).toBe(200);
+    expect(catalogue.body.data.map((game) => game.key)).toEqual(
+      expect.arrayContaining([
+        'infected',
+        'island_escape',
+        'memory_match',
+        'boss_battle',
+        'pixel_racer',
+        'timer_trivia',
+      ]),
+    );
+    for (const game of catalogue.body.data) {
+      expect(game.description).toEqual(expect.any(String));
+      expect(game.minimum_questions).toBeGreaterThan(0);
+    }
+    const picker = await studentAgent.get(
+      '/api/v1/games/quiz-picker?page=1&pageSize=1&search=API%20Competitive',
+    );
+    expect(picker.status).toBe(200);
+    expect(picker.body.data).toHaveLength(1);
+    expect(picker.body.pagination).toMatchObject({ page: 1, pageSize: 1 });
+    const availability = await studentAgent.get(
+      `/api/v1/games/availability/${quizRecord.quiz_id}`,
+    );
+    expect(availability.status).toBe(200);
+    const infected = availability.body.data.find(
+      (game) => game.key === 'infected',
+    );
+    expect(infected).toMatchObject({
+      available: false,
+      reason:
+        'Not enough questions for this game yet. At least 6 are required.',
+      hasInProgressPlay: false,
+    });
+    expect(JSON.stringify(availability.body)).not.toMatch(
+      /question_text|option_text|is_correct|state/i,
+    );
+    const plays = await studentAgent.get('/api/v1/games/in-progress');
+    expect(plays.status).toBe(200);
+    expect(Array.isArray(plays.body.data)).toBe(true);
+    expect(JSON.stringify(plays.body)).not.toMatch(
+      /question_text|option_text|is_correct|state/i,
+    );
+  });
+
   it('revokes the server-side session on logout', async () => {
     expect((await lecturerAgent.post('/api/v1/auth/logout')).status).toBe(204);
     expect((await lecturerAgent.get('/api/v1/modules')).status).toBe(401);

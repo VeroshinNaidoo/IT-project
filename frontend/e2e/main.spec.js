@@ -15,6 +15,88 @@ test('authentication screen is usable at the required viewport', async ({
   expect(results.violations).toEqual([]);
 });
 
+test('Games chooser shows catalogue cards, reasons, resume and axe-clean layout', async ({
+  page,
+}) => {
+  const catalogue = [
+    ['infected', 'Infected', 6],
+    ['island_escape', 'Island Escape', 30],
+    ['memory_match', 'Memory Match', 6],
+    ['boss_battle', 'Boss Battle', 12],
+    ['pixel_racer', 'Pixel Car Racer', 10],
+    ['timer_trivia', 'Timer Trivia', 10],
+  ].map(([key, display_name, minimum_questions]) => ({
+    key,
+    display_name,
+    minimum_questions,
+    description: `${display_name} practice game.`,
+  }));
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? {
+          user: {
+            userId: 'student-1',
+            role: 'student',
+            full_name: 'Demo Student',
+          },
+        }
+      : path.endsWith('/games/catalogue')
+        ? { data: catalogue }
+        : path.endsWith('/games/in-progress')
+          ? {
+              data: [
+                {
+                  game_key: 'infected',
+                  quiz_id: 'quiz-1',
+                  title: 'Resume quiz',
+                },
+              ],
+            }
+          : path.endsWith('/games/quiz-picker')
+            ? {
+                data: [
+                  {
+                    quiz_id: 'quiz-1',
+                    title: 'Resume quiz',
+                    module_name: 'Database Systems',
+                    is_competitive: false,
+                    games: [
+                      {
+                        key: 'infected',
+                        available: true,
+                        hasInProgressPlay: true,
+                      },
+                    ],
+                  },
+                ],
+                pagination: { page: 1, pageSize: 20, total: 1, pages: 1 },
+              }
+            : { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Games' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Choose a game' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Coming soon' }),
+  ).toBeDisabled();
+  await expect(page.getByText('Practice only').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Choose' }).first().click();
+  await expect(
+    page.getByRole('heading', { name: 'Choose a quiz' }),
+  ).toBeVisible();
+  await expect(page.getByText('Resume').first()).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 test('Infected solo flow is responsive, keyboard operable and axe clean', async ({
   page,
 }) => {

@@ -8,7 +8,10 @@ import pg from 'pg';
 const { Client } = pg;
 const root = process.cwd();
 const dataRoot = path.resolve(root, '.pgdata');
-const suiteDir = path.resolve(dataRoot, 'test-suite');
+const suiteDir = path.resolve(
+  dataRoot,
+  `test-suite-${process.pid}-${Date.now()}`,
+);
 const logDir = path.resolve(dataRoot, 'logs');
 const logPath = path.resolve(logDir, 'test-suite.log');
 const pidPath = path.resolve(root, '.pglite-suite.pid');
@@ -18,7 +21,7 @@ const testUrl = `postgres://postgres:postgres@127.0.0.1:${port}/eduquest_test?ss
 
 if (
   path.dirname(suiteDir) !== dataRoot ||
-  path.basename(suiteDir) !== 'test-suite'
+  !/^test-suite-\d+-\d+$/.test(path.basename(suiteDir))
 )
   throw new Error(`Refusing to reset unexpected test directory: ${suiteDir}`);
 
@@ -94,7 +97,11 @@ export default async function setup() {
   const logFd = openSync(logPath, 'w');
   const child = spawn(process.execPath, [serverScript, 'daemon', 'suite'], {
     cwd: root,
-    env: { ...process.env, PGLITE_SUITE_PORT: String(port) },
+    env: {
+      ...process.env,
+      PGLITE_SUITE_PORT: String(port),
+      PGLITE_SUITE_DIR: suiteDir,
+    },
     stdio: ['ignore', logFd, logFd],
     windowsHide: true,
   });
@@ -118,5 +125,6 @@ export default async function setup() {
     if (!exited) child.kill('SIGKILL');
     await unlink(pidPath).catch(() => {});
     if (child.exitCode && child.exitCode !== 0) await printServerLog();
+    await rm(suiteDir, { recursive: true, force: true });
   };
 }

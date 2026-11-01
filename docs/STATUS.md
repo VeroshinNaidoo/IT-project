@@ -71,6 +71,18 @@ Stage 0 is done and tested: `DifficultyLevel smallint CHECK (1..5)`, shared `tie
 
 Multiplayer rooms and multiplayer modes are not built and remain not verified.
 
+## Games chooser — current change
+
+| Requirement                                                          | Status                 | Evidence                                                                                                                      |
+| -------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Student Games navigation and lecturer read-only preview              | done and tested        | `frontend/src/main.jsx`; `Games chooser shows catalogue cards, reasons, resume and axe-clean layout` (6 browser projects)     |
+| Data-driven enabled catalogue with descriptions and minimums         | done and tested        | migration `015_game_catalog_metadata.sql`, `GET /api/v1/games/catalogue`, `backend/tests/game-availability.test.js` (6 tests) |
+| Quiz picker with availability reasons, search, pagination and resume | done and tested        | `GET /api/v1/games/quiz-picker`, `frontend/src/main.jsx`, API chooser test, Games chooser component tests                     |
+| Shared availability policy for chooser and quiz Games area           | implemented and tested | `backend/src/games/availability.js`, `backend/tests/game-availability.test.js`, API game-catalogue tests                      |
+| Multiplayer coming-soon state                                        | done and tested        | `Games chooser shows catalogue cards, reasons, resume and axe-clean layout` (6 browser projects)                              |
+
+The chooser gate is green: lint, formatting, type-check, production build, 162 pure/frontend tests and 171 DB/API tests passed with zero skips; the full browser gate passed three times at 60/60 each (Chromium and Firefox at 390, 768 and 1280 pixels). A repeated-run PGlite directory race was fixed in `backend/tests/helpers/pglite-global-setup.js` and `scripts/pglite-server.mjs` by using a unique fresh suite directory per process and cleaning it after teardown. Two post-fix offline gates also passed with 162 + 171 tests and zero skips.
+
 FR-23 solo is green: 208 JavaScript tests passed with zero skips (89 pure/frontend and 119 DB/API), including 4 Memory Match engine tests, 18 dedicated API tests, 6 component tests, and 40 executable authorization-matrix tests. All 30 Playwright/axe project runs passed: 15 Chromium and 15 Firefox across 390, 768, and 1280 pixels, including the Memory Match full clear, mismatch, keyboard, refresh, concealment, terminal, and competitive-lock flow. Lint, formatting, type-check, and production build pass. Migration 009 enables `memory_match`; multiplayer is not part of FR-23.
 
 FR-25 solo is green: three complete pre-enable gates each passed 248/248 JavaScript tests with zero skipped (111 pure/frontend and 137 DB/API), lint, formatting, type-check, production build, and all 36 Playwright/axe project runs. Boss Battle is covered by 15 engine tests, 15 API tests, 7 component test cases, three executable authorization-matrix routes, and a full accessible win/lock flow in Chromium and Firefox at 390, 768, and 1280 pixels. Migration 010 enables `boss_battle`; multiplayer remains out of scope.

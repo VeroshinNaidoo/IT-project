@@ -30,7 +30,7 @@ const configs = {
   suite: {
     port: Number(process.env.PGLITE_SUITE_PORT ?? 55433),
     database: 'eduquest_test',
-    dir: path.join(dataRoot, 'test-suite'),
+    dir: process.env.PGLITE_SUITE_DIR ?? path.join(dataRoot, 'test-suite'),
     pid: path.join(root, '.pglite-suite.pid'),
   },
   e2e: {

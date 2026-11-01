@@ -21,17 +21,13 @@ import {
   recordProfanityViolation,
   isProfanityCooldownActive,
 } from './profanity/rate-limit.js';
-import { canAccessGame } from './games/access.js';
+import { getGameAvailability } from './games/availability.js';
 import { registerInfectedRoutes } from './games/infected/routes.js';
 import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
 import { registerBossBattleRoutes } from './games/boss_battle/routes.js';
 import { registerPixelRacerRoutes } from './games/pixel_racer/routes.js';
 import { registerTimerTriviaRoutes } from './games/timer_trivia/routes.js';
-import { ISLAND_MIN_QUESTIONS } from './games/island_escape/config.js';
-import { BOSS_MIN_QUESTIONS } from './games/boss_battle/config.js';
-import { RACE_MIN_QUESTIONS } from './games/pixel_racer/config.js';
-import { TRIVIA_MIN_QUESTIONS } from './games/timer_trivia/config.js';
 
 const app = express();
 const cookieSecure =
@@ -1257,6 +1253,206 @@ app.get(
   },
 );
 
+app.get('/api/v1/games/catalogue', requireAuth, async (req, res, next) => {
+  try {
+    const valid = parse(z.object({}).strict(), req.query, req, res);
+    if (!valid) return;
+    const result = await pool.query(
+      `SELECT game_type_id,key,display_name,description,minimum_questions
+         FROM game_types WHERE is_enabled=true
+         ORDER BY CASE key WHEN 'infected' THEN 1 WHEN 'island_escape' THEN 2
+           WHEN 'memory_match' THEN 3 WHEN 'boss_battle' THEN 4
+           WHEN 'pixel_racer' THEN 5 WHEN 'timer_trivia' THEN 6 ELSE 100 END,key`,
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    next(e);
+  }
+});
+
+async function gameAvailabilityForQuiz(user, quiz) {
+  const catalogue = await pool.query(
+    `SELECT game_type_id,key,display_name,description,minimum_questions
+     FROM game_types WHERE is_enabled=true
+     ORDER BY CASE key WHEN 'infected' THEN 1 WHEN 'island_escape' THEN 2
+       WHEN 'memory_match' THEN 3 WHEN 'boss_battle' THEN 4
+       WHEN 'pixel_racer' THEN 5 WHEN 'timer_trivia' THEN 6 ELSE 100 END,key`,
+  );
+  const counts = (
+    await pool.query(
+      `SELECT count(q.question_id)::int AS question_count,
+        count(q.question_id) FILTER (WHERE length(q.question_text)<=140 AND EXISTS (
+          SELECT 1 FROM question_options correct
+          WHERE correct.question_id=q.question_id AND correct.is_correct=true
+            AND length(correct.option_text)<=60
+        ))::int AS memory_eligible,
+        count(q.question_id) FILTER (WHERE EXISTS (
+          SELECT 1 FROM question_options correct
+          WHERE correct.question_id=q.question_id AND correct.is_correct=true
+        ) AND (SELECT count(*) FROM question_options options
+          WHERE options.question_id=q.question_id)>=2)::int AS answerable
+       FROM questions q WHERE q.quiz_id=$1`,
+      [quiz.quiz_id],
+    )
+  ).rows[0];
+  const enrolled =
+    user.role === 'lecturer' ||
+    Boolean(
+      (
+        await pool.query(
+          'SELECT 1 FROM enrollments WHERE module_id=$1 AND student_id=$2',
+          [quiz.module_id, user.userId],
+        )
+      ).rowCount,
+    );
+  const scoredAttemptCompleted = Boolean(
+    (
+      await pool.query(
+        'SELECT 1 FROM quiz_attempts WHERE quiz_id=$1 AND student_id=$2 AND is_scored=true AND completion_time IS NOT NULL',
+        [quiz.quiz_id, user.userId],
+      )
+    ).rowCount,
+  );
+  const plays = await pool.query(
+    `SELECT p.play_id,gt.key FROM game_plays p
+     JOIN game_types gt ON gt.game_type_id=p.game_type_id
+     WHERE p.quiz_id=$1 AND p.student_id=$2 AND p.status='in_progress'`,
+    [quiz.quiz_id, user.userId],
+  );
+  const playByKey = new Map(plays.rows.map((row) => [row.key, row.play_id]));
+  return catalogue.rows.map((game) => {
+    const result = getGameAvailability({
+      game,
+      user,
+      quiz,
+      counts,
+      enrolled,
+      scoredAttemptCompleted,
+      hasInProgressPlay: playByKey.has(game.key),
+    });
+    return {
+      ...result,
+      playId: playByKey.get(game.key) || null,
+    };
+  });
+}
+
+app.get(
+  '/api/v1/games/availability/:quizId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const valid = parse(z.object({}).strict(), req.query, req, res);
+      if (!valid) return;
+      const quiz = await pool.query('SELECT * FROM quizzes WHERE quiz_id=$1', [
+        req.params.quizId,
+      ]);
+      if (!quiz.rowCount)
+        return error(res, 404, 'NOT_FOUND', 'Quiz not found.', requestId(req));
+      if (req.user.role === 'lecturer') {
+        const owner = await pool.query(
+          'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+          [quiz.rows[0].module_id, req.user.userId],
+        );
+        if (!owner.rowCount)
+          return error(
+            res,
+            403,
+            'FORBIDDEN',
+            'You do not manage this quiz.',
+            requestId(req),
+          );
+      } else {
+        const enrolled = await pool.query(
+          'SELECT 1 FROM enrollments WHERE module_id=$1 AND student_id=$2',
+          [quiz.rows[0].module_id, req.user.userId],
+        );
+        if (!enrolled.rowCount)
+          return error(
+            res,
+            403,
+            'FORBIDDEN',
+            'You are not enrolled in this module.',
+            requestId(req),
+          );
+      }
+      res.json({ data: await gameAvailabilityForQuiz(req.user, quiz.rows[0]) });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get('/api/v1/games/in-progress', requireAuth, async (req, res, next) => {
+  try {
+    const valid = parse(z.object({}).strict(), req.query, req, res);
+    if (!valid) return;
+    if (req.user.role === 'lecturer') return res.json({ data: [] });
+    const result = await pool.query(
+      `SELECT p.play_id,gt.key AS game_key,gt.display_name,q.quiz_id,q.title,m.module_id,m.module_name
+         FROM game_plays p JOIN game_types gt ON gt.game_type_id=p.game_type_id
+         JOIN quizzes q ON q.quiz_id=p.quiz_id JOIN modules m ON m.module_id=q.module_id
+         WHERE p.student_id=$1 AND p.status='in_progress' ORDER BY p.updated_at DESC`,
+      [req.user.userId],
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/v1/games/quiz-picker', requireAuth, async (req, res, next) => {
+  try {
+    const query = parse(
+      z
+        .object({
+          page: z.coerce.number().int().min(1).max(10000).default(1),
+          pageSize: z.coerce.number().int().min(1).max(100).default(20),
+          search: z.string().max(100).default(''),
+        })
+        .strict(),
+      req.query,
+      req,
+      res,
+    );
+    if (!query) return;
+    const scope =
+      req.user.role === 'lecturer'
+        ? 'm.lecturer_id=$1'
+        : 'EXISTS (SELECT 1 FROM enrollments e WHERE e.module_id=m.module_id AND e.student_id=$1)';
+    const params = [req.user.userId, `%${query.search.trim()}%`];
+    const base = `FROM quizzes q JOIN modules m ON m.module_id=q.module_id
+        WHERE ${scope} AND q.title ILIKE $2`;
+    const total = await pool.query(
+      `SELECT count(*)::int AS count ${base}`,
+      params,
+    );
+    const quizzes = await pool.query(
+      `SELECT q.quiz_id,q.title,q.is_competitive,q.status,q.closes_at,q.created_at,
+                m.module_id,m.module_name
+         ${base} ORDER BY q.created_at DESC,q.quiz_id DESC LIMIT $3 OFFSET $4`,
+      [...params, query.pageSize, (query.page - 1) * query.pageSize],
+    );
+    const data = await Promise.all(
+      quizzes.rows.map(async (quiz) => ({
+        ...quiz,
+        games: await gameAvailabilityForQuiz(req.user, quiz),
+      })),
+    );
+    res.json({
+      data,
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total: total.rows[0].count,
+        pages: Math.max(1, Math.ceil(total.rows[0].count / query.pageSize)),
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get(
   '/api/v1/quizzes/:quizId/games',
   requireAuth,
@@ -1299,73 +1495,8 @@ app.get(
           requestId(req),
         );
       }
-      const accessAllowed = canAccessGame(req.user, quiz.rows[0], {
-        scoredAttemptCompleted,
-      });
-      const games = await pool.query(
-        `SELECT g.game_id,gt.key,gt.display_name,
-                count(q.question_id)::int AS question_count,
-                count(q.question_id) FILTER (
-                  WHERE EXISTS (
-                    SELECT 1 FROM question_options correct
-                    WHERE correct.question_id=q.question_id
-                      AND correct.is_correct=true
-                  )
-                  AND (SELECT count(*) FROM question_options options
-                       WHERE options.question_id=q.question_id) >= 2
-                )::int AS eligible_question_count
-         FROM games g JOIN game_types gt ON gt.game_type_id=g.game_type_id
-         LEFT JOIN questions q ON q.quiz_id=g.quiz_id
-         WHERE g.quiz_id=$1 AND gt.is_enabled=true
-         GROUP BY g.game_id,gt.key,gt.display_name
-         ORDER BY CASE gt.key
-           WHEN 'infected' THEN 1
-           WHEN 'island_escape' THEN 2
-           WHEN 'memory_match' THEN 3
-           WHEN 'boss_battle' THEN 4
-           WHEN 'pixel_racer' THEN 5
-           WHEN 'timer_trivia' THEN 6
-           ELSE 100
-         END, gt.key`,
-        [req.params.quizId],
-      );
       res.json({
-        data: games.rows.map((game) => {
-          const minimum =
-            game.key === 'island_escape'
-              ? ISLAND_MIN_QUESTIONS
-              : game.key === 'boss_battle'
-                ? BOSS_MIN_QUESTIONS
-                : game.key === 'pixel_racer'
-                  ? RACE_MIN_QUESTIONS
-                  : game.key === 'timer_trivia'
-                    ? TRIVIA_MIN_QUESTIONS
-                    : Number(process.env.GAME_MIN_QUESTIONS || 6);
-          const availableQuestionCount =
-            game.key === 'boss_battle' ||
-            game.key === 'pixel_racer' ||
-            game.key === 'timer_trivia'
-              ? game.eligible_question_count
-              : game.question_count;
-          const enoughQuestions = availableQuestionCount >= minimum;
-          return {
-            ...game,
-            available: accessAllowed && enoughQuestions,
-            reason: !accessAllowed
-              ? 'Complete your scored attempt to unlock this game.'
-              : !enoughQuestions
-                ? game.key === 'island_escape'
-                  ? `Needs a quiz with at least ${minimum} questions.`
-                  : game.key === 'boss_battle'
-                    ? `Boss Battle needs at least ${minimum} eligible questions.`
-                    : game.key === 'pixel_racer'
-                      ? `Pixel Car Racer needs at least ${minimum} eligible questions.`
-                      : game.key === 'timer_trivia'
-                        ? `Timer Trivia needs at least ${minimum} eligible questions.`
-                        : `Not enough questions for this game yet. At least ${minimum} are required.`
-                : null,
-          };
-        }),
+        data: await gameAvailabilityForQuiz(req.user, quiz.rows[0]),
       });
     } catch (e) {
       next(e);

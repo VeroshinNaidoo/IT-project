@@ -2,6 +2,18 @@
 
 Status reflects the current local implementation. PGlite evidence is explicitly not equivalent to real PostgreSQL concurrency evidence.
 
+## Games chooser
+
+| Requirement                                                     | Implementation                                                     | Evidence                                                                       |
+| --------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Games navigation and catalogue cards                            | `frontend/src/main.jsx` `GamesPage`; `GET /api/v1/games/catalogue` | `frontend/src/main.test.jsx` Games chooser tests; Playwright chooser/axe flow  |
+| Descriptions and minimum-question tags come from catalogue data | migration `015_game_catalog_metadata.sql`; catalogue query         | `backend/tests/game-availability.test.js`; chooser API test                    |
+| Enrolled-module quiz picker, search and pagination              | `GET /api/v1/games/quiz-picker`; `GamesPage` picker                | `backend/tests/api.test.js`; `frontend/src/main.test.jsx`                      |
+| Exact unavailable reasons and resume badge                      | shared availability and in-progress routes                         | availability unit cases, API response assertions, frontend tests               |
+| Same policy in chooser and quiz Games area                      | `backend/src/games/availability.js` used by both handlers          | availability unit tests and existing quiz Games API tests                      |
+| API authorization and no answer/player-data leakage             | route policies and owner/enrolment checks                          | executable authorization matrix; chooser API secrecy assertions                |
+| Responsive accessible card grid and coming-soon state           | `frontend/src/styles.css`, inline SVG icons, textual statuses      | frontend tests and Playwright/axe at all configured Chromium/Firefox viewports |
+
 ## Profanity field coverage
 
 | User-visible field                | Backend authority                  | Evidence                                                                          |
@@ -162,3 +174,4 @@ FR-25 gate evidence: three consecutive complete pre-enable gates each passed lin
 FR-26 gate evidence: three consecutive complete pre-enable gates each passed lint, Prettier, TypeScript, production build, 277/277 JavaScript tests with zero skipped (128 pure/frontend and 149 DB/API), and 42/42 Playwright/axe project runs. Pixel Racer contributes 10 engine/property tests, 9 API integration tests, 7 component test cases, three authorization-matrix routes, and one stateful nitro/race/competitive-lock flow in each Chromium/Firefox viewport at 390, 768, and 1280 pixels. Migration 011 enables the catalog entry only after those gates passed.
 
 FR-24 gate evidence: Timer Trivia contributes 10 engine/property tests, 11 API integration tests, 7 frontend component/visual tests, four authorization-matrix routes, and 6/6 targeted Playwright/axe runs in Chromium and Firefox at 390, 768, and 1280 pixels. `frontend/src/timer-trivia.test.jsx` separately proves one-time 10-second/5-second announcements, refresh persistence, and extended-time thresholds; the Playwright flow asserts both threshold messages. Migration 013 enables the catalog entry only after the three complete gates pass. The board, server deadline, timeout, extended-time preference, cell reuse, pre-answer secrecy, and practice-data isolation are covered by the listed engine/API/browser tests.
+The chooser implementation is covered by 6 availability unit tests, the API chooser integration test, 2 frontend chooser tests, the 54-test authorization matrix (including the four new routes), and the six-project Chromium/Firefox axe flow at 390/768/1280. The availability policy is shared by the chooser and quiz Games area through `backend/src/games/availability.js`. The full browser gate passed 60/60 in each of three runs; the repeated DB gate passed 171/171 after the unique-directory PGlite teardown fix.

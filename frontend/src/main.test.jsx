@@ -15,6 +15,7 @@ import {
   IslandEscapeGame,
   MemoryMatchGame,
   PixelRacerGame,
+  GamesPage,
   QuizGames,
   QuizTaking,
   Quizzes,
@@ -51,6 +52,105 @@ const bossData = (overrides = {}) => ({
     overrides.question === undefined ? bossQuestion : overrides.question,
   outcome: overrides.outcome || null,
   resumed: false,
+});
+
+describe('Games chooser', () => {
+  beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  const catalogue = [
+    ['infected', 'Infected', 6],
+    ['island_escape', 'Island Escape', 30],
+    ['memory_match', 'Memory Match', 6],
+    ['boss_battle', 'Boss Battle', 12],
+    ['pixel_racer', 'Pixel Car Racer', 10],
+    ['timer_trivia', 'Timer Trivia', 10],
+  ].map(([key, display_name, minimum_questions]) => ({
+    key,
+    display_name,
+    minimum_questions,
+    description: `${display_name} practice game.`,
+  }));
+
+  it('renders catalogue cards, tags, vector icons and coming-soon multiplayer', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path) =>
+        Promise.resolve(
+          response(
+            path.includes('/catalogue')
+              ? { data: catalogue }
+              : path.includes('/in-progress')
+                ? { data: [] }
+                : { data: [], pagination: { page: 1, pageSize: 20, pages: 1 } },
+          ),
+        ),
+      ),
+    );
+    render(<GamesPage user={{ role: 'student' }} onStartGame={() => {}} />);
+    expect(
+      await screen.findByRole('heading', { name: 'Choose a game' }),
+    ).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: 'Choose' })).toHaveLength(6);
+    expect(screen.getByRole('button', { name: 'Coming soon' }).disabled).toBe(
+      true,
+    );
+    expect(screen.getAllByRole('img')).toHaveLength(7);
+    expect(screen.getAllByText('Practice only')).toHaveLength(6);
+  });
+
+  it('opens the quiz picker with availability reasons, search, pagination and resume', async () => {
+    const play = { game_key: 'infected', quiz_id: 'q1', title: 'Resume Quiz' };
+    const quiz = {
+      quiz_id: 'q1',
+      title: 'Resume Quiz',
+      module_name: 'Databases',
+      is_competitive: false,
+      games: [
+        {
+          key: 'infected',
+          available: true,
+          hasInProgressPlay: true,
+          playId: 'play-1',
+        },
+      ],
+    };
+    const onStartGame = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((path) =>
+        Promise.resolve(
+          response(
+            path.includes('/catalogue')
+              ? { data: catalogue }
+              : path.includes('/in-progress')
+                ? { data: [play] }
+                : {
+                    data: [quiz],
+                    pagination: { page: 1, pageSize: 20, pages: 2 },
+                  },
+          ),
+        ),
+      ),
+    );
+    render(<GamesPage user={{ role: 'student' }} onStartGame={onStartGame} />);
+    await screen.findByRole('heading', { name: 'Choose a game' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Choose' })[0]);
+    expect(
+      await screen.findByRole('heading', { name: 'Choose a quiz' }),
+    ).toBeTruthy();
+    expect(screen.getAllByText('Resume').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Search quizzes'), {
+      target: { value: 'Resume' },
+    });
+    expect(screen.getByDisplayValue('Resume')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onStartGame).toHaveBeenCalledWith('infected', 'q1');
+  });
 });
 
 describe('Boss Battle frontend', () => {

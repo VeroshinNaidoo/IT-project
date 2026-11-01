@@ -78,3 +78,12 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 5. Enable the extended-time profile preference and confirm the server deadline doubles. Refresh mid-round and confirm the same active question and deadline continue without revealing correctness.
 6. Complete ten rounds. Confirm the terminal screen reports the score and offers **Play again** and **Back to quiz**.
 7. Return to the leaderboard and analytics. Confirm Timer Trivia did not change scored attempts, ranks, or analytics percentages.
+
+## Games chooser smoke test
+
+1. Sign in as a student and select **Games** in the sidebar. Confirm six enabled cards appear: Infected, Island Escape, Memory Match, Boss Battle, Pixel Car Racer and Timer Trivia. Confirm each has an original icon, plain-language description, Solo/Practice-only tags, and its minimum question count.
+2. Confirm **Multiplayer rooms — Coming soon** is labelled and disabled with no dead action.
+3. Select a game. Confirm the quiz picker shows only quizzes from enrolled modules, with module names, practice/competitive labels, search, and pagination.
+4. Confirm a competitive quiz before its scored attempt explains the lock, a short quiz gives its minimum-question reason, and a closed or unpublished quiz gives its exact reason.
+5. Start an available quiz. Return to **Games** and confirm the game card and quiz row show **Resume** and **Continue**. Confirm Continue resumes through the existing start route.
+6. Sign in as a lecturer. Confirm **Games** is visible as a read-only preview of owned-module quizzes and never starts a student play.

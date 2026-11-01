@@ -150,8 +150,15 @@ export function App() {
     'Study groups',
     'Leaderboard',
     'Quizzes',
+    'Games',
   ];
-  const lecturerScreens = ['Modules', 'Resources', 'Quizzes', 'Analytics'];
+  const lecturerScreens = [
+    'Modules',
+    'Resources',
+    'Quizzes',
+    'Games',
+    'Analytics',
+  ];
   const screens = user.role === 'student' ? studentScreens : lecturerScreens;
   const logout = async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
@@ -197,9 +204,11 @@ export function App() {
                     ? 'Turn what you know into what you can do.'
                     : screen === 'Analytics'
                       ? 'Understand progress. Plan what comes next.'
-                      : screen === 'Leaderboard'
-                        ? 'Celebrate the work behind every achievement.'
-                        : 'Everything you need, thoughtfully organised.'}
+                      : screen === 'Games'
+                        ? 'Choose a practice game and a quiz to play.'
+                        : screen === 'Leaderboard'
+                          ? 'Celebrate the work behind every achievement.'
+                          : 'Everything you need, thoughtfully organised.'}
             </p>
           </div>
           <span className="avatar">
@@ -214,6 +223,23 @@ export function App() {
         {screen === 'Study groups' && <Groups user={user} />}
         {screen === 'Leaderboard' && <Leaderboard user={user} />}
         {screen === 'Analytics' && <Analytics user={user} />}
+        {screen === 'Games' && (
+          <GamesPage
+            user={user}
+            onStartGame={(key, id) => {
+              setGameQuizId(id);
+              const screensByKey = {
+                infected: 'Infected',
+                island_escape: 'Island Escape',
+                memory_match: 'Memory Match',
+                boss_battle: 'Boss Battle',
+                pixel_racer: 'Pixel Car Racer',
+                timer_trivia: 'Timer Trivia',
+              };
+              setScreen(screensByKey[key] || 'Games');
+            }}
+          />
+        )}
         {screen === 'Quizzes' && (
           <Quizzes
             onTake={(id) => {
@@ -937,6 +963,215 @@ export function Quizzes({
         </>
       ) : (
         <p className="empty-state">Choose a module to view quizzes.</p>
+      )}
+    </section>
+  );
+}
+
+const gameIcons = {
+  infected: '☣',
+  island_escape: '⌁',
+  memory_match: '▦',
+  boss_battle: '◆',
+  pixel_racer: '▰',
+  timer_trivia: '◷',
+};
+
+function GameIcon({ gameKey, label }) {
+  return (
+    <svg
+      className="game-icon"
+      viewBox="0 0 80 80"
+      role="img"
+      aria-label={`${label} icon`}
+    >
+      <circle cx="40" cy="40" r="34" />
+      <path d="M24 48 Q40 22 56 48 Q40 62 24 48Z" />
+      <path d="M30 40h20M40 30v20" />
+      <text x="40" y="45" textAnchor="middle">
+        {gameIcons[gameKey] || '✦'}
+      </text>
+    </svg>
+  );
+}
+
+export function GamesPage({ user, onStartGame }) {
+  const catalogue = useData('/games/catalogue');
+  const inProgress = useData('/games/in-progress');
+  const [selectedKey, setSelectedKey] = useState('');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const picker = useData(
+    selectedKey
+      ? `/games/quiz-picker?page=${page}&pageSize=20&search=${encodeURIComponent(search)}`
+      : '/games/quiz-picker?page=1&pageSize=20&search=',
+  );
+  const selected = catalogue.data.find((game) => game.key === selectedKey);
+  const resumeFor = (key, quizId) =>
+    inProgress.data.find(
+      (play) => play.game_key === key && play.quiz_id === quizId,
+    );
+  return (
+    <section className="games-page" aria-labelledby="games-heading">
+      <div className="section-heading">
+        <div>
+          <span className="eyebrow">PRACTICE ARCADE</span>
+          <h2 id="games-heading">Choose a game</h2>
+          <p className="muted">
+            {user.role === 'lecturer'
+              ? 'Read-only preview of the games available in your modules.'
+              : 'Pick a format, then choose a quiz from your enrolled modules.'}
+          </p>
+        </div>
+      </div>
+      {catalogue.loading && <p className="muted">Loading games…</p>}
+      {catalogue.error && <p className="field-error">{catalogue.error}</p>}
+      <div className="game-catalogue-grid">
+        {catalogue.data.map((game) => {
+          const resume = inProgress.data.find(
+            (play) => play.game_key === game.key,
+          );
+          return (
+            <article
+              className={`card game-catalogue-card ${selectedKey === game.key ? 'selected' : ''}`}
+              key={game.key}
+            >
+              <GameIcon gameKey={game.key} label={game.display_name} />
+              <div className="game-card-heading">
+                <h3>{game.display_name}</h3>
+                {resume && <span className="resume-badge">Resume</span>}
+              </div>
+              <p>{game.description}</p>
+              <div className="tag-row">
+                <span>Solo</span>
+                <span>Practice only</span>
+                <span>Needs {game.minimum_questions} questions</span>
+              </div>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setSelectedKey(game.key);
+                  setPage(1);
+                }}
+              >
+                Choose
+              </button>
+              {resume && user.role === 'student' && (
+                <button
+                  className="link-button"
+                  onClick={() => onStartGame(game.key, resume.quiz_id)}
+                >
+                  Continue {resume.title}
+                </button>
+              )}
+            </article>
+          );
+        })}
+        <article
+          className="card game-catalogue-card coming-soon"
+          aria-label="Multiplayer games coming soon"
+        >
+          <GameIcon gameKey="multiplayer" label="Multiplayer" />
+          <h3>Multiplayer rooms</h3>
+          <p>Play together with a group in a shared room.</p>
+          <div className="tag-row">
+            <span>Coming soon</span>
+          </div>
+          <button className="secondary" disabled>
+            Coming soon
+          </button>
+        </article>
+      </div>
+      {selected && (
+        <section className="card game-picker" aria-labelledby="picker-heading">
+          <div className="section-heading compact-heading">
+            <div>
+              <span className="eyebrow">
+                {selected.display_name.toUpperCase()}
+              </span>
+              <h2 id="picker-heading">Choose a quiz</h2>
+            </div>
+            <button className="secondary" onClick={() => setSelectedKey('')}>
+              Back to games
+            </button>
+          </div>
+          <label htmlFor="game-quiz-search">Search quizzes</label>
+          <input
+            id="game-quiz-search"
+            value={search}
+            placeholder="Search by quiz title"
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+          />
+          {picker.loading && <p className="muted">Loading quizzes…</p>}
+          {picker.error && <p className="field-error">{picker.error}</p>}
+          {!picker.loading && !picker.error && !picker.data.length && (
+            <p className="empty-state">No quizzes match your search.</p>
+          )}
+          <div className="quiz-picker-list">
+            {picker.data.map((quiz) => {
+              const game = quiz.games.find((item) => item.key === selectedKey);
+              const resume = resumeFor(selectedKey, quiz.quiz_id);
+              return (
+                <article className="quiz-picker-row" key={quiz.quiz_id}>
+                  <div>
+                    <span className="eyebrow">{quiz.module_name}</span>
+                    <h3>{quiz.title}</h3>
+                    <p className="muted">
+                      {quiz.is_competitive
+                        ? 'Competitive · one scored attempt'
+                        : 'Practice quiz'}
+                    </p>
+                  </div>
+                  <div className="quiz-picker-status">
+                    {resume && <span className="resume-badge">Resume</span>}
+                    <span
+                      className={
+                        game?.available ? 'status-good' : 'status-warning'
+                      }
+                    >
+                      {game?.available ? 'Available' : game?.reason}
+                    </span>
+                    {user.role === 'student' && game?.available && (
+                      <button
+                        className="primary"
+                        onClick={() => onStartGame(selectedKey, quiz.quiz_id)}
+                      >
+                        {resume ? 'Continue' : 'Choose quiz'}
+                      </button>
+                    )}
+                    {user.role === 'lecturer' && (
+                      <span className="muted">Read-only preview</span>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          {picker.pagination && picker.pagination.pages > 1 && (
+            <div className="list-row pagination" aria-label="Game quiz pages">
+              <button
+                className="secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                Previous
+              </button>
+              <span>
+                Page {picker.pagination.page} of {picker.pagination.pages}
+              </span>
+              <button
+                className="secondary"
+                disabled={page >= picker.pagination.pages}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </section>
       )}
     </section>
   );
