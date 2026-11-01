@@ -21,6 +21,7 @@ import {
   QuizTaking,
   Quizzes,
   QuizAuthoring,
+  QuizEditor,
   ResourceRow,
   Resources,
   Groups,
@@ -129,6 +130,62 @@ describe('manual quiz taking question types', () => {
     );
     expect(screen.queryByText('Cape Town')).toBeNull();
     expect(screen.getByText('One scored attempt only.')).toBeTruthy();
+  });
+});
+
+describe('whole-quiz editor', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows all question cards, add menu, status, marks, movement and previews', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          quiz: {
+            quiz_id: 'quiz-1',
+            title: 'Mixed quiz',
+            is_competitive: true,
+            status: 'draft',
+            questions: [
+              {
+                questionId: 'q-1',
+                questionText: 'Choose one',
+                questionType: 'multiple_choice',
+                marks: 2,
+                options: [
+                  { optionId: 'o1', optionText: 'Correct', isCorrect: true },
+                  { optionId: 'o2', optionText: 'Wrong', isCorrect: false },
+                ],
+              },
+              {
+                questionId: 'q-2',
+                questionText: '',
+                questionType: 'short_answer',
+                marks: 3,
+                acceptedAnswers: [],
+                options: [],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    render(<QuizEditor quizId="quiz-1" onDone={vi.fn()} />);
+    expect(
+      await screen.findByRole('heading', { name: 'Quiz editor' }),
+    ).toBeTruthy();
+    expect(screen.getByText(/1 of 2 questions have text/)).toBeTruthy();
+    expect(screen.getByText(/5 total marks/)).toBeTruthy();
+    expect(screen.getByLabelText('Add question')).toBeTruthy();
+    expect(screen.getByText(/Question 1: Complete/)).toBeTruthy();
+    expect(screen.getByText(/Question 2: Incomplete/)).toBeTruthy();
+    expect(screen.getByLabelText('Preview question 1')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Run publish checklist' }),
+    ).toBeTruthy();
   });
 });
 

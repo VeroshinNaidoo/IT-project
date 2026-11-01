@@ -2361,6 +2361,7 @@ export function QuizAuthoring({ onDone }) {
       }
       setMessage(status === 'published' ? 'Quiz published.' : 'Draft saved.');
       if (status === 'published') onDone?.();
+      else onDone?.(createdQuizId);
     } catch (reason) {
       setMessage(reason.message || 'Please check the fields.');
     }
@@ -2541,6 +2542,560 @@ export function QuizAuthoring({ onDone }) {
   );
 }
 
+function blankQuestion(questionType = 'multiple_choice') {
+  return {
+    question_type: questionType,
+    question_text: '',
+    marks: 1,
+    difficulty_level: 3,
+    explanation: '',
+    accepted_answers: questionType === 'short_answer' ? [''] : [],
+    ignore_punctuation: false,
+    code_before: '',
+    code_after: '',
+    expected_output: '',
+    options: [
+      { optionText: '', isCorrect: true },
+      { optionText: '', isCorrect: false },
+    ],
+  };
+}
+
+export function QuizEditor({ quizId, onDone }) {
+  const [state, setState] = useState({ loading: true, error: '', quiz: null });
+  const [open, setOpen] = useState({});
+  const [saved, setSaved] = useState({});
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    api(`/quizzes/${quizId}`)
+      .then((body) => {
+        const quiz = body.quiz;
+        setState({ loading: false, error: '', quiz });
+        setOpen(
+          Object.fromEntries(
+            (quiz.questions || []).map((q) => [q.questionId, true]),
+          ),
+        );
+      })
+      .catch((reason) =>
+        setState({ loading: false, error: reason.message, quiz: null }),
+      );
+  }, [quizId]);
+  if (state.loading) return <p className="muted">Loading quiz editor…</p>;
+  if (state.error) return <p className="field-error">{state.error}</p>;
+  const quiz = state.quiz;
+  const questions = quiz.questions || [];
+  const updateQuestion = (questionId, patch) =>
+    setState((current) => ({
+      ...current,
+      quiz: {
+        ...current.quiz,
+        questions: current.quiz.questions.map((question) =>
+          question.questionId === questionId
+            ? { ...question, ...patch }
+            : question,
+        ),
+      },
+    }));
+  const saveQuestion = async (question) => {
+    setSaved((current) => ({ ...current, [question.questionId]: 'saving' }));
+    try {
+      await api(`/quizzes/${quizId}/questions/${question.questionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          questionId: question.questionId,
+          questionType:
+            question.questionType ||
+            question.question_type ||
+            'multiple_choice',
+          questionText: question.questionText || question.question_text,
+          marks: Number(question.marks || 1),
+          difficultyLevel: Number(
+            question.difficultyLevel || question.difficulty_level || 3,
+          ),
+          explanation: question.explanation || null,
+          options: (question.options || []).map((option) => ({
+            optionText: option.optionText,
+            isCorrect: option.isCorrect ?? option.correct ?? false,
+          })),
+          acceptedAnswers:
+            question.acceptedAnswers || question.accepted_answers || [],
+          ignorePunctuation:
+            question.ignorePunctuation || question.ignore_punctuation || false,
+          codeLanguage: question.codeLanguage || question.code_language || null,
+          codeBefore: question.codeBefore || question.code_before || null,
+          codeAfter: question.codeAfter || question.code_after || null,
+          expectedOutput:
+            question.expectedOutput || question.expected_output || null,
+          displayOrder: question.displayOrder || question.display_order || 0,
+        }),
+      });
+      setSaved((current) => ({ ...current, [question.questionId]: 'saved' }));
+    } catch (reason) {
+      setSaved((current) => ({ ...current, [question.questionId]: 'error' }));
+      setMessage(reason.message);
+    }
+  };
+  const addQuestion = async (event) => {
+    const questionType = event.target.value;
+    event.target.value = '';
+    if (!questionType) return;
+    try {
+      const result = await api(`/quizzes/${quizId}/questions`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...blankQuestion(questionType),
+          questionType,
+          questionText: 'New question',
+          difficultyLevel: 3,
+          displayOrder: questions.length,
+          acceptedAnswers: questionType === 'short_answer' ? ['Answer'] : [],
+          options:
+            questionType === 'short_answer' ? [] : blankQuestion().options,
+        }),
+      });
+      setState((current) => ({
+        ...current,
+        quiz: {
+          ...current.quiz,
+          questions: [...current.quiz.questions, result.question],
+        },
+      }));
+      setMessage('Question added.');
+    } catch (reason) {
+      setMessage(reason.message);
+    }
+  };
+  const moveQuestion = async (index, direction) => {
+    const next = [...questions];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setState((current) => ({
+      ...current,
+      quiz: { ...current.quiz, questions: next },
+    }));
+    await api(`/quizzes/${quizId}/questions/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({
+        questionIds: next.map((question) => question.questionId),
+      }),
+    });
+    setMessage('Question order saved.');
+  };
+  const duplicateQuestion = async (question) => {
+    const result = await api(
+      `/quizzes/${quizId}/questions/${question.questionId}/duplicate`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    );
+    setState((current) => ({
+      ...current,
+      quiz: {
+        ...current.quiz,
+        questions: [...current.quiz.questions, result.question],
+      },
+    }));
+  };
+  const deleteQuestion = async (question) => {
+    await api(`/quizzes/${quizId}/questions/${question.questionId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({}),
+    });
+    setState((current) => ({
+      ...current,
+      quiz: {
+        ...current.quiz,
+        questions: current.quiz.questions.filter(
+          (item) => item.questionId !== question.questionId,
+        ),
+      },
+    }));
+  };
+  const publishCheck = async () => {
+    const result = await api(`/quizzes/${quizId}/publish-check`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    setMessage(
+      result.checklist.ok
+        ? 'Publish checklist passed.'
+        : `Publish blocked: ${result.checklist.issues.map((issue) => issue.message).join('; ')}`,
+    );
+  };
+  const publish = async () => {
+    const result = await api(`/quizzes/${quizId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    setMessage(result.checklist?.ok ? 'Quiz published.' : 'Quiz published.');
+  };
+  const completeCount = questions.filter(
+    (question) => question.questionText || question.question_text,
+  ).length;
+  const totalMarks = questions.reduce(
+    (sum, question) => sum + Number(question.marks || 0),
+    0,
+  );
+  return (
+    <section className="card quiz-editor" aria-labelledby="quiz-editor-title">
+      <div className="section-heading">
+        <div>
+          <h2 id="quiz-editor-title">Quiz editor</h2>
+          <p className="muted">Edit the whole quiz in one place.</p>
+        </div>
+        <button className="link-button" onClick={onDone}>
+          Back to quizzes
+        </button>
+      </div>
+      <div className="editor-settings">
+        <label>
+          Quiz title
+          <input
+            value={quiz.title || ''}
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                quiz: { ...current.quiz, title: event.target.value },
+              }))
+            }
+            onBlur={() =>
+              api(`/quizzes/${quizId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                  title: quiz.title,
+                  isCompetitive: quiz.is_competitive,
+                  closesAt: quiz.closes_at,
+                  status: quiz.status,
+                }),
+              }).then(() => setMessage('Settings saved.'))
+            }
+          />
+        </label>
+        <fieldset>
+          <legend>Mode</legend>
+          <label>
+            <input
+              type="radio"
+              checked={!quiz.is_competitive}
+              onChange={() =>
+                setState((current) => ({
+                  ...current,
+                  quiz: { ...current.quiz, is_competitive: false },
+                }))
+              }
+            />{' '}
+            Practice
+          </label>
+          <label>
+            <input
+              type="radio"
+              checked={quiz.is_competitive}
+              onChange={() =>
+                setState((current) => ({
+                  ...current,
+                  quiz: { ...current.quiz, is_competitive: true },
+                }))
+              }
+            />{' '}
+            Competitive
+          </label>
+        </fieldset>
+        <label>
+          Closing time
+          <input
+            type="datetime-local"
+            value={quiz.closes_at ? quiz.closes_at.slice(0, 16) : ''}
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                quiz: {
+                  ...current.quiz,
+                  closes_at: event.target.value
+                    ? new Date(event.target.value).toISOString()
+                    : null,
+                },
+              }))
+            }
+          />
+        </label>
+      </div>
+      <div className="list-row">
+        <strong>
+          {completeCount} of {questions.length} questions have text ·{' '}
+          {totalMarks} total marks
+        </strong>
+        <select
+          aria-label="Add question"
+          defaultValue=""
+          onChange={addQuestion}
+        >
+          <option value="">Add question</option>
+          <option value="multiple_choice">Multiple choice</option>
+          <option value="true_false">True or false</option>
+          <option value="short_answer">Short answer</option>
+          <option value="code">Code question</option>
+        </select>
+      </div>
+      {questions.map((question, index) => {
+        const id = question.questionId;
+        const type =
+          question.questionType || question.question_type || 'multiple_choice';
+        const textValue = question.questionText || question.question_text || '';
+        const complete =
+          Boolean(textValue) &&
+          (type === 'short_answer'
+            ? (question.acceptedAnswers || question.accepted_answers || [])
+                .length > 0
+            : (question.options || []).length >= 2);
+        return (
+          <article
+            className="card quiz-question-card"
+            key={id}
+            id={`question-${id}`}
+          >
+            <div className="list-row">
+              <button
+                className="secondary"
+                aria-expanded={Boolean(open[id])}
+                onClick={() =>
+                  setOpen((current) => ({ ...current, [id]: !current[id] }))
+                }
+              >
+                Question {index + 1}: {complete ? 'Complete' : 'Incomplete'}
+              </button>
+              <span>
+                {Number(question.marks || 0)} marks ·{' '}
+                {saved[id] === 'saved'
+                  ? 'Saved'
+                  : saved[id] === 'saving'
+                    ? 'Saving…'
+                    : 'Unsaved changes'}
+              </span>
+              <button
+                className="secondary"
+                aria-label={`Move question ${index + 1} up`}
+                disabled={!index}
+                onClick={() => moveQuestion(index, -1)}
+              >
+                ↑
+              </button>
+              <button
+                className="secondary"
+                aria-label={`Move question ${index + 1} down`}
+                disabled={index === questions.length - 1}
+                onClick={() => moveQuestion(index, 1)}
+              >
+                ↓
+              </button>
+              <button
+                className="secondary"
+                onClick={() => duplicateQuestion(question)}
+              >
+                Duplicate
+              </button>
+              <button
+                className="secondary"
+                onClick={() => deleteQuestion(question)}
+              >
+                Delete
+              </button>
+            </div>
+            {open[id] && (
+              <div className="question-editor-fields">
+                <label>
+                  Question type
+                  <select
+                    value={type}
+                    onChange={(event) =>
+                      updateQuestion(id, { questionType: event.target.value })
+                    }
+                  >
+                    <option value="multiple_choice">Multiple choice</option>
+                    <option value="true_false">True or false</option>
+                    <option value="short_answer">Short answer</option>
+                    <option value="code">Code question</option>
+                  </select>
+                </label>
+                <label>
+                  Question text
+                  <textarea
+                    value={textValue}
+                    onChange={(event) =>
+                      updateQuestion(id, { questionText: event.target.value })
+                    }
+                    onBlur={() =>
+                      saveQuestion({ ...question, questionText: textValue })
+                    }
+                  />
+                </label>
+                <label>
+                  Marks
+                  <input
+                    type="number"
+                    min="1"
+                    value={question.marks || 1}
+                    onChange={(event) =>
+                      updateQuestion(id, { marks: Number(event.target.value) })
+                    }
+                    onBlur={() =>
+                      saveQuestion({
+                        ...question,
+                        marks: Number(question.marks || 1),
+                      })
+                    }
+                  />
+                </label>
+                {type === 'short_answer' ? (
+                  <label>
+                    Accepted answer
+                    <input
+                      value={
+                        (question.acceptedAnswers ||
+                          question.accepted_answers || [''])[0] || ''
+                      }
+                      onChange={(event) =>
+                        updateQuestion(id, {
+                          acceptedAnswers: [event.target.value],
+                        })
+                      }
+                      onBlur={() =>
+                        saveQuestion({
+                          ...question,
+                          acceptedAnswers:
+                            question.acceptedAnswers ||
+                            question.accepted_answers,
+                        })
+                      }
+                    />
+                  </label>
+                ) : type !== 'code' ? (
+                  <fieldset>
+                    <legend>Answer options</legend>
+                    {(question.options || []).map((option, optionIndex) => (
+                      <div className="list-row" key={optionIndex}>
+                        <input
+                          aria-label={`Question ${index + 1} option ${optionIndex + 1}`}
+                          value={option.optionText || ''}
+                          onChange={(event) => {
+                            const options = [...(question.options || [])];
+                            options[optionIndex] = {
+                              ...options[optionIndex],
+                              optionText: event.target.value,
+                            };
+                            updateQuestion(id, { options });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="secondary"
+                          aria-pressed={Boolean(
+                            option.isCorrect ?? option.correct,
+                          )}
+                          onClick={() =>
+                            updateQuestion(id, {
+                              options: (question.options || []).map(
+                                (item, itemIndex) => ({
+                                  ...item,
+                                  isCorrect: itemIndex === optionIndex,
+                                }),
+                              ),
+                            })
+                          }
+                        >
+                          {(option.isCorrect ?? option.correct)
+                            ? 'Correct'
+                            : 'Set correct'}
+                        </button>
+                      </div>
+                    ))}
+                  </fieldset>
+                ) : (
+                  <>
+                    <label>
+                      Code before
+                      <textarea
+                        value={
+                          question.code_before || question.codeBefore || ''
+                        }
+                        onChange={(event) =>
+                          updateQuestion(id, { codeBefore: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Code after
+                      <textarea
+                        value={question.code_after || question.codeAfter || ''}
+                        onChange={(event) =>
+                          updateQuestion(id, { codeAfter: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Expected output
+                      <textarea
+                        value={
+                          question.expected_output ||
+                          question.expectedOutput ||
+                          ''
+                        }
+                        onChange={(event) =>
+                          updateQuestion(id, {
+                            expectedOutput: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  </>
+                )}
+                <aside
+                  className="card quiz-student-preview"
+                  aria-label={`Preview question ${index + 1}`}
+                >
+                  <h3>Preview as a student</h3>
+                  <p>{textValue || 'Question text will appear here.'}</p>
+                  {type === 'short_answer' ? (
+                    <input
+                      aria-label={`Preview answer ${index + 1}`}
+                      readOnly
+                      placeholder="Student answer"
+                    />
+                  ) : type === 'code' ? (
+                    <pre>{question.code_before || 'Code before'}</pre>
+                  ) : (
+                    (question.options || []).map((option, optionIndex) => (
+                      <label key={optionIndex}>
+                        <input type="radio" disabled />
+                        {option.optionText || `Option ${optionIndex + 1}`}
+                      </label>
+                    ))
+                  )}
+                </aside>
+              </div>
+            )}
+          </article>
+        );
+      })}
+      {message && (
+        <p role="status" className="form-success">
+          {message}
+        </p>
+      )}
+      <div className="button-row">
+        <button className="secondary" onClick={publishCheck}>
+          Run publish checklist
+        </button>
+        <button className="primary" onClick={publish}>
+          Publish quiz
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function Quizzes({
   user,
   onTake,
@@ -2552,6 +3107,7 @@ export function Quizzes({
   onPlayTimerTrivia,
 }) {
   const [creating, setCreating] = useState(false);
+  const [editingQuizId, setEditingQuizId] = useState('');
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
   const [page, setPage] = useState(1);
@@ -2561,8 +3117,16 @@ export function Quizzes({
       ? `/modules/${moduleId}/quizzes?page=${page}&pageSize=20&search=${encodeURIComponent(search)}`
       : '/modules',
   );
+  if (editingQuizId && user?.role === 'lecturer')
+    return (
+      <QuizEditor quizId={editingQuizId} onDone={() => setEditingQuizId('')} />
+    );
   if (creating && user?.role === 'lecturer')
-    return <QuizAuthoring onDone={() => setCreating(false)} />;
+    return (
+      <QuizAuthoring
+        onDone={(id) => (id ? setEditingQuizId(id) : setCreating(false))}
+      />
+    );
   return (
     <section className="card">
       <h2>Quizzes</h2>

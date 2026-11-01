@@ -3101,7 +3101,7 @@ app.get(
   async (req, res, next) => {
     try {
       const result = await pool.query(
-        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'difficultyLevel',q.difficulty_level,'explanation',q.explanation,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FROM question_options o WHERE o.question_id=q.question_id))) FILTER (WHERE q.question_id IS NOT NULL) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
+        `SELECT z.*, json_agg(json_build_object('questionId',q.question_id,'questionText',q.question_text,'marks',q.marks,'difficultyLevel',q.difficulty_level,'explanation',q.explanation,'questionType',q.question_type,'acceptedAnswers',q.accepted_answers,'ignorePunctuation',q.ignore_punctuation,'codeLanguage',q.code_language,'codeBefore',q.code_before,'codeAfter',q.code_after,'expectedOutput',q.expected_output,'displayOrder',q.display_order,'topic',t.name,'options',(SELECT json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text,'correct',o.is_correct)) FROM question_options o WHERE o.question_id=q.question_id))) FILTER (WHERE q.question_id IS NOT NULL) AS questions FROM quizzes z LEFT JOIN questions q ON q.quiz_id=z.quiz_id LEFT JOIN topics t ON t.topic_id=q.topic_id JOIN modules m ON m.module_id=z.module_id WHERE z.quiz_id=$1 AND m.lecturer_id=$2 GROUP BY z.quiz_id`,
         [req.params.quizId, req.user.userId],
       );
       if (!result.rowCount)
