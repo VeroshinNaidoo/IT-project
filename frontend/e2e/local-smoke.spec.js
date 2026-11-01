@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 test('browser suite uses an isolated database, never the dev database', () => {
   expect(process.env.DATABASE_URL).not.toContain(':5432/eduquest');
@@ -39,4 +40,34 @@ test('seeded lecturer logs in, generates a quiz and publishes it', async ({
   await expect(
     page.getByRole('heading', { name: 'Welcome back' }),
   ).toBeVisible();
+});
+
+test('profile page edits identity and languages with an accessible layout', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByLabel('Email').fill('demo-lecturer@example.com');
+  await page.getByLabel('Password').fill('EduQuestDemo123!');
+  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit profile', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Edit profile' }),
+  ).toBeVisible();
+  const expectAccessible = async () => {
+    await page.waitForTimeout(500);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  };
+  await expectAccessible();
+  await page.getByLabel('First name').fill('A!');
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expectAccessible();
+  await page.getByLabel('First name').fill('Demo');
+  await page.getByLabel('Python').check();
+  await expect(page.getByText('You have unsaved changes.')).toBeVisible();
+  await expectAccessible();
+  await page.getByRole('button', { name: 'Save profile' }).click();
+  await expect(page.getByText('Profile saved.')).toBeVisible();
+  await expectAccessible();
 });

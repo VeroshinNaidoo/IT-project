@@ -1672,6 +1672,7 @@ describe('frontend authentication and role routing', () => {
   });
 });
 it('profile page loads, edits preferred languages, and shows unsaved changes', async () => {
+  cleanup();
   const profile = {
     user_id: 'profile-1',
     role: 'student',
@@ -1709,5 +1710,55 @@ it('profile page loads, edits preferred languages, and shows unsaved changes', a
   expect(screen.getByText('You have unsaved changes.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
   await waitFor(() => expect(screen.getByText('Profile saved.')).toBeTruthy());
+  vi.unstubAllGlobals();
+});
+
+it('profile page shows inline validation errors and MFA actions', async () => {
+  cleanup();
+  const profile = {
+    user_id: 'profile-2',
+    role: 'student',
+    first_name: 'Grace',
+    last_name: 'Hopper',
+    student_type: 'it',
+    email: 'grace@example.com',
+    preferred_languages: [],
+    mfa_enabled: true,
+  };
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ profile, languages: ['Python'] }),
+    })
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: { message: "That text isn't allowed." } }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: 'MFA updated.' }),
+    });
+  vi.stubGlobal('fetch', fetchMock);
+  render(<ProfilePage user={profile} onUserChange={vi.fn()} />);
+  await screen.findByText('MFA is enabled.');
+  fireEvent.change(screen.getByLabelText('First name'), {
+    target: { value: 'bad text' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(
+      "That text isn't allowed.",
+    ),
+  );
+  expect(screen.getByRole('button', { name: 'Disable MFA' })).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Regenerate recovery codes' }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Disable MFA' }));
+  await waitFor(() => expect(screen.getByText('MFA updated.')).toBeTruthy());
   vi.unstubAllGlobals();
 });

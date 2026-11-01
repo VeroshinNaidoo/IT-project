@@ -1,6 +1,8 @@
 // @ts-nocheck
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import request from 'supertest';
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 
@@ -132,6 +134,24 @@ describe('profile management API', () => {
     expect(target.rows[0].first_name).toBe('Updated');
   });
 
+  it('applies the shared name rules and rejects protected profile fields', async () => {
+    const cookie = await login();
+    for (const firstName of ['A1', 'A!', 'A'.repeat(51)]) {
+      const result = await request(app)
+        .patch('/api/v1/me/profile')
+        .set('Cookie', cookie)
+        .send({ firstName });
+      expect(result.status).toBe(422);
+    }
+    for (const field of ['userId', 'emailVerifiedAt', 'mfaEnabled', 'id']) {
+      const result = await request(app)
+        .patch('/api/v1/me/profile')
+        .set('Cookie', cookie)
+        .send({ [field]: 'protected' });
+      expect(result.status).toBe(422);
+    }
+  });
+
   it('changes password under the shared policy and revokes every other session only', async () => {
     const current = await login();
     const other = await login();
@@ -191,6 +211,14 @@ describe('profile management API', () => {
 
   it('keeps the old email active until the new email is verified', async () => {
     const cookie = await login(email, 'ProfileNew9@');
+    const wrongPassword = await request(app)
+      .post('/api/v1/me/email')
+      .set('Cookie', cookie)
+      .send({
+        password: 'WrongCurrent9!',
+        email: `wrong-${Date.now()}@example.com`,
+      });
+    expect(wrongPassword.status).toBe(401);
     const changed = await request(app)
       .post('/api/v1/me/email')
       .set('Cookie', cookie)
@@ -206,6 +234,100 @@ describe('profile management API', () => {
     expect(row.rows[0].email).toBe(email);
     expect(row.rows[0].pending_email).toBeTruthy();
     expect(changed.body).not.toHaveProperty('token');
+  });
+
+  it('completes profile email change verification and rejects expired or reused links', async () => {
+    const verifyEmail = `profile-verify-${Date.now()}@example.com`;
+    const replacementEmail = `profile-verified-${Date.now()}@example.com`;
+    const hash = await bcrypt.hash(password, 12);
+    const inserted = await pool.query(
+      `INSERT INTO users(email,password_hash,role,full_name,first_name,student_type,email_verified_at)
+       VALUES($1,$2,'student','Verification User','Verification','it',now()) RETURNING user_id`,
+      [verifyEmail, hash],
+    );
+    const verifyUserId = inserted.rows[0].user_id;
+    const cookie = await login(verifyEmail);
+    expect(
+      (
+        await request(app)
+          .post('/api/v1/me/email')
+          .set('Cookie', cookie)
+          .send({ password, email: replacementEmail })
+      ).status,
+    ).toBe(200);
+
+    const mail = await readFile(`docs/dev-mail/${verifyUserId}.txt`, 'utf8');
+    const token = mail.match(/token=([^\s]+)/)?.[1];
+    expect(token).toBeTruthy();
+    expect(
+      (
+        await request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: verifyEmail, password })
+      ).status,
+    ).toBe(200);
+
+    expect(
+      (await request(app).get('/api/v1/auth/verify-email').query({ token }))
+        .status,
+    ).toBe(200);
+    expect(
+      (await request(app).get('/api/v1/auth/verify-email').query({ token }))
+        .status,
+    ).toBe(422);
+    expect(
+      (
+        await request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: verifyEmail, password })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: replacementEmail, password })
+      ).status,
+    ).toBe(200);
+
+    const expiredToken = `expired-profile-${Date.now()}`;
+    await pool.query(
+      `INSERT INTO email_verification_tokens(user_id,token_hash,target_email,expires_at)
+       VALUES($1,$2,$3,now()-interval '1 minute')`,
+      [
+        verifyUserId,
+        crypto.createHash('sha256').update(expiredToken).digest('hex'),
+        `expired-${Date.now()}@example.com`,
+      ],
+    );
+    expect(
+      (
+        await request(app)
+          .get('/api/v1/auth/verify-email')
+          .query({ token: expiredToken })
+      ).status,
+    ).toBe(422);
+  });
+
+  it('enforces every new-password policy rule server-side', async () => {
+    const cookie = await login(email, 'ProfileNew9@');
+    for (const newPassword of [
+      'short',
+      'lowercaseonly1!',
+      'UPPERCASEONLY1!',
+      'NoNumber!!',
+      'NoSpecial123',
+    ]) {
+      const result = await request(app)
+        .post('/api/v1/me/password')
+        .set('Cookie', cookie)
+        .send({
+          password: 'ProfileNew9@',
+          newPassword,
+          confirmPassword: newPassword,
+        });
+      expect(result.status).toBe(422);
+    }
   });
 
   it('never returns password hashes, MFA secrets, or tokens', async () => {

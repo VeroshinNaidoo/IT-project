@@ -275,7 +275,7 @@ select {
   color: #14213d;
 }
 button:disabled {
-  opacity: 0.55;
+  opacity: 1;
   cursor: not-allowed;
 }
 .list-row {
@@ -363,9 +363,18 @@ button:disabled {
   background: #3b4bdb;
   color: #fff;
 }
+.primary:disabled {
+  background: #56617a;
+  color: #fff;
+  box-shadow: none;
+}
 .secondary {
   background: #e4e7fb;
   color: #3b4bdb;
+}
+.secondary:disabled {
+  background: #e4e7fb;
+  color: #14213d;
 }
 .stat {
   display: flex;
@@ -392,6 +401,9 @@ button:disabled {
   padding: 12px;
   border-radius: 10px;
   margin: 18px 0;
+}
+.card p.warning {
+  color: #6b4400;
 }
 .podium {
   height: 240px;

@@ -20,3 +20,22 @@ form. Mobile navigation becomes a labelled top panel, preserving content width.
 Cards enter with a 360ms fade/translation; controls use 180ms hover/focus transitions.
 All motion is disabled with `prefers-reduced-motion: reduce`. CSS-only decoration
 keeps the design lightweight. The approved palette and fonts remain unchanged.
+
+## Accessibility contrast corrections — 2026-11-01
+
+The shared stylesheet previously applied `opacity: 0.55` to disabled controls. That
+blended otherwise-compliant text and backgrounds into failing contrast pairs. The
+correction is global: disabled controls now remain opaque, disabled primary controls
+use `#56617A`, and disabled secondary controls use ink `#14213D` on the existing
+primary tint `#E4E7FB`.
+
+| Token/state                 | Old effective value            | New value          | Measured ratio                          |
+| --------------------------- | ------------------------------ | ------------------ | --------------------------------------- |
+| Disabled control opacity    | `0.55`                         | `1`                | evaluated at the explicit state colours |
+| Disabled primary background | blended `#7E87E2`              | `#56617A`          | white text: `6.20:1`                    |
+| Disabled secondary text     | blended `#9BA0AF`              | `#14213D`          | on `#E4E7FB`: `13.02:1`                 |
+| Existing muted text         | `#68718B`                      | unchanged          | on white: `4.86:1`                      |
+| Warning text inside cards   | inherited `#68718B` (`4.06:1`) | explicit `#6B4400` | on `#FCE9C4`: `7.17:1`                  |
+
+The shared contrast regression test covers the normal text and component pairs used
+by the app and requires at least `4.5:1` for normal text and `3:1` for components.
