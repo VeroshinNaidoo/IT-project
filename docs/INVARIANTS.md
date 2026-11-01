@@ -132,3 +132,9 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 - INV-25: short-answer accepted answers remain server-side until submission; blank answers score zero.
 - INV-26: code snippets are escaped and never executed by the server.
 - INV-27: destructive edits to a published quiz with attempts are rejected; duplication creates a new draft.
+
+## Manual quiz assessment additions
+
+- INV-28: short-answer submissions are normalized server-side, capped at 2000 characters, and matched only against lecturer-provided accepted answers; blank answers are unanswered and score zero.
+- INV-29: option-based games exclude short-answer and code questions; mixed quizzes remain playable using only eligible fixed-option questions.
+- INV-30: code question content is displayed as escaped text and is never executed by the server.

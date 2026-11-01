@@ -44,7 +44,8 @@ export const authorQuestionSchema = z
   .superRefine((question, ctx) => {
     if (
       question.questionType === 'multiple_choice' ||
-      question.questionType === 'true_false'
+      question.questionType === 'true_false' ||
+      question.questionType === 'code'
     ) {
       if (question.options.length < 2 || question.options.length > 6)
         ctx.addIssue({

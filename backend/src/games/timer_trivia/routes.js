@@ -107,6 +107,7 @@ export function registerTimerTriviaRoutes({
         `SELECT q.question_id,q.difficulty_level,coalesce(t.name,'General') AS topic_name
          FROM questions q LEFT JOIN topics t ON t.topic_id=q.topic_id
          WHERE q.quiz_id=$1
+           AND q.question_type NOT IN ('short_answer','code')
            AND EXISTS (SELECT 1 FROM question_options o
                        WHERE o.question_id=q.question_id AND o.is_correct=true)
            AND (SELECT count(*) FROM question_options o

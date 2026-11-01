@@ -101,7 +101,7 @@ export function registerIslandEscapeRoutes({
     const poolRows = (
       await client.query(
         `SELECT question_id,difficulty_level FROM questions
-         WHERE quiz_id=$1 ORDER BY question_id`,
+         WHERE quiz_id=$1 AND question_type NOT IN ('short_answer','code') ORDER BY question_id`,
         [quizId],
       )
     ).rows;

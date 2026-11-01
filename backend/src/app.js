@@ -3354,9 +3354,11 @@ app.post(
         [req.params.quizId, req.user.userId],
       );
       const questions = await tx.query(
-        "SELECT q.question_id,q.question_text,q.marks,q.topic_id,json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) options FROM questions q JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 GROUP BY q.question_id ORDER BY q.question_id",
+        "SELECT q.question_id,q.question_text,q.marks,q.topic_id,q.question_type,q.code_language,q.code_before,json_agg(json_build_object('optionId',o.option_id,'optionText',o.option_text)) FILTER (WHERE o.option_id IS NOT NULL) options FROM questions q LEFT JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 GROUP BY q.question_id ORDER BY q.display_order,q.question_id",
         [req.params.quizId],
       );
+      for (const question of questions.rows)
+        question.options = question.options || [];
       await tx.query('COMMIT');
       res.status(201).json({
         attempt: attempt.rows[0],
@@ -3417,12 +3419,20 @@ app.post(
         z
           .object({
             answers: z.array(
-              z
-                .object({
-                  questionId: z.string().uuid(),
-                  optionId: z.string().uuid(),
-                })
-                .strict(),
+              z.union([
+                z
+                  .object({
+                    questionId: z.string().uuid(),
+                    optionId: z.string().uuid(),
+                  })
+                  .strict(),
+                z
+                  .object({
+                    questionId: z.string().uuid(),
+                    answerText: z.string().max(2000),
+                  })
+                  .strict(),
+              ]),
             ),
           })
           .strict(),
@@ -3448,11 +3458,11 @@ app.post(
           );
         }
         answers.add(answer.questionId);
-        const row = await tx.query(
-          `SELECT q.question_id,q.marks,o.option_id,o.is_correct FROM questions q JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 AND q.question_id=$2 AND o.option_id=$3`,
-          [attempt.rows[0].quiz_id, answer.questionId, answer.optionId],
+        const question = await tx.query(
+          'SELECT question_id,question_type,marks,accepted_answers,ignore_punctuation FROM questions WHERE quiz_id=$1 AND question_id=$2',
+          [attempt.rows[0].quiz_id, answer.questionId],
         );
-        if (!row.rowCount) {
+        if (!question.rowCount) {
           await tx.query('ROLLBACK');
           return error(
             res,
@@ -3462,16 +3472,72 @@ app.post(
             requestId(req),
           );
         }
-        if (row.rows[0].is_correct) score += Number(row.rows[0].marks);
-        await tx.query(
-          'INSERT INTO student_answers(attempt_id,question_id,option_id,is_correct) VALUES($1,$2,$3,$4)',
-          [
-            req.params.attemptId,
-            answer.questionId,
-            answer.optionId,
-            row.rows[0].is_correct,
-          ],
-        );
+        let isCorrect = false;
+        if (question.rows[0].question_type === 'short_answer') {
+          if (!('answerText' in answer)) {
+            await tx.query('ROLLBACK');
+            return error(
+              res,
+              400,
+              'INVALID_ANSWER',
+              'One or more answers are invalid.',
+              requestId(req),
+            );
+          }
+          const submitted = answer.answerText
+            .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+            .trim();
+          if (submitted) {
+            isCorrect = matchesShortAnswer(
+              submitted,
+              question.rows[0].accepted_answers || [],
+              question.rows[0].ignore_punctuation,
+            );
+            if (isCorrect) score += Number(question.rows[0].marks);
+            await tx.query(
+              'INSERT INTO student_answers(attempt_id,question_id,answer_text,is_correct) VALUES($1,$2,$3,$4)',
+              [req.params.attemptId, answer.questionId, submitted, isCorrect],
+            );
+          } else {
+            answers.delete(answer.questionId);
+          }
+        } else {
+          if (!('optionId' in answer)) {
+            await tx.query('ROLLBACK');
+            return error(
+              res,
+              400,
+              'INVALID_ANSWER',
+              'One or more answers are invalid.',
+              requestId(req),
+            );
+          }
+          const row = await tx.query(
+            'SELECT o.option_id,o.is_correct FROM question_options o WHERE o.question_id=$1 AND o.option_id=$2',
+            [answer.questionId, answer.optionId],
+          );
+          if (!row.rowCount) {
+            await tx.query('ROLLBACK');
+            return error(
+              res,
+              400,
+              'INVALID_ANSWER',
+              'One or more answers are invalid.',
+              requestId(req),
+            );
+          }
+          isCorrect = row.rows[0].is_correct;
+          if (isCorrect) score += Number(question.rows[0].marks);
+          await tx.query(
+            'INSERT INTO student_answers(attempt_id,question_id,option_id,is_correct) VALUES($1,$2,$3,$4)',
+            [
+              req.params.attemptId,
+              answer.questionId,
+              answer.optionId,
+              isCorrect,
+            ],
+          );
+        }
       }
       const count = await tx.query(
         'SELECT count(*)::int AS total FROM questions WHERE quiz_id=$1',
@@ -3481,10 +3547,17 @@ app.post(
         'UPDATE quiz_attempts SET score=$1,completion_time=now(),is_scored=$2 WHERE attempt_id=$3 RETURNING *',
         [score, attempt.rows[0].is_competitive, req.params.attemptId],
       );
+      const feedback = await tx.query(
+        `SELECT q.question_id,q.explanation,q.code_after,q.expected_output,
+          coalesce((SELECT option_text FROM question_options o WHERE o.question_id=q.question_id AND o.is_correct=true LIMIT 1), q.accepted_answers->>0) AS correct_answer
+         FROM questions q WHERE q.quiz_id=$1 ORDER BY q.display_order,q.question_id`,
+        [attempt.rows[0].quiz_id],
+      );
       await tx.query('COMMIT');
       res.json({
         result: completed.rows[0],
         unansweredCount: count.rows[0].total - answers.size,
+        feedback: feedback.rows,
       });
     } catch (e) {
       await tx.query('ROLLBACK');
@@ -3648,8 +3721,9 @@ async function gameAvailabilityForQuiz(user, quiz) {
         count(q.question_id) FILTER (WHERE EXISTS (
           SELECT 1 FROM question_options correct
           WHERE correct.question_id=q.question_id AND correct.is_correct=true
-        ) AND (SELECT count(*) FROM question_options options
+        ) AND q.question_type NOT IN ('short_answer','code') AND (SELECT count(*) FROM question_options options
           WHERE options.question_id=q.question_id)>=2)::int AS answerable
+        ,count(q.question_id) FILTER (WHERE q.question_type IN ('short_answer','code'))::int AS unsupported_for_games
        FROM questions q WHERE q.quiz_id=$1`,
       [quiz.quiz_id],
     )

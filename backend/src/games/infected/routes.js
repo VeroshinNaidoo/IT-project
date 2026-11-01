@@ -121,7 +121,7 @@ export function registerInfectedRoutes({
     const unused = await client.query(
       `SELECT q.question_id,q.difficulty_level,t.name AS topic
        FROM questions q LEFT JOIN topics t ON t.topic_id=q.topic_id
-       WHERE q.quiz_id=$1 AND NOT EXISTS (
+       WHERE q.quiz_id=$1 AND q.question_type NOT IN ('short_answer','code') AND NOT EXISTS (
          SELECT 1 FROM game_turn_cards c
          WHERE c.session_id=$2 AND c.question_id=q.question_id
        ) ORDER BY q.question_id`,

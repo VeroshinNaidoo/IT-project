@@ -239,6 +239,13 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 
 ## Manual quiz authoring
 
+| Requirement                                                                      | Status                 | Evidence                                                                                                                         |
+| -------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Short-answer scoring, normalization, marks, blank handling and idempotent submit | implemented and tested | `backend/tests/api.test.js` — short-answer normalization and blank/length tests; `db/migrations/024_short_answer_invariants.sql` |
+| Games exclude non-fixed-option questions while mixed quizzes remain available    | implemented and tested | game route eligibility queries; `backend/tests/game-availability.test.js`                                                        |
+| Student short-answer and code rendering without pre-submit answer leakage        | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx` — manual quiz taking question types                                        |
+| Code answers are shown only in post-submit feedback                              | implemented and tested | `backend/src/app.js`, `frontend/src/main.jsx`                                                                                    |
+
 | Requirement                                             | Evidence                                                                                                                                       |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | Lecturer-only manual creation and ownership             | `backend/src/app.js` manual/question authoring routes; executable authorization matrix entries in `backend/tests/authorization-matrix.test.js` |

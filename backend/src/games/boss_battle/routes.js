@@ -102,6 +102,7 @@ export function registerBossBattleRoutes({
         `SELECT q.question_id,q.difficulty_level
          FROM questions q
          WHERE q.quiz_id=$1
+           AND q.question_type NOT IN ('short_answer','code')
            AND EXISTS (
              SELECT 1 FROM question_options correct
              WHERE correct.question_id=q.question_id AND correct.is_correct=true

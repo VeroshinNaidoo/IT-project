@@ -2456,6 +2456,33 @@ export function QuizAuthoring({ onDone }) {
           {message}
         </p>
       )}
+      <aside
+        className="card quiz-student-preview"
+        aria-label="Preview as a student"
+      >
+        <h3>Preview as a student</h3>
+        <p>{questionText || 'Your question will appear here.'}</p>
+        {type === 'short_answer' ? (
+          <input
+            aria-label="Preview short answer"
+            placeholder="Student answer"
+            readOnly
+          />
+        ) : type === 'code' ? (
+          <pre>{'Before\n' + (questionText || 'Code prompt')}</pre>
+        ) : (
+          options.map((option, index) => (
+            <label key={index}>
+              <input type="radio" disabled />
+              {option || `Option ${index + 1}`}
+            </label>
+          ))
+        )}
+        <p className="muted">
+          Pre-publish dry run: questions must have valid answer data before
+          publishing.
+        </p>
+      </aside>
       <div className="button-row">
         <button onClick={() => submit('draft')}>Save draft</button>
         <button className="secondary" onClick={() => submit('published')}>
@@ -4664,10 +4691,33 @@ export function QuizTaking({ quizId }) {
         <h2>Result</h2>
         <p>Your score: {result.result.score}</p>
         <p>{result.unansweredCount} unanswered.</p>
+        {result.feedback?.map((item) => (
+          <div key={item.question_id} aria-live="polite">
+            <strong>
+              Correct answer:{' '}
+              {item.correct_answer || 'See lecturer explanation'}
+            </strong>
+            {item.explanation && <p>{item.explanation}</p>}
+            {item.code_after && (
+              <pre aria-label="Code after">{item.code_after}</pre>
+            )}
+            {item.expected_output && (
+              <p>Expected output: {item.expected_output}</p>
+            )}
+          </div>
+        ))}
       </section>
     );
   const submit = async () => {
-    const unanswered = state.questions.length - Object.keys(answers).length;
+    const answeredCount = state.questions.filter((question) => {
+      const value = answers[question.question_id];
+      return (
+        value !== undefined &&
+        (question.question_type !== 'short_answer' ||
+          String(value).trim() !== '')
+      );
+    }).length;
+    const unanswered = state.questions.length - answeredCount;
     if (
       unanswered &&
       !window.confirm(
@@ -4681,10 +4731,16 @@ export function QuizTaking({ quizId }) {
         await api(`/attempts/${state.attempt.attempt_id}/submit`, {
           method: 'POST',
           body: JSON.stringify({
-            answers: Object.entries(answers).map(([questionId, optionId]) => ({
-              questionId,
-              optionId,
-            })),
+            answers: Object.entries(answers)
+              .filter(([, value]) => String(value).trim() !== '')
+              .map(([questionId, value]) => {
+                const question = state.questions.find(
+                  (item) => item.question_id === questionId,
+                );
+                return question?.question_type === 'short_answer'
+                  ? { questionId, answerText: String(value) }
+                  : { questionId, optionId: value };
+              }),
           }),
         }),
       );
@@ -4703,22 +4759,61 @@ export function QuizTaking({ quizId }) {
       {state.questions.map((question) => (
         <fieldset key={question.question_id}>
           <legend>{question.question_text}</legend>
-          {question.options.map((option) => (
-            <label key={option.optionId}>
+          {question.question_type === 'short_answer' ? (
+            <label>
+              Short answer
               <input
-                type="radio"
-                name={question.question_id}
-                checked={answers[question.question_id] === option.optionId}
-                onChange={() =>
+                aria-label={`Answer for ${question.question_text}`}
+                value={answers[question.question_id] || ''}
+                maxLength={2000}
+                onChange={(event) =>
                   setAnswers({
                     ...answers,
-                    [question.question_id]: option.optionId,
+                    [question.question_id]: event.target.value,
                   })
                 }
               />
-              {option.optionText}
             </label>
-          ))}
+          ) : question.question_type === 'code' ? (
+            <div className="code-question">
+              {question.code_before && (
+                <pre aria-label="Code before">{question.code_before}</pre>
+              )}
+              {question.options?.map((option) => (
+                <label key={option.optionId}>
+                  <input
+                    type="radio"
+                    name={question.question_id}
+                    checked={answers[question.question_id] === option.optionId}
+                    onChange={() =>
+                      setAnswers({
+                        ...answers,
+                        [question.question_id]: option.optionId,
+                      })
+                    }
+                  />
+                  {option.optionText}
+                </label>
+              ))}
+            </div>
+          ) : (
+            question.options.map((option) => (
+              <label key={option.optionId}>
+                <input
+                  type="radio"
+                  name={question.question_id}
+                  checked={answers[question.question_id] === option.optionId}
+                  onChange={() =>
+                    setAnswers({
+                      ...answers,
+                      [question.question_id]: option.optionId,
+                    })
+                  }
+                />
+                {option.optionText}
+              </label>
+            ))
+          )}
         </fieldset>
       ))}
       {state.error && <p className="field-error">{state.error}</p>}

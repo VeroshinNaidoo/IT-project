@@ -299,6 +299,105 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     expect(Number(replay.body.score)).toBe(1);
   });
 
+  it('scores short answers with normalization, punctuation rules, marks and safe storage', async () => {
+    const created = await lecturerAgent.post('/api/v1/quizzes/manual').send({
+      moduleId: moduleRecord.module_id,
+      title: 'Short answer scoring quiz',
+      status: 'published',
+      questions: [
+        {
+          questionType: 'short_answer',
+          questionText: 'Name the primary city.',
+          marks: 3,
+          difficultyLevel: 2,
+          acceptedAnswers: ['Cape Town', 'Kaapstad'],
+          ignorePunctuation: true,
+        },
+      ],
+    });
+    expect(created.status).toBe(201);
+    const quizId = created.body.quiz.quiz_id;
+    const started = await studentAgent.post(
+      `/api/v1/quizzes/${quizId}/attempts`,
+    );
+    expect(started.status).toBe(201);
+    expect(JSON.stringify(started.body)).not.toContain('Cape Town');
+    const questionId = started.body.questions[0].question_id;
+    const submitted = await studentAgent
+      .post(`/api/v1/attempts/${started.body.attempt.attempt_id}/submit`)
+      .send({
+        answers: [{ questionId, answerText: '  KAAPSTAD!  ' }],
+      });
+    expect(submitted.status).toBe(200);
+    expect(Number(submitted.body.result.score)).toBe(3);
+    expect(submitted.body.feedback[0].correct_answer).toBe('Cape Town');
+    const stored = await pool.query(
+      'SELECT answer_text FROM student_answers WHERE attempt_id=$1',
+      [started.body.attempt.attempt_id],
+    );
+    expect(stored.rows[0].answer_text).toBe('KAAPSTAD!');
+    const replay = await studentAgent
+      .post(`/api/v1/attempts/${started.body.attempt.attempt_id}/submit`)
+      .send({ answers: [] });
+    expect(replay.body.alreadySubmitted).toBe(true);
+    expect(Number(replay.body.score)).toBe(3);
+  });
+
+  it('counts blank, wrong and overlong short answers as unanswered or validation failures', async () => {
+    const created = await lecturerAgent.post('/api/v1/quizzes/manual').send({
+      moduleId: moduleRecord.module_id,
+      title: 'Short answer edge cases',
+      status: 'published',
+      questions: [
+        {
+          questionType: 'short_answer',
+          questionText: 'What is SQL?',
+          marks: 2,
+          difficultyLevel: 3,
+          acceptedAnswers: ['Structured Query Language'],
+        },
+      ],
+    });
+    const started = await studentAgent.post(
+      `/api/v1/quizzes/${created.body.quiz.quiz_id}/attempts`,
+    );
+    const questionId = started.body.questions[0].question_id;
+    const tooLong = await studentAgent
+      .post(`/api/v1/attempts/${started.body.attempt.attempt_id}/submit`)
+      .send({ answers: [{ questionId, answerText: 'x'.repeat(2001) }] });
+    expect(tooLong.status).toBe(400);
+    const blankQuiz = await lecturerAgent.post('/api/v1/quizzes/manual').send({
+      moduleId: moduleRecord.module_id,
+      title: 'Blank short answer',
+      status: 'published',
+      questions: [
+        {
+          questionType: 'short_answer',
+          questionText: 'Blank?',
+          marks: 2,
+          difficultyLevel: 3,
+          acceptedAnswers: ['yes'],
+        },
+      ],
+    });
+    const blankAttempt = await studentAgent.post(
+      `/api/v1/quizzes/${blankQuiz.body.quiz.quiz_id}/attempts`,
+    );
+    const blank = await studentAgent
+      .post(`/api/v1/attempts/${blankAttempt.body.attempt.attempt_id}/submit`)
+      .send({
+        answers: [
+          {
+            questionId: blankAttempt.body.questions[0].question_id,
+            answerText: '   ',
+          },
+        ],
+      });
+    expect(blank.status).toBe(200);
+    expect(blank.body.unansweredCount).toBe(1);
+    expect(Number(blank.body.result.score)).toBe(0);
+  });
+
   it('blocks a second competitive attempt and rejects a late submission', async () => {
     expect(
       (

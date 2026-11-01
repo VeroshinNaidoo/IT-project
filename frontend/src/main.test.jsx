@@ -48,6 +48,52 @@ describe('manual quiz authoring', () => {
   });
 });
 
+describe('manual quiz taking question types', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders short-answer and code questions without accepted answers before submission', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          attempt: { attempt_id: 'attempt-1' },
+          quiz: { title: 'Mixed quiz', is_competitive: true },
+          questions: [
+            {
+              question_id: 'short-1',
+              question_text: 'Name the capital.',
+              question_type: 'short_answer',
+              options: [],
+            },
+            {
+              question_id: 'code-1',
+              question_text: 'What changes?',
+              question_type: 'code',
+              code_before: 'const x = 1;',
+              options: [
+                { optionId: 'o1', optionText: 'x becomes 2' },
+                { optionId: 'o2', optionText: 'x is removed' },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    render(<QuizTaking quizId="quiz-1" />);
+    expect(
+      await screen.findByLabelText('Answer for Name the capital.'),
+    ).toBeTruthy();
+    expect(screen.getByLabelText('Code before').textContent).toContain(
+      'const x = 1;',
+    );
+    expect(screen.queryByText('Cape Town')).toBeNull();
+    expect(screen.getByText('One scored attempt only.')).toBeTruthy();
+  });
+});
+
 const bossQuestion = {
   questionId: 'boss-question-1',
   questionText: 'Which index supports this query?',

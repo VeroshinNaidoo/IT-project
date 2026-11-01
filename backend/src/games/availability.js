@@ -43,6 +43,19 @@ export function getGameAvailability({
     reason = 'Complete your scored attempt to unlock this game.';
   else if (questionCount < game.minimum_questions)
     reason = questionReason(game, questionCount);
+  if (
+    reason &&
+    counts.unsupported_for_games > 0 &&
+    [
+      'boss_battle',
+      'pixel_racer',
+      'timer_trivia',
+      'memory_match',
+      'infected',
+      'island_escape',
+    ].includes(game.key)
+  )
+    reason = `${reason} ${counts.unsupported_for_games} question(s) are not fixed-option questions and are excluded.`;
   return {
     ...game,
     questionCount,

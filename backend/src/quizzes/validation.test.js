@@ -75,7 +75,6 @@ describe('manual quiz validation', () => {
       authorQuestionSchema.safeParse(
         mc({
           questionType: 'code',
-          options: [],
           codeBefore: '<p>before</p>',
           codeAfter: '<p>after</p>',
         }),

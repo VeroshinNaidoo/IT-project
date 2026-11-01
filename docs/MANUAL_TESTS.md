@@ -139,3 +139,5 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 3. Try publishing with placeholder text or two correct answers; confirm the checklist blocks it.
 4. Add a short-answer and code question, preview them, then publish a valid draft.
 5. Log in as a student and confirm authoring routes return 403 and answers are not visible before submission.
+
+6. Add a short-answer question with two accepted answers and ignore-punctuation enabled. Take it as a student using different case and punctuation; confirm marks and feedback are correct. Submit blank and confirm it is unanswered. Add a code question and confirm its before snippet is visible before submit while the after snippet appears only in feedback.
