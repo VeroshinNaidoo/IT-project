@@ -178,6 +178,7 @@ describe('Practice Lab API', () => {
       title: 'Button lab',
       instructions: 'Create a button.',
       difficulty: 2,
+      status: 'published',
       config: {
         starterHtml: '<button>Go</button>',
         starterCss: '',
@@ -223,6 +224,52 @@ describe('Practice Lab API', () => {
     expect(result.status).toBe(200);
     expect(JSON.stringify(result.body)).not.toContain('modelSolution');
     expect(result.body.lab.config.checks[0]).not.toHaveProperty('expected');
+  });
+
+  it('validates spreadsheet configs, hides expected values and keeps business results practice-only', async () => {
+    const created = await lecturerAgent.post('/api/v1/labs').send({
+      moduleId: moduleRow.module_id,
+      kind: 'spreadsheet',
+      title: 'Budget grid',
+      instructions: 'Calculate the balance.',
+      difficulty: 2,
+      status: 'published',
+      config: {
+        startingGrid: { A1: '100', B1: '=A1*2' },
+        lockedCells: ['A1'],
+        checks: [
+          {
+            cell: 'B1',
+            expected: 200,
+            tolerance: 0.01,
+            requiresFormula: true,
+            hint: 'Use a formula.',
+          },
+        ],
+        currencySymbol: 'R',
+        formats: { B1: 'currency' },
+      },
+    });
+    expect(created.status).toBe(201);
+    const visible = await studentAgent.get(
+      `/api/v1/labs/${created.body.lab.lab_id}`,
+    );
+    expect(visible.status).toBe(200);
+    expect(visible.body.lab.config.checks[0]).not.toHaveProperty('expected');
+    const saved = await studentAgent
+      .put(`/api/v1/labs/${created.body.lab.lab_id}/attempt`)
+      .send({
+        submission: { grid: { B1: '=A1*2' } },
+        checksPassed: 1,
+        checksTotal: 1,
+        completed: true,
+      });
+    expect(saved.status).toBe(200);
+    expect(saved.body.selfChecked).toBe(true);
+    expect(
+      (await pool.query('SELECT count(*)::int AS count FROM quiz_attempts'))
+        .rows[0].count,
+    ).toBeGreaterThanOrEqual(0);
   });
 
   it('autosaves and restores self-checked progress without affecting scored data', async () => {

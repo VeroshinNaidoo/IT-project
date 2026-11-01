@@ -123,3 +123,10 @@
 - The preview is an iframe using `sandbox="allow-scripts"` only, with a network-blocking CSP. The browser watchdog recreates a stalled frame after three seconds.
 - Student submissions are progress evidence, not authoritative grading. Lab results never affect leaderboards, scored attempts or quiz analytics (INV-66).
 - A plain textarea editor with line numbers is used to avoid adding an unnecessary dependency; it keeps the Code Lab offline and auditable.
+
+## 2026-11-01 — Business Labs
+
+- Spreadsheet formulas use a bounded recursive-descent evaluator shared in spirit by the browser and test implementation. No `eval`, `Function` constructor, server-side execution, network access, storage or cookies are used for student formulas.
+- Spreadsheet checks are tolerance-based and expected values remain lecturer-only in the student projection. Student progress is explicitly self-checked.
+- Calculator templates are declarative configurations. The first seeded templates are break-even, ROI, loan repayment, gross profit margin and VAT; scenario nodes must be finite and terminate before publishing.
+- Business lab outcomes remain practice-only and are excluded from leaderboards, scored attempts and quiz analytics.

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
+import { evaluateSpreadsheet } from './spreadsheet.js';
 
 const api = async (path, options = {}) => {
   const response = await fetch(`/api/v1${path}`, {
@@ -661,6 +662,212 @@ export function CodeLabPlayer({ lab, onBack }) {
   );
 }
 
+export function SpreadsheetLabPlayer({ lab, onBack }) {
+  const initial = lab.config?.startingGrid || {};
+  const [grid, setGrid] = useState(initial);
+  const [active, setActive] = useState('A1');
+  const [message, setMessage] = useState('');
+  const columns = Array.from({ length: 26 }, (_, index) =>
+    String.fromCharCode(65 + index),
+  );
+  const rows = Array.from({ length: 50 }, (_, index) => index + 1);
+  const update = (cell, value) =>
+    setGrid((current) => ({ ...current, [cell]: value.slice(0, 500) }));
+  const save = async () => {
+    try {
+      await api(`/labs/${lab.lab_id}/attempt`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          submission: { grid },
+          checksPassed: 0,
+          checksTotal: lab.config?.checks?.length || 0,
+          completed: false,
+        }),
+      });
+      setMessage(
+        'Draft saved. Spreadsheet checks are self-checked in your browser.',
+      );
+    } catch (error) {
+      setMessage(error.message);
+    }
+  };
+  const result = evaluateSpreadsheet(grid, active);
+  return (
+    <section className="practice-lab-page">
+      <button className="link-button" onClick={onBack}>
+        ← Back to Practice Labs
+      </button>
+      <div className="lab-heading">
+        <div>
+          <span className="eyebrow">
+            SPREADSHEET LAB · LEVEL {lab.difficulty}
+          </span>
+          <h2>{lab.title}</h2>
+          <p>{lab.instructions}</p>
+        </div>
+        <button className="primary" onClick={save}>
+          Save draft
+        </button>
+      </div>
+      {message && (
+        <p className="success-message" role="status">
+          {message}
+        </p>
+      )}
+      <article className="card spreadsheet-card">
+        <p>
+          Active cell: <strong>{active}</strong> · Computed value:{' '}
+          <strong>{String(result.value)}</strong>
+          {result.error && (
+            <span className="field-error"> · {result.error}</span>
+          )}
+        </p>
+        <div className="spreadsheet-wrap">
+          <table className="spreadsheet-grid">
+            <thead>
+              <tr>
+                <th aria-label="corner">
+                  <span className="sr-only">Cell corner</span>
+                </th>
+                {columns.map((column) => (
+                  <th key={column} scope="col">
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row}>
+                  <th scope="row">{row}</th>
+                  {columns.map((column) => {
+                    const cell = `${column}${row}`;
+                    const locked = (lab.config?.lockedCells || []).includes(
+                      cell,
+                    );
+                    return (
+                      <td key={cell}>
+                        <input
+                          aria-label={cell}
+                          disabled={locked}
+                          value={grid[cell] ?? ''}
+                          onFocus={() => setActive(cell)}
+                          onChange={(event) => update(cell, event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === 'Tab') {
+                              event.preventDefault();
+                              const next = `${columns[(columns.indexOf(column) + 1) % columns.length]}${row}`;
+                              document
+                                .querySelector(`[aria-label="${next}"]`)
+                                ?.focus();
+                            }
+                          }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted">
+          Errors are shown as text: #CIRC! circular reference, #DIV/0! division
+          by zero, #NAME? unknown function, #REF! invalid reference.
+        </p>
+        <p>
+          <span className="self-checked">Self-checked in your browser</span> ·{' '}
+          {lab.config?.checks?.length || 0} checks configured
+        </p>
+      </article>
+    </section>
+  );
+}
+
+export function CalculatorLabPlayer({ lab, onBack }) {
+  const inputs = Object.fromEntries(
+    (lab.config?.inputs || []).map((input) => [input.key, input.defaultValue]),
+  );
+  const [values, setValues] = useState(inputs);
+  const outputs = (lab.config?.outputs || []).map((output) => {
+    const expression = String(output.formula).replace(
+      /\{([a-z][a-z0-9_]*)\}/gi,
+      (_match, key) => String(values[key] ?? 0),
+    );
+    const evaluated = evaluateSpreadsheet(
+      { A1: expression.startsWith('=') ? expression : `=${expression}` },
+      'A1',
+    );
+    return { ...output, value: evaluated.error || evaluated.value };
+  });
+  return (
+    <section className="practice-lab-page">
+      <button className="link-button" onClick={onBack}>
+        ← Back to Practice Labs
+      </button>
+      <article className="card calculator-card">
+        <span className="eyebrow">BUSINESS CALCULATOR</span>
+        <h2>{lab.title}</h2>
+        <p>{lab.instructions}</p>
+        {(lab.config?.inputs || []).map((input) => (
+          <label key={input.key}>
+            {input.label}
+            <input
+              type="number"
+              value={values[input.key]}
+              onChange={(event) =>
+                setValues({
+                  ...values,
+                  [input.key]: Number(event.target.value),
+                })
+              }
+            />
+          </label>
+        ))}
+        <div className="calculator-results">
+          {outputs.map((output) => (
+            <div className="card" key={output.key}>
+              <strong>{output.label}</strong>
+              <p>{output.formula}</p>
+              <output>{output.value}</output>
+              <small>{output.explanation}</small>
+            </div>
+          ))}
+        </div>
+        {lab.config?.template === 'break_even' && (
+          <svg
+            className="break-even-chart"
+            viewBox="0 0 320 180"
+            role="img"
+            aria-label="Break-even chart showing revenue and costs"
+          >
+            <line x1="35" y1="145" x2="300" y2="145" stroke="currentColor" />
+            <line x1="35" y1="145" x2="35" y2="20" stroke="currentColor" />
+            <polyline
+              points="35,135 120,105 210,70 295,35"
+              fill="none"
+              stroke="#2f8f5b"
+              strokeWidth="4"
+            />
+            <polyline
+              points="35,125 120,112 210,96 295,80"
+              fill="none"
+              stroke="#c77700"
+              strokeWidth="4"
+            />
+            <text x="45" y="168">
+              Units
+            </text>
+            <text x="45" y="18">
+              Value
+            </text>
+          </svg>
+        )}
+      </article>
+    </section>
+  );
+}
+
 export function PracticeLabs({ user }) {
   const state = useData('/labs?page=1&pageSize=50');
   const [selected, setSelected] = useState(null);
@@ -668,8 +875,17 @@ export function PracticeLabs({ user }) {
   const labs = state.data.filter((lab) =>
     lab.title.toLowerCase().includes(search.toLowerCase()),
   );
-  if (selected)
+  if (selected) {
+    if (selected.kind === 'spreadsheet')
+      return (
+        <SpreadsheetLabPlayer lab={selected} onBack={() => setSelected(null)} />
+      );
+    if (selected.kind === 'calculator')
+      return (
+        <CalculatorLabPlayer lab={selected} onBack={() => setSelected(null)} />
+      );
     return <CodeLabPlayer lab={selected} onBack={() => setSelected(null)} />;
+  }
   return (
     <section className="practice-labs-page">
       <div className="card hero">
@@ -719,6 +935,7 @@ export function PracticeLabs({ user }) {
 }
 function Dashboard({ user }) {
   const state = useData('/modules');
+  const labs = useData('/labs?page=1&pageSize=3');
   return (
     <section className="grid">
       <article className="card hero">
@@ -742,6 +959,32 @@ function Dashboard({ user }) {
       <article className="card stat amber">
         <strong>{user.role === 'student' ? 'Practice' : 'Insights'}</strong>
         <span>Next focus</span>
+      </article>
+      <article className="card dashboard-labs">
+        <span className="eyebrow">PRACTICE LAB</span>
+        <h2>Keep building</h2>
+        {labs.loading ? (
+          <p className="muted">Loading lab progress…</p>
+        ) : labs.data.length ? (
+          labs.data.map((lab) => (
+            <div className="list-row" key={lab.lab_id}>
+              <span>
+                <strong>{lab.title}</strong>
+                <small>
+                  {lab.kind} ·{' '}
+                  {lab.attempt_completed ? 'Completed' : 'Not started'}
+                </small>
+              </span>
+              <span className="tag">
+                {lab.attempt_completed ? 'Done' : 'Try it'}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="empty-state">
+            No practice labs yet. Enrol in a module to see recommended labs.
+          </p>
+        )}
       </article>
     </section>
   );

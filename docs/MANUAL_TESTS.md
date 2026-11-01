@@ -115,3 +115,12 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 5. Save a draft, refresh, reopen the lab, and confirm the saved progress is restored. No code is sent before Save.
 6. Enter an infinite loop and confirm the watchdog shows “Your code ran too long and was stopped”.
 7. As a lecturer, create, edit, preview and publish a lab on an owned module. Confirm another lecturer cannot access it and activity shows aggregate counts only.
+
+## Business Lab smoke test
+
+1. Open **Practice Labs** as a Business student and choose **Budget spreadsheet**.
+2. Enter formulas such as `=SUM(B3:B5)` and use arrows, Enter and Tab to move between cells. Confirm locked cells cannot be edited.
+3. Try `=A1/0`, `=A1+A1` in A1, and an unknown function. Confirm `#DIV/0!`, `#CIRC!` and `#NAME?` appear as text with explanations.
+4. Save and refresh. Confirm the grid restores and progress remains self-checked.
+5. Open **Break-even calculator**, change the inputs and confirm the result and formula working update.
+6. Open the seeded business scenario, make each choice, confirm meters and the reflection summary, and confirm no result appears on the leaderboard.

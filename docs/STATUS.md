@@ -133,9 +133,26 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 
 ## Lecturer AI generation controls
 
+## Business Lab
+
+| Area                                                                   | Status                 | Evidence                                                          |
+| ---------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------- |
+| Safe spreadsheet parser, ranges, functions, errors and cycle detection | implemented and tested | `backend/src/labs/formula.js`, `backend/src/labs/formula.test.js` |
+| Spreadsheet schema, locked cells and tolerant checks                   | implemented, untested  | `backend/src/app.js`, migration 022                               |
+| Calculator templates and seeded business exercises                     | implemented, untested  | `frontend/src/main.jsx`, `backend/scripts/seed.js`                |
+| Decision scenario schema and seed                                      | implemented, untested  | `backend/src/app.js`, `backend/scripts/seed.js`                   |
+| Business browser/axe flow                                              | not started            | Pending final business UI gate                                    |
+
 | Area                                                                                    | Status                 | Evidence                                                                                                                                   |
 | --------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Practice/Competitive mode, title and optional closing time validated and stored on jobs | implemented and tested | `db/migrations/021_ai_generation_metadata.sql`, `backend/tests/api.test.js` — named metadata validation test                               |
 | Worker startup and stale queued-job handling                                            | implemented and tested | `Start-EduQuest.ps1`, `scripts/run-worker.ps1`, `backend/scripts/ai-worker.js`, `backend/tests/ai-worker.test.js` — queued-job pickup test |
 | AI status, cancel and retry controls                                                    | implemented and tested | `backend/src/app.js`, `backend/tests/api.test.js`, `backend/tests/authorization-matrix.test.js` (78 tests)                                 |
 | Lecturer generation panel and editable draft metadata                                   | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx` (49 tests), `frontend/e2e/main.spec.js`                                              |
+
+## Business Lab gate update
+
+- Spreadsheet parser and calculator arithmetic: done and tested — `backend/src/labs/formula.test.js` 5/5.
+- Spreadsheet configuration, hidden expected values and practice-only persistence: done and tested — `backend/tests/labs-api.test.js` 9/9.
+- Scenario finite-path validation: done and tested — `backend/src/labs/scenario.test.js` 2/2.
+- Business frontend/axe flow: done and tested — `frontend/e2e/main.spec.js` 6/6 across Chromium and Firefox at 390/768/1280, 0 axe violations.

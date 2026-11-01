@@ -31,6 +31,7 @@ import {
   isProfanityCooldownActive,
 } from './profanity/rate-limit.js';
 import { getGameAvailability } from './games/availability.js';
+import { validateScenarioConfig } from './labs/scenario.js';
 import { registerInfectedRoutes } from './games/infected/routes.js';
 import { registerIslandEscapeRoutes } from './games/island_escape/routes.js';
 import { registerMemoryMatchRoutes } from './games/memory_match/routes.js';
@@ -187,7 +188,124 @@ const codeLabConfig = z
     allowModelSolution: z.boolean().default(false),
   })
   .strict();
-const labConfig = z.union([codeLabConfig, z.object({}).strict()]);
+const spreadsheetCheck = z
+  .object({
+    cell: z.string().regex(/^[A-Z]{1,2}[1-9][0-9]?$/),
+    expected: z.number(),
+    tolerance: z.number().min(0).max(1_000_000).default(0.01),
+    requiresFormula: z.boolean().default(false),
+    hint: z
+      .string()
+      .max(300)
+      .refine(noProfanity(), { message: profanityMessage })
+      .optional(),
+  })
+  .strict();
+const spreadsheetConfig = z
+  .object({
+    startingGrid: z
+      .record(
+        z.string().regex(/^[A-Z]{1,2}[1-9][0-9]?$/),
+        z.union([z.string().max(500), z.number()]),
+      )
+      .refine((value) => Object.keys(value).length <= 1300)
+      .default({}),
+    lockedCells: z
+      .array(z.string().regex(/^[A-Z]{1,2}[1-9][0-9]?$/))
+      .max(1300)
+      .default([]),
+    checks: z.array(spreadsheetCheck).max(15).default([]),
+    currencySymbol: z.string().max(5).default('R'),
+    formats: z
+      .record(z.string(), z.enum(['currency', 'percentage', 'decimal']))
+      .default({}),
+  })
+  .strict();
+const calculatorConfig = z
+  .object({
+    template: z.enum([
+      'break_even',
+      'roi',
+      'loan_repayment',
+      'gross_profit_margin',
+      'vat',
+    ]),
+    inputs: z
+      .array(
+        z
+          .object({
+            key: z.string().regex(/^[a-z][a-z0-9_]{1,30}$/),
+            label: labText,
+            defaultValue: z.number(),
+            unit: z.string().max(20).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(12),
+    outputs: z
+      .array(
+        z
+          .object({
+            key: z.string(),
+            label: labText,
+            formula: z.string().max(500),
+            explanation: labText,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(8),
+    vatRate: z.number().min(0).max(100).optional(),
+  })
+  .strict();
+const scenarioConfig = z
+  .object({
+    meters: z
+      .array(
+        z
+          .object({
+            key: z.string().regex(/^[a-z][a-z0-9_]{1,20}$/),
+            label: labText,
+            initial: z.number(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(3),
+    nodes: z
+      .array(
+        z
+          .object({
+            id: z.string().regex(/^[a-z][a-z0-9_-]{1,30}$/),
+            text: labText,
+            choices: z
+              .array(
+                z
+                  .object({
+                    label: labText,
+                    next: z.string(),
+                    changes: z.record(z.string(), z.number()),
+                  })
+                  .strict(),
+              )
+              .min(0)
+              .max(5),
+            terminal: z.boolean().default(false),
+            reflection: labText.optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(30),
+  })
+  .strict();
+const labConfig = z.union([
+  codeLabConfig,
+  spreadsheetConfig,
+  calculatorConfig,
+  scenarioConfig,
+]);
 const sanitizeSubmission = (value) => {
   const text = JSON.stringify(value);
   if (text.length > 65_000) throw new Error('LAB_SUBMISSION_TOO_LARGE');
@@ -3223,10 +3341,19 @@ const labPatchSchema = labBaseSchema
   .strict();
 
 const labConfigFor = (kind, config) => {
-  const parsed = (
-    kind === 'code' ? codeLabConfig : z.object({}).strict()
-  ).safeParse(config);
-  return parsed.success ? parsed.data : null;
+  const schema =
+    kind === 'code'
+      ? codeLabConfig
+      : kind === 'spreadsheet'
+        ? spreadsheetConfig
+        : kind === 'calculator'
+          ? calculatorConfig
+          : scenarioConfig;
+  const parsed = schema.safeParse(config);
+  if (!parsed.success) return null;
+  if (kind === 'scenario' && !validateScenarioConfig(parsed.data).ok)
+    return null;
+  return parsed.data;
 };
 const labAccess = async (labId, user) => {
   const result = await pool.query(
@@ -3252,6 +3379,8 @@ const labClientView = (lab, user) => {
     config.checks = (config.checks || []).map(
       ({ expected: _expected, ...check }) => check,
     );
+    if (lab.kind === 'spreadsheet')
+      config.lockedCells = config.lockedCells || [];
   }
   return { ...lab, config };
 };

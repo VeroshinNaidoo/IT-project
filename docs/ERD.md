@@ -87,6 +87,8 @@ Study-group collaboration adds `GROUP_LANGUAGES(GroupID, LanguageID)`, `GROUP_LE
 
 `LABS` stores lecturer-owned, module-scoped practice activities and kind-specific JSON configuration. `LAB_ATTEMPTS` stores one student-owned draft/progress record per lab. Submission checks are explicitly self-checked in the browser; these rows are not scored quiz attempts and are excluded from leaderboards and analytics.
 
+For `spreadsheet` labs, `config` contains bounded starting cells, locked-cell addresses, tolerance checks and display formats. `calculator` configs contain declarative inputs and output formulas; `scenario` configs contain finite nodes, choices and meter changes. None of these configurations is executable code.
+
 ```mermaid
 erDiagram
   MODULES ||--o{ LABS : contains

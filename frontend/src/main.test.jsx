@@ -26,6 +26,8 @@ import {
   ProfilePage,
   PracticeLabs,
   CodeLabPlayer,
+  SpreadsheetLabPlayer,
+  CalculatorLabPlayer,
 } from './main.jsx';
 
 const bossQuestion = {
@@ -2002,4 +2004,57 @@ it('code lab keeps console output escaped and provides reset and save controls',
   fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
   await waitFor(() => expect(screen.getByText(/Draft saved/)).toBeTruthy());
   vi.unstubAllGlobals();
+});
+
+it('spreadsheet lab renders headers, locked cells, formulas and errors safely', () => {
+  cleanup();
+  render(
+    <SpreadsheetLabPlayer
+      lab={{
+        lab_id: 'sheet-1',
+        title: 'Budget',
+        instructions: 'Calculate.',
+        difficulty: 2,
+        config: {
+          startingGrid: { A1: '100', B1: '=A1*2' },
+          lockedCells: ['A1'],
+          checks: [{ cell: 'B1' }],
+        },
+      }}
+      onBack={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('columnheader', { name: 'A' })).toBeTruthy();
+  expect(screen.getByRole('rowheader', { name: '1' })).toBeTruthy();
+  expect(screen.getByLabelText('A1').disabled).toBe(true);
+  fireEvent.focus(screen.getByLabelText('B1'));
+  expect(screen.getByText(/Computed value/)).toBeTruthy();
+  expect(screen.getByText(/Computed value/)).toBeTruthy();
+});
+
+it('calculator lab renders configurable inputs and working', () => {
+  cleanup();
+  render(
+    <CalculatorLabPlayer
+      lab={{
+        title: 'Break-even',
+        instructions: 'Learn.',
+        difficulty: 1,
+        config: {
+          inputs: [{ key: 'fixed', label: 'Fixed costs', defaultValue: 100 }],
+          outputs: [
+            {
+              key: 'result',
+              label: 'Result',
+              formula: '={fixed}*2',
+              explanation: 'Multiply by two.',
+            },
+          ],
+        },
+      }}
+      onBack={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText('Fixed costs')).toBeTruthy();
+  expect(screen.getByText('Multiply by two.')).toBeTruthy();
 });

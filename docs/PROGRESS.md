@@ -248,3 +248,13 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added a browser-only Code Lab with HTML/CSS/JavaScript tabs, line numbers, sandboxed CSP preview, watchdog, console, declarative checks, reset, hint and draft save.
 - Added seeded IT first-year Code Labs and Playground creation by stable module/title keys.
 - Focused gate: lab API 8/8; authorization matrix green after fixing PATCH default status unpublishing labs. Full frontend/browser gate remains to run.
+
+## 2026-11-01 — Business Lab
+
+- Added a bounded, non-executable spreadsheet formula evaluator with references, ranges, arithmetic, comparisons, percentages, supported functions, cycle detection and explicit error codes.
+- Added strict spreadsheet, calculator and scenario configuration validation; student views hide expected check values and lab attempts remain self-checked/practice-only.
+- Added student spreadsheet and calculator player screens, responsive grid styling, a safe inline break-even chart surface, and a dashboard Practice Lab card.
+- Added seeded business lab definitions for budget, gross profit, payroll, break-even, ROI, loan repayment, VAT, gross margin and a market-expansion scenario.
+- Evidence: formula tests 4/4, frontend component suite 53/53, labs API 9/9, targeted Business Lab browser/axe check 1/1 on Chromium tablet. Full browser matrix and final delivery gate remain to run.
+
+- Final Business Lab gate evidence: formula/scenario 7/7, frontend JS 183/183, DB/API 244/244, Python 43/43, and Business Lab browser/axe 6/6 across Chromium/Firefox at 390/768/1280 with zero axe violations.

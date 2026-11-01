@@ -51,6 +51,71 @@ test('Practice Lab uses a scripts-only sandbox and exposes accessible editor con
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
+test('Business Lab spreadsheet and calculator flows are accessible', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? {
+          user: {
+            userId: 'student-1',
+            role: 'student',
+            full_name: 'Business Student',
+          },
+        }
+      : path.endsWith('/labs')
+        ? {
+            data: [
+              {
+                lab_id: 'sheet-1',
+                kind: 'spreadsheet',
+                title: 'Budget spreadsheet',
+                instructions: 'Calculate the balance.',
+                difficulty: 2,
+                config: {
+                  startingGrid: { A1: '100', B1: '=A1*2' },
+                  lockedCells: ['A1'],
+                  checks: [],
+                },
+              },
+              {
+                lab_id: 'calc-1',
+                kind: 'calculator',
+                title: 'Break-even calculator',
+                instructions: 'Learn contribution.',
+                difficulty: 2,
+                config: {
+                  inputs: [
+                    { key: 'fixed', label: 'Fixed costs', defaultValue: 100 },
+                  ],
+                  outputs: [
+                    {
+                      key: 'result',
+                      label: 'Result',
+                      formula: '={fixed}*2',
+                      explanation: 'Multiply by two.',
+                    },
+                  ],
+                },
+              },
+            ],
+          }
+        : { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Practice Labs' }).click();
+  await page.getByRole('button', { name: 'Open lab' }).first().click();
+  await expect(page.getByRole('columnheader', { name: 'A' })).toBeVisible();
+  await expect(page.getByText(/Self-checked in your browser/)).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('authentication screen is usable at the required viewport', async ({
   page,
 }) => {

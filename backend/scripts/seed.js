@@ -206,6 +206,295 @@ try {
         ],
       );
   }
+  const businessModule = (
+    await client.query(
+      "SELECT module_id FROM modules WHERE module_code='DEMO-BUS101'",
+    )
+  ).rows[0];
+  for (const student of students)
+    await client.query(
+      'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+      [student, businessModule.module_id],
+    );
+  const businessLabs = [
+    [
+      'Budget spreadsheet',
+      'Build a simple monthly budget and calculate the balance.',
+      'spreadsheet',
+      {
+        startingGrid: {
+          A1: 'Income',
+          A2: '12000',
+          B1: 'Expenses',
+          B2: '=SUM(B3:B5)',
+          B3: '3000',
+          B4: '2500',
+          B5: '1200',
+        },
+        lockedCells: ['A1', 'B1'],
+        checks: [
+          {
+            cell: 'B2',
+            expected: 6700,
+            tolerance: 0.01,
+            requiresFormula: true,
+            hint: 'Add the three expense cells.',
+          },
+        ],
+        currencySymbol: 'R',
+        formats: { B2: 'currency' },
+      },
+    ],
+    [
+      'Gross profit table',
+      'Calculate gross profit and margin from revenue and cost of sales.',
+      'spreadsheet',
+      {
+        startingGrid: {
+          A1: 'Revenue',
+          B1: 'Cost of sales',
+          A2: '25000',
+          B2: '15000',
+          C1: 'Gross profit',
+          C2: '=A2-B2',
+        },
+        lockedCells: ['A1', 'B1', 'C1'],
+        checks: [
+          {
+            cell: 'C2',
+            expected: 10000,
+            tolerance: 0.01,
+            requiresFormula: true,
+            hint: 'Subtract cost of sales from revenue.',
+          },
+        ],
+        currencySymbol: 'R',
+        formats: { C2: 'currency' },
+      },
+    ],
+    [
+      'Payroll sheet',
+      'Use the grid to total salaries for a small team.',
+      'spreadsheet',
+      {
+        startingGrid: {
+          A1: 'Employee 1',
+          B1: '12000',
+          A2: 'Employee 2',
+          B2: '14500',
+          A3: 'Employee 3',
+          B3: '11000',
+          B4: '=SUM(B1:B3)',
+        },
+        lockedCells: ['A1', 'A2', 'A3'],
+        checks: [
+          {
+            cell: 'B4',
+            expected: 37500,
+            tolerance: 0.01,
+            requiresFormula: true,
+            hint: 'Use SUM to total the salary cells.',
+          },
+        ],
+        currencySymbol: 'R',
+        formats: { B4: 'currency' },
+      },
+    ],
+    [
+      'Break-even calculator',
+      'Explore how fixed costs, price and variable cost determine break-even units.',
+      'calculator',
+      {
+        template: 'break_even',
+        inputs: [
+          {
+            key: 'fixed_costs',
+            label: 'Fixed costs',
+            defaultValue: 10000,
+            unit: 'R',
+          },
+          {
+            key: 'price',
+            label: 'Price per unit',
+            defaultValue: 50,
+            unit: 'R',
+          },
+          {
+            key: 'variable_cost',
+            label: 'Variable cost per unit',
+            defaultValue: 30,
+            unit: 'R',
+          },
+        ],
+        outputs: [
+          {
+            key: 'units',
+            label: 'Break-even units',
+            formula: '={fixed_costs}/({price}-{variable_cost})',
+            explanation: 'Fixed costs divided by contribution per unit.',
+          },
+        ],
+      },
+    ],
+    [
+      'ROI calculator',
+      'Compare a return with the original investment.',
+      'calculator',
+      {
+        template: 'roi',
+        inputs: [
+          { key: 'gain', label: 'Gain', defaultValue: 25000, unit: 'R' },
+          {
+            key: 'investment',
+            label: 'Investment',
+            defaultValue: 10000,
+            unit: 'R',
+          },
+        ],
+        outputs: [
+          {
+            key: 'roi',
+            label: 'ROI',
+            formula: '=({gain}-{investment})/{investment}*100',
+            explanation:
+              'Net return divided by investment, expressed as a percentage.',
+          },
+        ],
+      },
+    ],
+    [
+      'Loan repayment calculator',
+      'Understand the standard annuity repayment formula.',
+      'calculator',
+      {
+        template: 'loan_repayment',
+        inputs: [
+          {
+            key: 'principal',
+            label: 'Principal',
+            defaultValue: 100000,
+            unit: 'R',
+          },
+          {
+            key: 'monthly_rate',
+            label: 'Monthly interest rate',
+            defaultValue: 0.01,
+          },
+          { key: 'months', label: 'Number of months', defaultValue: 60 },
+        ],
+        outputs: [
+          {
+            key: 'payment',
+            label: 'Monthly repayment',
+            formula:
+              '={principal}*{monthly_rate}*(1+{monthly_rate})^{months}/((1+{monthly_rate})^{months}-1)',
+            explanation: 'Payment = P × r × (1+r)^n ÷ ((1+r)^n−1).',
+          },
+        ],
+      },
+    ],
+    [
+      'Gross profit margin calculator',
+      'Calculate margin from revenue and cost of sales.',
+      'calculator',
+      {
+        template: 'gross_profit_margin',
+        inputs: [
+          { key: 'revenue', label: 'Revenue', defaultValue: 25000, unit: 'R' },
+          {
+            key: 'cost',
+            label: 'Cost of sales',
+            defaultValue: 15000,
+            unit: 'R',
+          },
+        ],
+        outputs: [
+          {
+            key: 'margin',
+            label: 'Gross profit margin',
+            formula: '=({revenue}-{cost})/{revenue}*100',
+            explanation: '(Revenue − cost of sales) ÷ revenue × 100.',
+          },
+        ],
+      },
+    ],
+    [
+      'VAT calculator',
+      'Calculate VAT inclusive and exclusive values.',
+      'calculator',
+      {
+        template: 'vat',
+        inputs: [
+          { key: 'amount', label: 'Amount', defaultValue: 1000, unit: 'R' },
+          { key: 'rate', label: 'VAT rate', defaultValue: 15, unit: '%' },
+        ],
+        vatRate: 15,
+        outputs: [
+          {
+            key: 'inclusive',
+            label: 'VAT inclusive',
+            formula: '={amount}*(1+{rate}/100)',
+            explanation:
+              'Exclusive amount multiplied by one plus the VAT rate.',
+          },
+          {
+            key: 'exclusive',
+            label: 'VAT exclusive',
+            formula: '={amount}/(1+{rate}/100)',
+            explanation: 'Inclusive amount divided by one plus the VAT rate.',
+          },
+        ],
+      },
+    ],
+    [
+      'Market expansion scenario',
+      'Choose a path and reflect on the business trade-offs.',
+      'scenario',
+      {
+        meters: [
+          { key: 'cash', label: 'Cash', initial: 50 },
+          { key: 'satisfaction', label: 'Customer satisfaction', initial: 50 },
+          { key: 'risk', label: 'Risk', initial: 20 },
+        ],
+        nodes: [
+          {
+            id: 'start',
+            text: 'Demand is growing. How will you respond?',
+            choices: [
+              {
+                label: 'Invest in capacity',
+                next: 'end',
+                changes: { cash: -15, satisfaction: 20, risk: 10 },
+              },
+              {
+                label: 'Grow slowly',
+                next: 'end',
+                changes: { cash: 5, satisfaction: 5, risk: -5 },
+              },
+            ],
+          },
+          {
+            id: 'end',
+            text: 'Review the balance between growth and resilience.',
+            choices: [],
+            terminal: true,
+            reflection: 'Which meter mattered most to your decision?',
+          },
+        ],
+      },
+    ],
+  ];
+  for (const [title, instructions, kind, config] of businessLabs) {
+    const exists = await client.query(
+      'SELECT 1 FROM labs WHERE module_id=$1 AND title=$2 LIMIT 1',
+      [businessModule.module_id, title],
+    );
+    if (!exists.rowCount)
+      await client.query(
+        `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config) VALUES($1,$2,$3,$4,2,'published',$5,$6)`,
+        [businessModule.module_id, kind, title, instructions, lecturer, config],
+      );
+  }
   for (const student of students)
     await client.query(
       'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2) ON CONFLICT DO NOTHING',

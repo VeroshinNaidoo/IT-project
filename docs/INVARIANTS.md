@@ -79,13 +79,17 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 
 ## Practice Lab invariants
 
-| ID     | Invariant                                                                                                            | Enforcement                                          | Evidence                                                                       |
-| ------ | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
-| INV-64 | Labs are module-scoped and students see only published labs in enrolled modules                                      | Scoped lab queries and `labAccess`                   | `backend/tests/labs-api.test.js`                                               |
-| INV-65 | Lab configuration is strict, kind-specific, bounded and profanity-checked                                            | Zod schemas and text checks                          | `backend/tests/labs-api.test.js`                                               |
-| INV-66 | Student lab submissions are self-checked progress only and never affect scored attempts, leaderboards or analytics   | Separate `lab_attempts` persistence                  | `backend/tests/labs-api.test.js`                                               |
-| INV-67 | Student code is never executed on the server; browser preview uses a scripts-only sandbox and a network-blocking CSP | `srcdoc` iframe with watchdog and declarative checks | `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`                      |
-| INV-68 | Lab attempts are owner-scoped and lecturer activity is aggregate-only                                                | Route role and ownership checks                      | `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js` |
+| ID     | Invariant                                                                                                            | Enforcement                                            | Evidence                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| INV-64 | Labs are module-scoped and students see only published labs in enrolled modules                                      | Scoped lab queries and `labAccess`                     | `backend/tests/labs-api.test.js`                                               |
+| INV-65 | Lab configuration is strict, kind-specific, bounded and profanity-checked                                            | Zod schemas and text checks                            | `backend/tests/labs-api.test.js`                                               |
+| INV-66 | Student lab submissions are self-checked progress only and never affect scored attempts, leaderboards or analytics   | Separate `lab_attempts` persistence                    | `backend/tests/labs-api.test.js`                                               |
+| INV-67 | Student code is never executed on the server; browser preview uses a scripts-only sandbox and a network-blocking CSP | `srcdoc` iframe with watchdog and declarative checks   | `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`                      |
+| INV-68 | Lab attempts are owner-scoped and lecturer activity is aggregate-only                                                | Route role and ownership checks                        | `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js` |
+| INV-69 | Spreadsheet formulas are parsed by a bounded evaluator; no input is executable code                                  | Pure recursive-descent parser with length/depth limits | `backend/src/labs/formula.test.js`                                             |
+| INV-70 | Spreadsheet errors are explicit and circular references are detected                                                 | Evaluator error values                                 | `backend/src/labs/formula.test.js`                                             |
+| INV-71 | Business lab checks use tolerance and hide expected values from students                                             | Strict spreadsheet config and student projection       | `backend/tests/labs-api.test.js`                                               |
+| INV-72 | Business lab results remain practice-only and never affect quiz scoring, leaderboards or analytics                   | Separate lab attempt storage                           | `backend/tests/labs-api.test.js`                                               |
 
 ## Identity invariants
 

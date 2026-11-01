@@ -210,11 +210,23 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 
 ## Practice Lab / IT Code Lab
 
-| Requirement                                                                 | Status              | Evidence                                                                                             |
-| --------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
-| FR-29: published labs are scoped to enrolled students and owned lecturers   | automated           | `backend/src/app.js`, `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js` |
-| IT Code Lab editor, tabs, line numbers, reset, hint and responsive preview  | implemented, tested | `frontend/src/main.jsx`, `frontend/src/styles.css`, frontend component tests                         |
-| Browser sandbox has `allow-scripts` only and blocks network access with CSP | implemented, tested | `CodeLabPlayer` srcdoc, `frontend/e2e/main.spec.js`                                                  |
-| Student code is never executed server-side; saves are self-checked progress | automated           | `backend/tests/labs-api.test.js`, INV-66/67                                                          |
-| Lab checks and aggregate lecturer activity                                  | automated           | `backend/tests/labs-api.test.js`                                                                     |
-| Practice Lab routes have behavioural authorization coverage                 | automated           | `backend/tests/authorization-matrix.test.js`                                                         |
+| Requirement                                                                           | Status                 | Evidence                                                                                             |
+| ------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| FR-29: published labs are scoped to enrolled students and owned lecturers             | automated              | `backend/src/app.js`, `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js` |
+| IT Code Lab editor, tabs, line numbers, reset, hint and responsive preview            | implemented, tested    | `frontend/src/main.jsx`, `frontend/src/styles.css`, frontend component tests                         |
+| Browser sandbox has `allow-scripts` only and blocks network access with CSP           | implemented, tested    | `CodeLabPlayer` srcdoc, `frontend/e2e/main.spec.js`                                                  |
+| Student code is never executed server-side; saves are self-checked progress           | automated              | `backend/tests/labs-api.test.js`, INV-66/67                                                          |
+| Lab checks and aggregate lecturer activity                                            | automated              | `backend/tests/labs-api.test.js`                                                                     |
+| Practice Lab routes have behavioural authorization coverage                           | automated              | `backend/tests/authorization-matrix.test.js`                                                         |
+| FR-30: Business spreadsheet labs with safe formulas, locked cells and tolerant checks | implemented and tested | `backend/src/labs/formula.test.js`, `frontend/src/main.jsx`, migration 022                           |
+| FR-30: Business calculator templates and step-by-step working                         | implemented, untested  | `frontend/src/main.jsx`, seed definitions                                                            |
+| FR-30: Decision scenarios with validated terminal paths                               | implemented, untested  | scenario config schema and seed definition                                                           |
+| Business labs are practice-only and isolated from quiz results                        | automated              | INV-72, `backend/tests/labs-api.test.js`                                                             |
+| Business labs are accessible and responsive                                           | implemented, untested  | `frontend/src/main.jsx`, browser coverage pending                                                    |
+
+## Business Lab verification update
+
+- FR-30 spreadsheet formulas, hidden expected values and checks: automated — `backend/src/labs/formula.test.js` 5/5 and `backend/tests/labs-api.test.js` 9/9.
+- FR-30 calculators: automated — `backend/src/labs/formula.test.js` known break-even/VAT values and `frontend/src/main.test.jsx` calculator rendering.
+- FR-30 scenario validation: automated — `backend/src/labs/scenario.test.js` 2/2.
+- Business Lab responsive/accessibility flow: automated — `frontend/e2e/main.spec.js` 6/6 browser projects, 0 axe violations.
