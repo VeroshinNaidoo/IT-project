@@ -66,3 +66,14 @@ Pixel Car Racer uses the generic tables with versioned player and deterministic-
 
 Timer Trivia uses the generic tables with a versioned topic/level board state, up to five topic columns, point rows 10–50 mapped to levels 1–5, server deadlines, answered-cell tracking, and terminal status. A user’s `extended_time` preference doubles the server deadline. The server selects each distinct question cell, owns timeout and scoring decisions, and practice results remain outside leaderboards and scored analytics.
 The final identity schema also includes `users.FirstName`, nullable `users.LastName`, `users.StudentType`, `users.EmailVerifiedAt`, `email_verification_tokens`, `mfa_credentials`, and `mfa_recovery_codes` from migration 016. MFA tables are storage scaffolding only until the MFA API slice is implemented.
+
+### Profile additions
+
+```mermaid
+erDiagram
+  USERS ||--o{ USER_PREFERRED_LANGUAGES : selects
+  PROGRAMMING_LANGUAGES ||--o{ USER_PREFERRED_LANGUAGES : supports
+  USERS { uuid user_id PK text pending_email }
+  PROGRAMMING_LANGUAGES { uuid language_id PK text name UK }
+  USER_PREFERRED_LANGUAGES { uuid user_id PK_FK uuid language_id PK_FK }
+```

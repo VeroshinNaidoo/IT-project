@@ -207,6 +207,7 @@ export function App() {
     'Leaderboard',
     'Quizzes',
     'Games',
+    'Profile',
   ];
   const lecturerScreens = [
     'Modules',
@@ -214,6 +215,7 @@ export function App() {
     'Quizzes',
     'Games',
     'Analytics',
+    'Profile',
   ];
   const screens = user.role === 'student' ? studentScreens : lecturerScreens;
   const logout = async () => {
@@ -272,6 +274,12 @@ export function App() {
               .slice(0, 2)
               .toUpperCase()}
           </span>
+          <button
+            className="link-button profile-header-link"
+            onClick={() => setScreen('Profile')}
+          >
+            Edit profile
+          </button>
         </header>
         {screen === 'Dashboard' && <Dashboard user={user} />}
         {screen === 'Modules' && <Modules user={user} />}
@@ -279,6 +287,9 @@ export function App() {
         {screen === 'Study groups' && <Groups user={user} />}
         {screen === 'Leaderboard' && <Leaderboard user={user} />}
         {screen === 'Analytics' && <Analytics user={user} />}
+        {screen === 'Profile' && (
+          <ProfilePage user={user} onUserChange={setUser} />
+        )}
         {screen === 'Games' && (
           <GamesPage
             user={user}
@@ -2795,6 +2806,332 @@ export function IslandEscapeGame({ quizId, onBack }) {
     </section>
   );
 }
+export function ProfilePage({ user, onUserChange }) {
+  const [data, setData] = useState(null);
+  const [form, setForm] = useState(null);
+  const [passwords, setPasswords] = useState({
+    password: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [email, setEmail] = useState({ password: '', email: '' });
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [mfaMessage, setMfaMessage] = useState('');
+  const [mfaFactor, setMfaFactor] = useState({ password: '', code: '' });
+  const dirty = form && JSON.stringify(form) !== JSON.stringify(data?.profile);
+  useEffect(() => {
+    api('/me/profile')
+      .then((body) => {
+        setData(body);
+        setForm({
+          ...body.profile,
+          preferredLanguages: body.profile.preferred_languages || [],
+        });
+      })
+      .catch((reason) => setError(reason.message));
+  }, []);
+  useEffect(() => {
+    const warn = (event) => {
+      if (dirty) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  if (!data || !form) return <p className="muted">Loading your profile…</p>;
+  const update = (key, value) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  const submitProfile = async (event) => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    try {
+      const body = await api('/me/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          firstName: form.first_name,
+          lastName: form.last_name || null,
+          ...(user.role === 'student'
+            ? { studentType: form.student_type }
+            : {}),
+          preferredLanguages: form.preferredLanguages,
+        }),
+      });
+      setData({ ...data, profile: body.profile });
+      setForm({
+        ...body.profile,
+        preferredLanguages: body.profile.preferred_languages || [],
+      });
+      onUserChange({ ...user, ...body.profile });
+      setMessage(body.message);
+    } catch (reason) {
+      setError(reason.message);
+    }
+  };
+  const submitPassword = async (event) => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    try {
+      const body = await api('/me/password', {
+        method: 'POST',
+        body: JSON.stringify(passwords),
+      });
+      setMessage(body.message);
+      setPasswords({ password: '', newPassword: '', confirmPassword: '' });
+    } catch (reason) {
+      setError(reason.message);
+    }
+  };
+  const submitEmail = async (event) => {
+    event.preventDefault();
+    setError('');
+    setMessage('');
+    try {
+      const body = await api('/me/email', {
+        method: 'POST',
+        body: JSON.stringify(email),
+      });
+      setMessage(body.message);
+      setEmail({ password: '', email: '' });
+    } catch (reason) {
+      setError(reason.message);
+    }
+  };
+  const enrolMfa = async () => {
+    try {
+      const body = await api('/mfa/enrol', { method: 'POST', body: '{}' });
+      setMfaMessage(`Setup key: ${body.setupKey}`);
+    } catch (reason) {
+      setError(reason.message);
+    }
+  };
+  const mfaAction = async (path) => {
+    try {
+      const body = await api(path, {
+        method: 'POST',
+        body: JSON.stringify(mfaFactor),
+      });
+      setMfaMessage(
+        body.recoveryCodes
+          ? `Recovery codes: ${body.recoveryCodes.join(', ')}`
+          : body.message || 'MFA updated.',
+      );
+      if (path === '/mfa/disable')
+        setData((current) => ({
+          ...current,
+          profile: { ...current.profile, mfa_enabled: false },
+        }));
+      setMfaFactor({ password: '', code: '' });
+    } catch (reason) {
+      setError(reason.message);
+    }
+  };
+  return (
+    <section className="profile-grid">
+      <form className="card" onSubmit={submitProfile}>
+        <span className="eyebrow">ACCOUNT</span>
+        <h2>Edit profile</h2>
+        {dirty && (
+          <p className="warning" role="status">
+            You have unsaved changes.
+          </p>
+        )}
+        {error && (
+          <p className="field-error" role="alert">
+            {error}
+          </p>
+        )}
+        {message && (
+          <p className="success" role="status">
+            {message}
+          </p>
+        )}
+        <label>
+          First name
+          <input
+            value={form.first_name || ''}
+            onChange={(e) => update('first_name', e.target.value)}
+          />
+        </label>
+        <label>
+          Last name
+          <input
+            value={form.last_name || ''}
+            onChange={(e) => update('last_name', e.target.value)}
+          />
+        </label>
+        {user.role === 'student' && (
+          <label>
+            Student type
+            <select
+              value={form.student_type || 'it'}
+              onChange={(e) => update('student_type', e.target.value)}
+            >
+              <option value="it">IT</option>
+              <option value="business">Business</option>
+            </select>
+          </label>
+        )}
+        <fieldset>
+          <legend>Preferred languages</legend>
+          <div className="language-grid">
+            {data.languages.map((language) => (
+              <label key={language}>
+                <input
+                  type="checkbox"
+                  checked={form.preferredLanguages.includes(language)}
+                  onChange={(e) =>
+                    update(
+                      'preferredLanguages',
+                      e.target.checked
+                        ? [...form.preferredLanguages, language]
+                        : form.preferredLanguages.filter(
+                            (item) => item !== language,
+                          ),
+                    )
+                  }
+                />
+                {language}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <button className="primary" type="submit">
+          Save profile
+        </button>
+      </form>
+      <div className="profile-stack">
+        <form className="card" onSubmit={submitEmail}>
+          <h2>Change email</h2>
+          <p className="muted">
+            Your current email stays active until the new address is verified.
+          </p>
+          <label>
+            New email
+            <input
+              type="email"
+              value={email.email}
+              onChange={(e) => setEmail({ ...email, email: e.target.value })}
+              required
+            />
+          </label>
+          <label>
+            Current password
+            <input
+              type="password"
+              value={email.password}
+              onChange={(e) => setEmail({ ...email, password: e.target.value })}
+              required
+            />
+          </label>
+          <button className="secondary" type="submit">
+            Send verification
+          </button>
+        </form>
+        <form className="card" onSubmit={submitPassword}>
+          <h2>Change password</h2>
+          <label>
+            Current password
+            <input
+              type="password"
+              value={passwords.password}
+              onChange={(e) =>
+                setPasswords({ ...passwords, password: e.target.value })
+              }
+              required
+            />
+          </label>
+          <label>
+            New password
+            <input
+              type="password"
+              value={passwords.newPassword}
+              onChange={(e) =>
+                setPasswords({ ...passwords, newPassword: e.target.value })
+              }
+              required
+            />
+          </label>
+          <label>
+            Confirm new password
+            <input
+              type="password"
+              value={passwords.confirmPassword}
+              onChange={(e) =>
+                setPasswords({ ...passwords, confirmPassword: e.target.value })
+              }
+              required
+            />
+          </label>
+          <p className="muted">
+            Use 10+ characters with uppercase, lowercase, number and special
+            character.
+          </p>
+          <button className="secondary" type="submit">
+            Change password
+          </button>
+        </form>
+        <section className="card">
+          <h2>Multi-factor authentication</h2>
+          <p>
+            {data.profile.mfa_enabled
+              ? 'MFA is enabled.'
+              : 'MFA is not enabled.'}
+          </p>
+          {mfaMessage && <p className="success">{mfaMessage}</p>}
+          {!data.profile.mfa_enabled && (
+            <button className="secondary" onClick={enrolMfa}>
+              Enrol MFA
+            </button>
+          )}
+          {data.profile.mfa_enabled && (
+            <>
+              <label>
+                MFA password
+                <input
+                  type="password"
+                  value={mfaFactor.password}
+                  onChange={(e) =>
+                    setMfaFactor({ ...mfaFactor, password: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Authenticator or recovery code
+                <input
+                  value={mfaFactor.code}
+                  onChange={(e) =>
+                    setMfaFactor({ ...mfaFactor, code: e.target.value })
+                  }
+                />
+              </label>
+              <div className="button-row">
+                <button
+                  className="secondary"
+                  onClick={() => mfaAction('/mfa/disable')}
+                >
+                  Disable MFA
+                </button>
+                <button
+                  className="secondary"
+                  onClick={() => mfaAction('/mfa/recovery-codes/regenerate')}
+                >
+                  Regenerate recovery codes
+                </button>
+              </div>
+            </>
+          )}
+          <p className="muted">Never share your setup key or recovery codes.</p>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 export function QuizTaking({ quizId }) {
   const [state, setState] = useState({
     loading: true,

@@ -12,6 +12,7 @@ export default defineConfig({
       'backend/tests/ai-worker.test.js',
       'backend/tests/identity-api.test.js',
       'backend/tests/mfa-api.test.js',
+      'backend/tests/profile-api.test.js',
       'backend/tests/api.test.js',
       'backend/tests/authorization-matrix.test.js',
       'backend/tests/database.invariants.test.js',

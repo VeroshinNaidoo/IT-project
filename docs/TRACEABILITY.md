@@ -179,3 +179,4 @@ The chooser implementation is covered by 6 availability unit tests, the API choo
 ## Registration and login improvement
 
 The identity slice is covered by 7 identity API tests, 44 frontend authentication/component tests, and the 60-route authorization matrix. The MFA backend is covered by 5 named integration tests for enrolment, fixed-clock TOTP confirmation, login challenge/replay, recovery-code single use, lockout, disable and regeneration. MFA frontend, lecturer enforcement, and browser coverage are intentionally outside this slice.
+| Profile management | Editable identity, language preferences, email re-verification, password/session rotation and MFA status | automated: `backend/tests/profile-api.test.js` (7 tests), authorization matrix |

@@ -12,6 +12,14 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import QRCode from 'qrcode';
 import { z } from 'zod';
+import {
+  emailSchema,
+  normalizePersonName,
+  passwordIsAllowed,
+  passwordSchema,
+  personNameSchema,
+  splitLegacyName,
+} from './validation/identity.js';
 import { pool } from '../db.js';
 import {
   noProfanity,
@@ -187,11 +195,11 @@ const issueSession = async (userId, res) => {
     maxAge: 8 * 60 * 60 * 1000,
   });
 };
-const issueVerificationMail = async (userId, email) => {
+const issueVerificationMail = async (userId, email, targetEmail = null) => {
   const token = crypto.randomBytes(32).toString('base64url');
   await pool.query(
-    `INSERT INTO email_verification_tokens(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '24 hours')`,
-    [userId, sessionHash(token)],
+    `INSERT INTO email_verification_tokens(user_id,token_hash,target_email,expires_at) VALUES($1,$2,$3,now()+interval '24 hours')`,
+    [userId, sessionHash(token), targetEmail],
   );
   const mailDir = path.resolve('docs/dev-mail');
   await mkdir(mailDir, { recursive: true });
@@ -202,31 +210,12 @@ const issueVerificationMail = async (userId, email) => {
   );
 };
 
-const personNameSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(50)
-  .regex(
-    /^[\p{L}]+(?:[ '\u002D][\p{L}]+)*$/u,
-    'Use letters, spaces, hyphens or apostrophes only.',
-  )
-  .refine(noProfanity(), { message: profanityMessage });
 const nameSchema = z
   .string()
   .trim()
   .min(1)
   .max(120)
   .refine(noProfanity(), { message: profanityMessage });
-const emailSchema = z.string().trim().toLowerCase().max(254).email();
-const passwordSchema = z
-  .string()
-  .min(10)
-  .max(200)
-  .regex(/[A-Z]/, 'Password needs an uppercase letter.')
-  .regex(/[a-z]/, 'Password needs a lowercase letter.')
-  .regex(/[0-9]/, 'Password needs a number.')
-  .regex(/[^A-Za-z0-9]/, 'Password needs a special character.');
 const registerSchema = z
   .object({
     email: emailSchema,
@@ -267,33 +256,6 @@ const titleSchema = z
   .min(1)
   .max(200)
   .refine(noProfanity(), { message: profanityMessage });
-
-const commonPasswords = new Set([
-  'password123!',
-  'password1234!',
-  'qwerty1234!',
-  'welcome123!',
-  'letmein123!',
-]);
-const normalizePersonName = (value) => value.trim().replace(/\s+/g, ' ');
-const splitLegacyName = (value) => {
-  const normalized = normalizePersonName(value);
-  const firstSpace = normalized.indexOf(' ');
-  return firstSpace < 0
-    ? { firstName: normalized, lastName: null }
-    : {
-        firstName: normalized.slice(0, firstSpace),
-        lastName: normalized.slice(firstSpace + 1),
-      };
-};
-const passwordIsAllowed = (password, email, firstName) => {
-  const lowered = password.toLowerCase();
-  return (
-    !commonPasswords.has(lowered) &&
-    !lowered.includes(email.toLowerCase()) &&
-    !lowered.includes(firstName.toLowerCase())
-  );
-};
 
 app.get('/health', async (_req, res) => {
   const result = await pool.query('SELECT 1 AS ok');
@@ -365,7 +327,7 @@ app.get('/api/v1/auth/verify-email', async (req, res, next) => {
     );
     if (!data) return;
     const result = await pool.query(
-      `UPDATE email_verification_tokens SET used_at=now() WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now() RETURNING user_id`,
+      `UPDATE email_verification_tokens SET used_at=now() WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now() RETURNING user_id,target_email`,
       [sessionHash(data.token)],
     );
     if (!result.rowCount)
@@ -377,8 +339,8 @@ app.get('/api/v1/auth/verify-email', async (req, res, next) => {
         requestId(req),
       );
     await pool.query(
-      'UPDATE users SET email_verified_at=now() WHERE user_id=$1',
-      [result.rows[0].user_id],
+      `UPDATE users SET email=COALESCE($2,email),pending_email=NULL,email_verified_at=now() WHERE user_id=$1`,
+      [result.rows[0].user_id, result.rows[0].target_email],
     );
     res.json({ verified: true });
   } catch (e) {
@@ -785,6 +747,250 @@ app.put('/api/v1/auth/me', requireAuth, async (req, res, next) => {
       ],
     );
     res.json({ user: result.rows[0] });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const profileSchema = z
+  .object({
+    firstName: personNameSchema.optional(),
+    lastName: personNameSchema.optional().nullable(),
+    studentType: z.enum(['it', 'business']).optional(),
+    preferredLanguages: z
+      .array(z.string().trim().min(1).max(40))
+      .max(10)
+      .optional(),
+  })
+  .strict();
+const currentPasswordSchema = z
+  .object({ password: z.string().min(1) })
+  .strict();
+
+const profileUser = async (userId) => {
+  const result = await pool.query(
+    `SELECT u.user_id,u.role,u.full_name,u.first_name,u.last_name,u.student_type,
+            u.email,u.email_verified_at,u.pending_email,
+            COALESCE(json_agg(pl.name ORDER BY pl.name) FILTER (WHERE pl.name IS NOT NULL), '[]') AS preferred_languages,
+            EXISTS(SELECT 1 FROM mfa_credentials mc WHERE mc.user_id=u.user_id AND mc.enabled) AS mfa_enabled
+       FROM users u
+       LEFT JOIN user_preferred_languages upl ON upl.user_id=u.user_id
+       LEFT JOIN programming_languages pl ON pl.language_id=upl.language_id
+      WHERE u.user_id=$1
+      GROUP BY u.user_id`,
+    [userId],
+  );
+  return result.rows[0];
+};
+
+app.get('/api/v1/me/profile', requireAuth, async (req, res, next) => {
+  try {
+    const [profile, languages] = await Promise.all([
+      profileUser(req.user.userId),
+      pool.query('SELECT name FROM programming_languages ORDER BY name'),
+    ]);
+    res.json({ profile, languages: languages.rows.map((row) => row.name) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.patch('/api/v1/me/profile', requireAuth, async (req, res, next) => {
+  try {
+    const data = parse(profileSchema, req.body, req, res, 422);
+    if (!data) return;
+    if (req.user.role !== 'student' && data.studentType !== undefined)
+      return error(
+        res,
+        422,
+        'VALIDATION_ERROR',
+        'Student type is only available for students.',
+        requestId(req),
+      );
+    if (
+      data.firstName !== undefined &&
+      !visibleText('firstName', req, res, data.firstName)
+    )
+      return;
+    if (data.lastName && !visibleText('lastName', req, res, data.lastName))
+      return;
+    const identity = {
+      firstName: data.firstName
+        ? normalizePersonName(data.firstName)
+        : req.user.firstName,
+      lastName:
+        data.lastName === undefined
+          ? req.user.lastName
+          : data.lastName
+            ? normalizePersonName(data.lastName)
+            : null,
+    };
+    await pool.query(
+      `UPDATE users SET first_name=$1,last_name=$2,full_name=$3,student_type=CASE WHEN role='student' THEN COALESCE($4,student_type) ELSE NULL END WHERE user_id=$5`,
+      [
+        identity.firstName,
+        identity.lastName,
+        [identity.firstName, identity.lastName].filter(Boolean).join(' '),
+        data.studentType ?? null,
+        req.user.userId,
+      ],
+    );
+    if (data.preferredLanguages !== undefined) {
+      const languages = await pool.query(
+        'SELECT language_id,name FROM programming_languages WHERE name=ANY($1)',
+        [data.preferredLanguages],
+      );
+      if (languages.rowCount !== data.preferredLanguages.length)
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Choose languages from the available list.',
+          requestId(req),
+        );
+      await pool.query(
+        'DELETE FROM user_preferred_languages WHERE user_id=$1',
+        [req.user.userId],
+      );
+      for (const language of languages.rows)
+        await pool.query(
+          'INSERT INTO user_preferred_languages(user_id,language_id) VALUES($1,$2)',
+          [req.user.userId, language.language_id],
+        );
+    }
+    res.json({
+      profile: await profileUser(req.user.userId),
+      message: 'Profile saved.',
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/v1/me/password', requireAuth, async (req, res, next) => {
+  try {
+    const data = parse(
+      currentPasswordSchema
+        .extend({
+          newPassword: passwordSchema,
+          confirmPassword: z.string().max(200),
+        })
+        .strict(),
+      req.body,
+      req,
+      res,
+      422,
+    );
+    if (!data) return;
+    if (data.newPassword !== data.confirmPassword)
+      return error(
+        res,
+        422,
+        'VALIDATION_ERROR',
+        'Passwords do not match.',
+        requestId(req),
+      );
+    const current = await pool.query(
+      'SELECT password_hash,first_name,email FROM users WHERE user_id=$1',
+      [req.user.userId],
+    );
+    if (
+      !current.rowCount ||
+      !(await bcrypt.compare(data.password, current.rows[0].password_hash))
+    )
+      return error(
+        res,
+        401,
+        'INVALID_PASSWORD',
+        'The current password is incorrect.',
+        requestId(req),
+      );
+    if (
+      !passwordIsAllowed(
+        data.newPassword,
+        current.rows[0].email,
+        current.rows[0].first_name,
+      )
+    )
+      return error(
+        res,
+        422,
+        'VALIDATION_ERROR',
+        'Choose a less common password that does not contain your email or first name.',
+        requestId(req),
+      );
+    await pool.query('BEGIN');
+    try {
+      await pool.query('UPDATE users SET password_hash=$1 WHERE user_id=$2', [
+        await bcrypt.hash(data.newPassword, 12),
+        req.user.userId,
+      ]);
+      await pool.query(
+        'UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND token_hash<>$2 AND revoked_at IS NULL',
+        [req.user.userId, sessionHash(req.cookies.eduquest_session)],
+      );
+      await pool.query('COMMIT');
+    } catch (e) {
+      await pool.query('ROLLBACK');
+      throw e;
+    }
+    res.json({ message: 'Password changed. Other sessions were signed out.' });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/v1/me/email', requireAuth, async (req, res, next) => {
+  try {
+    const data = parse(
+      currentPasswordSchema.extend({ email: emailSchema }).strict(),
+      req.body,
+      req,
+      res,
+      422,
+    );
+    if (!data) return;
+    const current = await pool.query(
+      'SELECT password_hash,email FROM users WHERE user_id=$1',
+      [req.user.userId],
+    );
+    if (
+      !current.rowCount ||
+      !(await bcrypt.compare(data.password, current.rows[0].password_hash))
+    )
+      return error(
+        res,
+        401,
+        'INVALID_PASSWORD',
+        'The current password is incorrect.',
+        requestId(req),
+      );
+    if (data.email === current.rows[0].email)
+      return error(
+        res,
+        422,
+        'VALIDATION_ERROR',
+        'Choose a different email address.',
+        requestId(req),
+      );
+    const duplicate = await pool.query(
+      'SELECT 1 FROM users WHERE lower(email)=lower($1) OR lower(pending_email)=lower($1)',
+      [data.email],
+    );
+    if (duplicate.rowCount)
+      return error(
+        res,
+        409,
+        'EMAIL_EXISTS',
+        'An account with that email already exists.',
+        requestId(req),
+      );
+    await pool.query('UPDATE users SET pending_email=$1 WHERE user_id=$2', [
+      data.email,
+      req.user.userId,
+    ]);
+    await issueVerificationMail(req.user.userId, data.email, data.email);
+    res.json({ message: 'Check your new email to verify the change.' });
   } catch (e) {
     next(e);
   }

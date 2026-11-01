@@ -130,6 +130,16 @@ const bodies = {
     code: '000000',
   }),
   'PUT /api/v1/auth/me': () => ({ fullName: 'Updated Matrix Student' }),
+  'PATCH /api/v1/me/profile': () => ({ role: 'lecturer' }),
+  'POST /api/v1/me/password': () => ({
+    password: 'wrong',
+    newPassword: 'NewPassword9!',
+    confirmPassword: 'NewPassword9!',
+  }),
+  'POST /api/v1/me/email': () => ({
+    password: 'wrong',
+    email: 'matrix-new@example.com',
+  }),
   'POST /api/v1/modules': () => ({
     moduleCode: `M${Date.now().toString().slice(-6)}`,
     moduleName: 'Matrix Module',
@@ -228,6 +238,10 @@ const specs = {
   'POST /api/v1/auth/logout': ['/api/v1/auth/logout', 'lecturer'],
   'GET /api/v1/auth/me': ['/api/v1/auth/me', 'student'],
   'PUT /api/v1/auth/me': ['/api/v1/auth/me', 'student'],
+  'GET /api/v1/me/profile': ['/api/v1/me/profile', 'student'],
+  'PATCH /api/v1/me/profile': ['/api/v1/me/profile', 'student'],
+  'POST /api/v1/me/password': ['/api/v1/me/password', 'student'],
+  'POST /api/v1/me/email': ['/api/v1/me/email', 'student'],
   'GET /api/v1/modules': ['/api/v1/modules', 'lecturer'],
   'POST /api/v1/modules': ['/api/v1/modules', 'lecturer'],
   'POST /api/v1/enrollments': ['/api/v1/enrollments', 'student'],
@@ -745,6 +759,28 @@ async function assertRoute(route, [template, successRole]) {
   const body = bodies[route]?.() ?? {};
   const isPublic = authorizationMatrix[route].auth === 'public';
   if (
+    route.startsWith('GET /api/v1/me/profile') ||
+    route.startsWith('PATCH /api/v1/me/profile') ||
+    route.startsWith('POST /api/v1/me/')
+  ) {
+    const unauthenticated = await send(request(app), method, path, body);
+    expect(unauthenticated.status, `${route} unauthenticated`).toBe(401);
+    if (method === 'GET') {
+      const success = await send(await login(successRole), method, path);
+      expect(success.status, `${route} success`).toBe(200);
+      expect(success.body.profile).toBeTruthy();
+      return;
+    }
+    const invalid = await send(await login(successRole), method, path, {
+      unknownField: true,
+    });
+    expect([401, 422], `${route} validation`).toContain(invalid.status);
+    expect(JSON.stringify(invalid.body)).not.toMatch(
+      /password_hash|encrypted_secret|token_hash/i,
+    );
+    return;
+  }
+  if (
     route === 'POST /api/v1/auth/login/mfa' ||
     route.startsWith('POST /api/v1/mfa/')
   ) {
@@ -875,7 +911,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(58);
+    expect(routeInventory.length).toBe(62);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

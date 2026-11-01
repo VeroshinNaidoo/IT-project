@@ -96,3 +96,12 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 4. In development, open the matching ignored file under `docs/dev-mail/` and use the verification link once.
 5. Confirm the first use succeeds and refreshing/reusing the same link is rejected.
 6. Try digits or symbols in the name, a weak password, a mismatched confirmation, and a duplicate email; each must be rejected with a generic validation response.
+
+## Profile smoke test
+
+1. Open Edit profile from the sidebar or header, change a name and select preferred languages, then save.
+2. Confirm an unsaved-change warning appears before saving and that the success message appears after saving.
+3. Try a profane name and a protected field; confirm the generic validation error and no sensitive data in the response.
+4. Change email and confirm the old email remains active until the development verification link is used.
+5. Change password, confirm the current session remains active and another session is signed out.
+6. Review MFA status and use the existing enrolment/disable/recovery-code actions.

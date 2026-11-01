@@ -79,9 +79,11 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 
 ## Identity invariants
 
-| Invariant                                                                                   | Enforcement                                                   | Evidence                                       |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
-| Names contain only Unicode letters, spaces, hyphens and apostrophes, with normalized length | Strict Zod schema and server normalization                    | `backend/tests/identity-api.test.js`           |
-| Student registrations store a student type                                                  | Registration schema and migration trigger for legacy fixtures | Identity registration test and migration 016   |
-| Verification tokens are hashed, single-use and time-limited                                 | Hashed token table and conditional update                     | Verification API test                          |
-| Passwords meet the composition policy and confirmation matches                              | Strict Zod schema and server-side checks                      | Identity API and frontend authentication tests |
+| Invariant                                                                                   | Enforcement                                                                             | Evidence                                                                     |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Names contain only Unicode letters, spaces, hyphens and apostrophes, with normalized length | Strict Zod schema and server normalization                                              | `backend/tests/identity-api.test.js`                                         |
+| Student registrations store a student type                                                  | Registration schema and migration trigger for legacy fixtures                           | Identity registration test and migration 016                                 |
+| Verification tokens are hashed, single-use and time-limited                                 | Hashed token table and conditional update                                               | Verification API test                                                        |
+| Passwords meet the composition policy and confirmation matches                              | Strict Zod schema and server-side checks                                                | Identity API and frontend authentication tests                               |
+| INV-62                                                                                      | Profile writes are owner-scoped and reject unknown/protected fields                     | `backend/src/app.js` strict Zod schemas; `backend/tests/profile-api.test.js` |
+| INV-63                                                                                      | Email changes remain pending until verification; password changes revoke other sessions | `backend/src/app.js`, migration 018; `backend/tests/profile-api.test.js`     |

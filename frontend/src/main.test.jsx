@@ -21,6 +21,7 @@ import {
   QuizTaking,
   Quizzes,
   ResourceRow,
+  ProfilePage,
 } from './main.jsx';
 
 const bossQuestion = {
@@ -1669,4 +1670,44 @@ describe('frontend authentication and role routing', () => {
     render(<InfectedGame quizId="quiz-empty" onBack={() => {}} />);
     expect(await screen.findByText('No cards are available.')).toBeTruthy();
   });
+});
+it('profile page loads, edits preferred languages, and shows unsaved changes', async () => {
+  const profile = {
+    user_id: 'profile-1',
+    role: 'student',
+    first_name: 'Ada',
+    last_name: 'Lovelace',
+    student_type: 'it',
+    email: 'ada@example.com',
+    preferred_languages: ['Python'],
+    mfa_enabled: false,
+  };
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ profile, languages: ['JavaScript', 'Python'] }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        profile: { ...profile, preferred_languages: ['JavaScript', 'Python'] },
+        message: 'Profile saved.',
+      }),
+    });
+  vi.stubGlobal('fetch', fetchMock);
+  render(
+    <ProfilePage
+      user={{ role: 'student', ...profile }}
+      onUserChange={vi.fn()}
+    />,
+  );
+  expect(await screen.findByText('Edit profile')).toBeTruthy();
+  fireEvent.click(screen.getByLabelText('JavaScript'));
+  expect(screen.getByText('You have unsaved changes.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+  await waitFor(() => expect(screen.getByText('Profile saved.')).toBeTruthy());
+  vi.unstubAllGlobals();
 });
