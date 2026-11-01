@@ -3,7 +3,20 @@ import path from 'node:path';
 import { chromium } from '@playwright/test';
 
 const root = process.cwd();
-const ignored = new Set(['node_modules', '.git', '.pgdata', '.pgsql', 'dist', 'build', 'coverage', 'test-results', '.pytest_cache', '__pycache__', 'uploads', 'backups']);
+const ignored = new Set([
+  'node_modules',
+  '.git',
+  '.pgdata',
+  '.pgsql',
+  'dist',
+  'build',
+  'coverage',
+  'test-results',
+  '.pytest_cache',
+  '__pycache__',
+  'uploads',
+  'backups',
+]);
 const generated = new Set(['.env', '.pglite-dev.pid', '.pglite-test.pid']);
 
 async function walk(directory, relative = '') {
@@ -13,15 +26,21 @@ async function walk(directory, relative = '') {
     if (ignored.has(entry.name) || generated.has(entry.name)) continue;
     if (relative === 'docs' && entry.name === 'report') continue;
     const next = path.join(relative, entry.name);
-    result.push({ path: next.replaceAll('\\', '/'), directory: entry.isDirectory() });
-    if (entry.isDirectory()) result.push(...(await walk(path.join(directory, entry.name), next)));
+    result.push({
+      path: next.replaceAll('\\', '/'),
+      directory: entry.isDirectory(),
+    });
+    if (entry.isDirectory())
+      result.push(...(await walk(path.join(directory, entry.name), next)));
   }
   return result;
 }
 
 const all = await walk(root);
 const depth = (item) => item.path.split('/').length;
-const visible = all.filter((item) => depth(item) <= 3 || item.path.startsWith('backend/src/games/'));
+const visible = all.filter(
+  (item) => depth(item) <= 3 || item.path.startsWith('backend/src/games/'),
+);
 
 const descriptions = {
   frontend: 'React presentation layer and browser tests',
@@ -53,7 +72,9 @@ function label(item) {
 
 function treeFor(prefix) {
   const start = prefix ? `${prefix}/` : '';
-  return visible.filter((item) => !prefix || item.path === prefix || item.path.startsWith(start));
+  return visible.filter(
+    (item) => !prefix || item.path === prefix || item.path.startsWith(start),
+  );
 }
 
 function markdownTree(items, title) {
@@ -61,20 +82,34 @@ function markdownTree(items, title) {
   for (const item of items) {
     const relative = prefixless(item.path, title);
     const level = relative.split('/').length - 1;
-    lines.push(`${'  '.repeat(level)}${item.directory ? '├── 📁 ' : '├── 📄 '}${label(item)}`);
+    lines.push(
+      `${'  '.repeat(level)}${item.directory ? '├── 📁 ' : '├── 📄 '}${label(item)}`,
+    );
   }
-  lines.push('```', '', 'Descriptions are based on the real repository file tree; generated files and secrets are excluded.');
+  lines.push(
+    '```',
+    '',
+    'Descriptions are based on the real repository file tree; generated files and secrets are excluded.',
+  );
   return lines.join('\n');
 }
 
 function prefixless(itemPath, title) {
-  if (title.includes('Frontend')) return itemPath.replace(/^frontend\//, 'frontend/');
-  if (title.includes('Backend')) return itemPath.replace(/^backend\//, 'backend/');
+  if (title.includes('Frontend'))
+    return itemPath.replace(/^frontend\//, 'frontend/');
+  if (title.includes('Backend'))
+    return itemPath.replace(/^backend\//, 'backend/');
   return itemPath;
 }
 
-await writeFile('docs/report/02-project-structure/FOLDER_STRUCTURE.md', markdownTree(visible, 'EduQuest Project Folder Structure'), 'utf8');
-await writeFile('docs/report/02-project-structure/ARCHITECTURE_LAYERS.md', `# EduQuest Architecture Layers
+await writeFile(
+  'docs/report/02-project-structure/FOLDER_STRUCTURE.md',
+  markdownTree(visible, 'EduQuest Project Folder Structure'),
+  'utf8',
+);
+await writeFile(
+  'docs/report/02-project-structure/ARCHITECTURE_LAYERS.md',
+  `# EduQuest Architecture Layers
 
 ## Presentation
 
@@ -113,25 +148,40 @@ flowchart LR
 \`\`\`
 
 The frontend never calls the AI service directly. The backend supplies the shared-secret header and validates every AI response before persistence.
-`, 'utf8');
+`,
+  'utf8',
+);
 
 const panels = [
   ['explorer-frontend.png', 'Frontend Explorer', treeFor('frontend')],
   ['explorer-backend.png', 'Backend Explorer', treeFor('backend')],
-  ['explorer-ai-and-db.png', 'AI Service and Database Explorer', [...treeFor('ai-service'), ...treeFor('db')]],
+  [
+    'explorer-ai-and-db.png',
+    'AI Service and Database Explorer',
+    [...treeFor('ai-service'), ...treeFor('db')],
+  ],
 ];
 
-const icon = (directory) => directory ? '📁' : '📄';
+const icon = (directory) => (directory ? '📁' : '📄');
 for (const [filename, title, items] of panels) {
-  const rows = items.map((item) => {
-    const level = item.path.split('/').length - (title.startsWith('AI') ? 1 : 1);
-    return `<div class="row" style="padding-left:${Math.max(0, level) * 32}px"><span class="icon">${icon(item.directory)}</span><span>${label(item)}</span></div>`;
-  }).join('');
+  const rows = items
+    .map((item) => {
+      const level =
+        item.path.split('/').length - (title.startsWith('AI') ? 1 : 1);
+      return `<div class="row" style="padding-left:${Math.max(0, level) * 32}px"><span class="icon">${icon(item.directory)}</span><span>${label(item)}</span></div>`;
+    })
+    .join('');
   const html = `<html><head><style>body{margin:0;background:#181818;color:#d4d4d4;font:18px Consolas,monospace}.panel{width:1800px;min-height:1600px;background:#1e1e1e}.head{height:74px;padding:22px 28px 0;box-sizing:border-box;color:#fff;font:700 26px Segoe UI,sans-serif;border-bottom:1px solid #333}.sub{padding:14px 28px;color:#9cdcfe;font:16px Segoe UI,sans-serif}.row{height:34px;line-height:34px;white-space:nowrap}.icon{display:inline-block;width:34px}.row:nth-child(even){background:#202020}</style></head><body><div class="panel"><div class="head">${title}</div><div class="sub">Real repository tree · generated locally · secrets and generated output excluded</div>${rows}</div></body></html>`;
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1800, height: 1600 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({
+    viewport: { width: 1800, height: 1600 },
+    deviceScaleFactor: 1,
+  });
   await page.setContent(html);
-  await page.screenshot({ path: `docs/report/02-project-structure/${filename}`, fullPage: true });
+  await page.screenshot({
+    path: `docs/report/02-project-structure/${filename}`,
+    fullPage: true,
+  });
   await browser.close();
 }
 

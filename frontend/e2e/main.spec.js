@@ -952,7 +952,9 @@ test('Timer Trivia board, timed question and feedback are accessible', async ({
           play: {
             ...play(),
             activeCellId: 'cell-2',
-            deadlineAt: new Date(Date.now() + 10100).toISOString(),
+            // Leave enough time for every browser engine to observe the
+            // 10-second threshold before it crosses below it.
+            deadlineAt: new Date(Date.now() + 12000).toISOString(),
           },
           question: {
             questionId: 'timer-q',

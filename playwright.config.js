@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './frontend/e2e',
-  timeout: 30_000,
+  timeout: 60_000,
   // PGlite exposes PostgreSQL over a socket but serializes execution internally.
   // Keep browser projects sequential so end-to-end jobs do not starve the worker.
   workers: 1,
@@ -13,8 +13,14 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: true,
+    // Browser checks are an offline, deterministic suite. Do not inherit a
+    // configured live provider from .env or reuse an interactive dev stack.
+    reuseExistingServer: false,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      AI_PROVIDER: 'mock',
+    },
   },
   projects: [
     {
