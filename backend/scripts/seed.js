@@ -36,20 +36,82 @@ try {
   );
   const students = [];
   for (let index = 1; index <= 5; index += 1) {
-    students.push(
-      await upsertUser(
-        `demo-student-${index}@example.com`,
-        'student',
-        `Demo Student ${index}`,
-      ),
+    const student = await upsertUser(
+      `demo-student-${index}@example.com`,
+      'student',
+      `Demo Student ${index}`,
     );
+    await client.query('UPDATE users SET student_year=$1 WHERE user_id=$2', [
+      index <= 3 ? index : 1,
+      student,
+    ]);
+    students.push(student);
   }
   const moduleRow = (
     await client.query(
-      `INSERT INTO modules(lecturer_id,module_code,module_name,join_code) VALUES($1,'DEMO101','Database Systems','DEMOJOIN2026') ON CONFLICT(module_code) DO UPDATE SET module_name=EXCLUDED.module_name RETURNING module_id,join_code`,
+      `INSERT INTO modules(lecturer_id,module_code,module_name,description,year,programme,offering,join_code) VALUES($1,'DEMO101','Database Systems','Foundations of data modelling, queries and reliable information systems.',1,'both','Semester 1','DEMOJOIN2026') ON CONFLICT(module_code) DO UPDATE SET module_name=EXCLUDED.module_name,description=EXCLUDED.description,year=EXCLUDED.year,programme=EXCLUDED.programme,offering=EXCLUDED.offering RETURNING module_id,join_code`,
       [lecturer],
     )
   ).rows[0];
+  for (const module of [
+    [
+      'DEMO-IT101',
+      'Programming Foundations',
+      'Introduction to programming and problem solving.',
+      1,
+      'it',
+    ],
+    [
+      'DEMO-BUS101',
+      'Business Information Systems',
+      'How organisations use information systems to make decisions.',
+      1,
+      'business',
+    ],
+    [
+      'DEMO-IT201',
+      'Software Engineering',
+      'Collaborative design, testing and delivery of software.',
+      2,
+      'it',
+    ],
+    [
+      'DEMO-BUS201',
+      'Business Data Analysis',
+      'Practical analysis for evidence-based business decisions.',
+      2,
+      'business',
+    ],
+    [
+      'DEMO-IT301',
+      'Cloud Applications',
+      'Designing reliable applications for modern cloud platforms.',
+      3,
+      'it',
+    ],
+    [
+      'DEMO-BUS301',
+      'Digital Strategy',
+      'Technology strategy, governance and digital transformation.',
+      3,
+      'business',
+    ],
+  ]) {
+    await client.query(
+      `INSERT INTO modules(lecturer_id,module_code,module_name,description,year,programme,offering,join_code)
+       VALUES($1,$2,$3,$4,$5,$6,'Semester 1',$7)
+       ON CONFLICT(module_code) DO UPDATE SET module_name=EXCLUDED.module_name,description=EXCLUDED.description,year=EXCLUDED.year,programme=EXCLUDED.programme,offering=EXCLUDED.offering`,
+      [
+        lecturer,
+        module[0],
+        module[1],
+        module[2],
+        module[3],
+        module[4],
+        `${module[0]}JOIN2026`,
+      ],
+    );
+  }
   for (const student of students)
     await client.query(
       'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2) ON CONFLICT DO NOTHING',

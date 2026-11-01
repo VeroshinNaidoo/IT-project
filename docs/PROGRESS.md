@@ -218,3 +218,11 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Gate result: 179 pure/frontend and 179 DB/API tests passed with zero skips; lint and type-check passed.
 - Added the MFA backend: AES-256-GCM encrypted TOTP secret, QR data URL enrolment, RFC 6238 confirmation, five-minute login challenges, replay protection, one-use recovery codes, five-attempt challenge lockout, and account lockout tracking.
 - Remaining: lecturer MFA enforcement, MFA frontend, and browser/axe coverage are intentionally deferred to the next slice.
+
+## 2026-11-01 — Module and resource catalogue
+
+- Built and tested migration 019 for module Year/Programme/Offering/Description and student Year, with conservative legacy backfill.
+- Added owner-scoped, paginated `/me/modules`, first-year-only `/me/modules/lookahead`, and `/resources/modules` endpoints; filtered resource lists retain group visibility rules.
+- Added responsive module cards, first-year read-only preview, resource tiles, module picker, search and pagination. Added API, component, authorization-matrix, Playwright and axe coverage.
+- Gates: lint, format, type-check, production build, 169 unit/frontend tests, 210 DB/API tests, and 72 browser projects passed with zero skips. Dedicated catalogue browser checks passed at Chromium/Firefox 390/768/1280 with zero axe violations.
+- Remaining: no new game or multiplayer work was started. The feature is not committed yet in this working turn.

@@ -119,6 +119,10 @@ h1 {
 .games-page .card {
   animation: none;
 }
+.modules-page .card,
+.resources-page .card {
+  animation: none;
+}
 .games-page .muted {
   color: #5d6678;
 }
@@ -2203,6 +2207,93 @@ input[type='radio'] {
 .profile-header-link {
   margin-left: 12px;
 }
+.modules-page,
+.resources-page {
+  display: grid;
+  gap: 20px;
+}
+.catalogue-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.catalogue-controls input,
+.catalogue-controls select {
+  width: auto;
+  min-width: 150px;
+}
+.module-card-grid,
+.resource-module-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.module-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-height: 190px;
+  padding: 18px;
+  border: 1px solid #e3dfd5;
+  border-radius: 14px;
+  background: #fff;
+}
+.module-card h3 {
+  margin: 0;
+}
+.module-card p {
+  margin: 0;
+}
+.module-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.module-card-stats span {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #e4e7fb;
+  color: #14213d;
+}
+.lookahead-card {
+  border-left: 5px solid #f2a93b;
+}
+.resource-module-tile {
+  display: grid;
+  gap: 6px;
+  min-height: 150px;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid #e3dfd5;
+  border-radius: 14px;
+  background: #fff;
+  color: #14213d;
+  cursor: pointer;
+}
+.resource-module-tile:hover,
+.resource-module-tile.selected {
+  border-color: #3b4bdb;
+  box-shadow: 0 0 0 3px #e4e7fb;
+}
+.resource-module-tile strong {
+  font:
+    700 19px 'Space Grotesk',
+    sans-serif;
+}
+.resource-module-tile small {
+  color: #5d6678;
+}
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
 .language-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2224,6 +2315,17 @@ input[type='radio'] {
   font-weight: 700;
 }
 @media (max-width: 760px) {
+  .module-card-grid,
+  .resource-module-grid {
+    grid-template-columns: 1fr;
+  }
+  .section-heading {
+    display: grid;
+  }
+  .catalogue-controls input,
+  .catalogue-controls select {
+    width: 100%;
+  }
   .profile-grid {
     grid-template-columns: 1fr;
   }

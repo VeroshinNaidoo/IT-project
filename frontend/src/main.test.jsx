@@ -21,6 +21,7 @@ import {
   QuizTaking,
   Quizzes,
   ResourceRow,
+  Resources,
   ProfilePage,
 } from './main.jsx';
 
@@ -195,6 +196,123 @@ describe('Lecturer module creation', () => {
     ).toBeTruthy();
     expect(screen.getByText('Introduction to Computing')).toBeTruthy();
     expect(screen.getByText('JoinCode: JOIN-123')).toBeTruthy();
+  });
+});
+
+describe('Student module and resource catalogues', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('renders enrolled module cards and the first-year read-only look-ahead', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url) => {
+        if (url.includes('/me/modules/lookahead'))
+          return Promise.resolve(
+            response({
+              preview: true,
+              data: [
+                {
+                  module_id: 'next-module',
+                  module_code: 'CAT201',
+                  module_name: 'Networks',
+                  description: 'Networking foundations.',
+                  year: 2,
+                  topics: ['Routing'],
+                  prerequisite_hints: ['Complete foundations'],
+                },
+              ],
+            }),
+          );
+        return Promise.resolve(
+          response({
+            data: [
+              {
+                module_id: 'current-module',
+                module_code: 'CAT101',
+                module_name: 'Foundations',
+                lecturer_name: 'Dr Lecturer',
+                quizzes_available: 2,
+                new_resources_count: 3,
+                has_in_progress_game: true,
+              },
+            ],
+            pagination: { page: 1, pageSize: 20, total: 1, pageCount: 1 },
+          }),
+        );
+      }),
+    );
+    render(<Modules user={{ role: 'student' }} />);
+    expect(await screen.findByText('Foundations')).toBeTruthy();
+    expect(screen.getByText('2 quizzes available')).toBeTruthy();
+    expect(screen.getByText('Game in progress')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Preview: not enrolled. This read-only view contains no quizzes, resources or enrolment actions.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Networks')).toBeTruthy();
+  });
+
+  it('renders resource module tiles and searches within the selected module', async () => {
+    const fetchMock = vi.fn((url) => {
+      if (url.includes('/resources/modules'))
+        return Promise.resolve(
+          response({
+            data: [
+              {
+                module_id: 'current-module',
+                module_code: 'CAT101',
+                module_name: 'Foundations',
+                resource_count: 4,
+                last_updated: '2026-11-01T10:00:00.000Z',
+              },
+            ],
+            pagination: { page: 1, pageSize: 50, total: 1, pageCount: 1 },
+          }),
+        );
+      if (url.includes('/modules/current-module/resources'))
+        return Promise.resolve(
+          response({
+            data: [
+              {
+                resource_id: 'resource-1',
+                title: 'Revision notes',
+                resource_type: 'txt',
+              },
+            ],
+            pagination: { page: 1, pageSize: 20, total: 1, pageCount: 1 },
+          }),
+        );
+      return Promise.resolve(
+        response({
+          data: [
+            {
+              module_id: 'current-module',
+              module_name: 'Foundations',
+              module_code: 'CAT101',
+            },
+          ],
+        }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<Resources user={{ role: 'student' }} />);
+    expect(
+      await screen.findByRole('button', { name: /Foundations/ }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Foundations/ }));
+    expect(await screen.findByText('Revision notes')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Search resource titles'), {
+      target: { value: 'Revision' },
+    });
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) => url.includes('search=Revision')),
+      ).toBe(true),
+    );
   });
 });
 

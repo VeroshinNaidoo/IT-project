@@ -23,6 +23,7 @@ function Auth({ onLogin }) {
     firstName: '',
     lastName: '',
     studentType: 'it',
+    studentYear: 1,
   });
   const [error, setError] = useState('');
   const submit = async (event) => {
@@ -147,6 +148,19 @@ function Auth({ onLogin }) {
               >
                 <option value="it">IT</option>
                 <option value="business">Business</option>
+              </select>
+            </label>
+            <label>
+              Year of study
+              <select
+                value={form.studentYear}
+                onChange={(event) =>
+                  setForm({ ...form, studentYear: Number(event.target.value) })
+                }
+              >
+                <option value={1}>Year 1</option>
+                <option value={2}>Year 2</option>
+                <option value={3}>Year 3</option>
               </select>
             </label>
             <p className="muted">
@@ -442,7 +456,14 @@ function Dashboard({ user }) {
   );
 }
 export function Modules({ user }) {
-  const state = useData('/modules');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('code');
+  const state = useData(
+    `/me/modules?page=1&pageSize=20&search=${encodeURIComponent(search)}&sort=${sort}`,
+  );
+  const lookahead = useData(
+    user.role === 'student' ? '/me/modules/lookahead' : '/me/modules',
+  );
   const [createdModules, setCreatedModules] = useState([]);
   const [moduleCode, setModuleCode] = useState('');
   const [moduleName, setModuleName] = useState('');
@@ -481,22 +502,97 @@ export function Modules({ user }) {
     }
   };
   return (
-    <section className="grid">
+    <section className="modules-page">
       <article className="card">
-        <span className="eyebrow">MODULES</span>
-        <State state={state} empty="No modules are visible yet." />
-        {[...createdModules, ...state.data].map((module) => (
-          <div className="list-row" key={module.module_id}>
-            <span>
-              <b>{module.module_name}</b>
-              <small>{module.module_code}</small>
-            </span>
-            <span>
-              {module.join_code ? `JoinCode: ${module.join_code}` : ''}
-            </span>
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">MODULES</span>
+            <h2>{user.role === 'student' ? 'My modules' : 'Your modules'}</h2>
           </div>
-        ))}
+          <div className="catalogue-controls">
+            <label className="sr-only" htmlFor="module-search">
+              Search modules
+            </label>
+            <input
+              id="module-search"
+              placeholder="Search modules"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <label className="sr-only" htmlFor="module-sort">
+              Sort modules
+            </label>
+            <select
+              id="module-sort"
+              value={sort}
+              onChange={(event) => setSort(event.target.value)}
+            >
+              <option value="code">Sort by code</option>
+              <option value="name">Sort by name</option>
+              <option value="newest">Newest first</option>
+            </select>
+          </div>
+        </div>
+        <State state={state} empty="You are not enrolled in any modules yet." />
+        <div className="module-card-grid">
+          {[...createdModules, ...state.data].map((module) => (
+            <article className="module-card" key={module.module_id}>
+              <span className="eyebrow">{module.module_code}</span>
+              <h3>{module.module_name}</h3>
+              <p className="muted">
+                Lecturer: {module.lecturer_name || 'Your teaching team'}
+              </p>
+              <p>
+                {module.year ? `Year ${module.year} · ${module.offering}` : ''}
+              </p>
+              <div className="module-card-stats">
+                <span>{module.quizzes_available || 0} quizzes available</span>
+                <span>{module.new_resources_count || 0} new resources</span>
+              </div>
+              {module.has_in_progress_game && (
+                <span className="resume-badge">Game in progress</span>
+              )}
+              {module.join_code && <small>JoinCode: {module.join_code}</small>}
+            </article>
+          ))}
+        </div>
       </article>
+      {user.role === 'student' && lookahead.data.length > 0 && (
+        <article className="card lookahead-card">
+          <span className="eyebrow">LOOK AHEAD</span>
+          <h2>Next year preview</h2>
+          <p className="muted">
+            Preview: not enrolled. This read-only view contains no quizzes,
+            resources or enrolment actions.
+          </p>
+          <div className="module-card-grid">
+            {lookahead.data.map((module) => (
+              <article className="module-card" key={module.module_id}>
+                <span className="eyebrow">
+                  {module.module_code} · Year {module.year}
+                </span>
+                <h3>{module.module_name}</h3>
+                <p>
+                  {module.description ||
+                    'Module information will be available when you enrol.'}
+                </p>
+                <p className="muted">
+                  Topics:{' '}
+                  {module.topics?.length
+                    ? module.topics.join(', ')
+                    : 'To be announced'}
+                </p>
+                <small>
+                  Prerequisites:{' '}
+                  {module.prerequisite_hints?.length
+                    ? module.prerequisite_hints.join(', ')
+                    : 'Check with your programme coordinator.'}
+                </small>
+              </article>
+            ))}
+          </div>
+        </article>
+      )}
       {user.role === 'lecturer' && (
         <form className="card" onSubmit={createModule}>
           <span className="eyebrow">LECTURER TOOLS</span>
@@ -547,11 +643,16 @@ export function Modules({ user }) {
     </section>
   );
 }
-function Resources({ user }) {
-  const modules = useData('/modules');
+export function Resources({ user }) {
+  const modules = useData('/me/modules?page=1&pageSize=50&sort=code');
+  const tiles = useData('/resources/modules?page=1&pageSize=50&sort=code');
   const [moduleId, setModuleId] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
   const state = useData(
-    moduleId ? `/modules/${moduleId}/resources` : '/modules',
+    moduleId
+      ? `/modules/${moduleId}/resources?page=${page}&pageSize=20&search=${encodeURIComponent(search)}`
+      : '/modules',
   );
   const [title, setTitle] = useState('');
   const [error, setError] = useState('');
@@ -577,12 +678,43 @@ function Resources({ user }) {
     }
   };
   return (
-    <section className="grid">
+    <section className="resources-page">
       <article className="card">
-        <h2>Resources</h2>
+        <span className="eyebrow">RESOURCES</span>
+        <h2>Choose a module</h2>
+        <p className="muted">Every tile belongs to a module you can access.</p>
+        <div className="resource-module-grid">
+          {tiles.data.map((module) => (
+            <button
+              className={`resource-module-tile ${moduleId === module.module_id ? 'selected' : ''}`}
+              key={module.module_id}
+              onClick={() => {
+                setModuleId(module.module_id);
+                setPage(1);
+              }}
+            >
+              <span className="eyebrow">{module.module_code}</span>
+              <strong>{module.module_name}</strong>
+              <span>{module.resource_count} resources</span>
+              <small>
+                {module.last_updated
+                  ? `Updated ${new Date(module.last_updated).toLocaleDateString()}`
+                  : 'No resources yet'}
+              </small>
+            </button>
+          ))}
+        </div>
+        {!tiles.loading && !tiles.data.length && (
+          <p className="empty-state">No module resources are visible yet.</p>
+        )}
+        <label htmlFor="resource-module">Jump to module</label>
         <select
+          id="resource-module"
           value={moduleId}
-          onChange={(event) => setModuleId(event.target.value)}
+          onChange={(event) => {
+            setModuleId(event.target.value);
+            setPage(1);
+          }}
         >
           <option value="">Choose a module</option>
           {modules.data.map((module) => (
@@ -591,6 +723,20 @@ function Resources({ user }) {
             </option>
           ))}
         </select>
+        {moduleId && (
+          <>
+            <label htmlFor="resource-search">Search resource titles</label>
+            <input
+              id="resource-search"
+              placeholder="Search this module"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </>
+        )}
         <State
           state={moduleId ? state : { loading: false, error: '', data: [] }}
           empty="No resources are visible for this module."
@@ -602,6 +748,27 @@ function Resources({ user }) {
             lecturer={user.role === 'lecturer'}
           />
         ))}
+        {moduleId && state.pagination?.pageCount > 1 && (
+          <div className="pagination-controls">
+            <button
+              className="secondary"
+              disabled={page <= 1}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {state.pagination.pageCount}
+            </span>
+            <button
+              className="secondary"
+              disabled={page >= state.pagination.pageCount}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </article>
       {user.role === 'lecturer' && (
         <form className="card" onSubmit={upload}>
@@ -2855,7 +3022,10 @@ export function ProfilePage({ user, onUserChange }) {
           firstName: form.first_name,
           lastName: form.last_name || null,
           ...(user.role === 'student'
-            ? { studentType: form.student_type }
+            ? {
+                studentType: form.student_type,
+                studentYear: form.student_year,
+              }
             : {}),
           preferredLanguages: form.preferredLanguages,
         }),

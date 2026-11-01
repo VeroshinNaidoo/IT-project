@@ -102,3 +102,13 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 | MFA enrolment, TOTP two-step login, recovery codes and lockout | implemented and tested | `backend/src/mfa.js`, `backend/tests/mfa-api.test.js` (5 named integration tests)                                                                                     |
 | Lecturer MFA enforcement and MFA frontend                      | not started            | Explicitly out of scope for this backend-only slice                                                                                                                   |
 | Profile editing                                                | implemented and tested | `backend/src/app.js`, `frontend/src/main.jsx`, `db/migrations/018_profile_preferences.sql`; `backend/tests/profile-api.test.js` (7 tests) and route matrix (64 tests) |
+
+## Modules and resources catalogue
+
+| Area                                                             | Status                 | Evidence                                                                                                                           |
+| ---------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Module Year, Programme, Offering and student Year data           | implemented and tested | `db/migrations/019_module_catalog_context.sql`, `backend/tests/module-resource-catalogue-api.test.js`                              |
+| Enrolled module cards, search/sort, counts and in-progress badge | implemented and tested | `backend/src/app.js`, `frontend/src/main.jsx`, `backend/tests/module-resource-catalogue-api.test.js`, `frontend/src/main.test.jsx` |
+| First-year look-ahead preview                                    | implemented and tested | `GET /api/v1/me/modules/lookahead`, `backend/tests/module-resource-catalogue-api.test.js`                                          |
+| Resource module tiles, jump list, search and pagination          | implemented and tested | `GET /api/v1/resources/modules`, `backend/tests/module-resource-catalogue-api.test.js`, `frontend/src/main.test.jsx`               |
+| Dedicated browser/axe evidence for this slice                    | done and tested        | `frontend/e2e/main.spec.js` module/resource scenario; 6 browser projects (Chromium/Firefox at 390/768/1280), all axe-clean         |

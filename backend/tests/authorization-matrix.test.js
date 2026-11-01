@@ -243,6 +243,12 @@ const specs = {
   'POST /api/v1/me/password': ['/api/v1/me/password', 'student'],
   'POST /api/v1/me/email': ['/api/v1/me/email', 'student'],
   'GET /api/v1/modules': ['/api/v1/modules', 'lecturer'],
+  'GET /api/v1/me/modules': ['/api/v1/me/modules', 'student'],
+  'GET /api/v1/me/modules/lookahead': [
+    '/api/v1/me/modules/lookahead',
+    'student',
+  ],
+  'GET /api/v1/resources/modules': ['/api/v1/resources/modules', 'student'],
   'POST /api/v1/modules': ['/api/v1/modules', 'lecturer'],
   'POST /api/v1/enrollments': ['/api/v1/enrollments', 'student'],
   'POST /api/v1/modules/:moduleId/groups': [
@@ -911,7 +917,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(62);
+    expect(routeInventory.length).toBe(65);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

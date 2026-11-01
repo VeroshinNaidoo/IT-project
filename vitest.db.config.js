@@ -22,6 +22,7 @@ export default defineConfig({
       'backend/tests/boss-battle-api.test.js',
       'backend/tests/pixel-racer-api.test.js',
       'backend/tests/timer-trivia-api.test.js',
+      'backend/tests/module-resource-catalogue-api.test.js',
     ],
     fileParallelism: false,
     maxWorkers: 1,

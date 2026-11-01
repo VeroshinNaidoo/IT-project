@@ -77,3 +77,7 @@ erDiagram
   PROGRAMMING_LANGUAGES { uuid language_id PK text name UK }
   USER_PREFERRED_LANGUAGES { uuid user_id PK_FK uuid language_id PK_FK }
 ```
+
+### Module catalogue additions
+
+`USERS.StudentYear` is nullable for lecturers and required 1–3 for students. `MODULES.Year` is 1–3, `MODULES.Programme` is `it|business|both`, `MODULES.Offering` is a non-empty offering label, and `MODULES.Description` is bounded text. The enrolled-module and resource-tile endpoints project only owner/enrollment-visible data. The look-ahead endpoint projects year-2 module metadata and topic/prerequisite hints only; it does not return resources, quizzes, answers or enrolment actions.

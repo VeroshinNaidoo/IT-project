@@ -97,6 +97,91 @@ test('Games chooser shows catalogue cards, reasons, resume and axe-clean layout'
   expect(results.violations).toEqual([]);
 });
 
+test('module and resource catalogues show enrolled data and first-year preview', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    let body = { data: [] };
+    if (path.endsWith('/auth/me')) {
+      body = {
+        user: {
+          userId: 'student-1',
+          role: 'student',
+          studentYear: 1,
+          studentType: 'it',
+        },
+      };
+    } else if (path.endsWith('/me/modules/lookahead')) {
+      body = {
+        preview: true,
+        data: [
+          {
+            module_code: 'NET201',
+            module_name: 'Networks',
+            year: 2,
+            description: 'Network foundations.',
+            topics: ['Routing'],
+            prerequisite_hints: ['Foundations'],
+          },
+        ],
+      };
+    } else if (path.endsWith('/me/modules')) {
+      body = {
+        data: [
+          {
+            module_id: 'mod-1',
+            module_code: 'CAT101',
+            module_name: 'Foundations',
+            lecturer_name: 'Dr Lecturer',
+            quizzes_available: 2,
+            new_resources_count: 1,
+            has_in_progress_game: true,
+          },
+        ],
+        pagination: { page: 1, pageSize: 20, total: 1, pageCount: 1 },
+      };
+    } else if (path.endsWith('/resources/modules')) {
+      body = {
+        data: [
+          {
+            module_id: 'mod-1',
+            module_code: 'CAT101',
+            module_name: 'Foundations',
+            resource_count: 2,
+            last_updated: '2026-11-01T10:00:00.000Z',
+          },
+        ],
+        pagination: { page: 1, pageSize: 50, total: 1, pageCount: 1 },
+      };
+    } else if (path.endsWith('/modules/mod-1/resources')) {
+      body = {
+        data: [
+          { resource_id: 'r-1', title: 'Revision notes', resource_type: 'txt' },
+        ],
+        pagination: { page: 1, pageSize: 20, total: 1, pageCount: 1 },
+      };
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Modules' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Foundations' }),
+  ).toBeVisible();
+  await expect(page.getByText('Preview: not enrolled')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole('button', { name: 'Resources' }).click();
+  await page.getByRole('button', { name: /CAT101/ }).click();
+  await expect(page.getByText('Revision notes')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('Infected solo flow is responsive, keyboard operable and axe clean', async ({
   page,
 }) => {

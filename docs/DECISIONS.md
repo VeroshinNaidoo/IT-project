@@ -102,3 +102,10 @@
 
 - Profile editing uses the same server-side identity schemas as registration for names, email and passwords. Preferred languages are a lookup-backed many-to-many relation seeded with the ten approved programming languages.
 - Email changes use `pending_email`; the current email remains active until the new address completes the existing single-use verification flow. Password changes revoke every other session and preserve the current session.
+
+## 2026-11-01 — Module and resource catalogue context
+
+- Modules now carry `Year` (1–3), `Programme` (`it`, `business`, or `both`), `Offering`, and a bounded description. Existing rows are conservatively backfilled to Year 1, Programme `both`, Semester 1, with an empty description; module-code digits are used only as a best-effort year hint when available.
+- Student profiles and registrations carry `StudentYear` (1–3). Legacy callers that omit it retain the safe Year 1 default; the student-facing form presents an explicit year choice.
+- The first-year look-ahead is a read-only year-2 projection filtered by programme and contains no resource, quiz, answer, enrolment, or availability fields.
+- “New resources” on module cards means resources created in the preceding 14 days. Resource tiles and lists remain constrained by enrollment, lecturer ownership, and existing study-group visibility.

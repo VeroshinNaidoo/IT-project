@@ -137,7 +137,7 @@ const requireAuth = async (req, res, next) => {
         requestId(req),
       );
     const result = await pool.query(
-      `SELECT u.user_id, u.role, u.full_name, u.first_name, u.last_name, u.student_type, u.email, u.email_verified_at FROM sessions s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now()`,
+      `SELECT u.user_id, u.role, u.full_name, u.first_name, u.last_name, u.student_type, u.student_year, u.email, u.email_verified_at FROM sessions s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now()`,
       [sessionHash(token)],
     );
     if (!result.rowCount)
@@ -155,6 +155,7 @@ const requireAuth = async (req, res, next) => {
       firstName: result.rows[0].first_name,
       lastName: result.rows[0].last_name,
       studentType: result.rows[0].student_type,
+      studentYear: result.rows[0].student_year,
       emailVerifiedAt: result.rows[0].email_verified_at,
       needsEmailVerification: !result.rows[0].email_verified_at,
       email: result.rows[0].email,
@@ -224,6 +225,7 @@ const registerSchema = z
     firstName: personNameSchema.optional(),
     lastName: personNameSchema.optional().nullable(),
     studentType: z.enum(['it', 'business']).optional(),
+    studentYear: z.number().int().min(1).max(3).optional(),
     // Kept temporarily so existing users and offline fixtures can migrate safely.
     fullName: z.string().trim().max(101).optional(),
   })
@@ -247,6 +249,15 @@ const moduleSchema = z
   .object({
     moduleCode: z.string().trim().min(1).max(30),
     moduleName: nameSchema,
+    description: z
+      .string()
+      .trim()
+      .max(1000)
+      .refine(noProfanity(), { message: profanityMessage })
+      .optional(),
+    year: z.number().int().min(1).max(3).optional(),
+    programme: z.enum(['it', 'business', 'both']).optional(),
+    offering: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 const groupSchema = z.object({ groupName: nameSchema }).strict();
@@ -290,7 +301,7 @@ app.post('/api/v1/auth/register', async (req, res, next) => {
       .filter(Boolean)
       .join(' ');
     const result = await pool.query(
-      `INSERT INTO users(email,password_hash,role,full_name,first_name,last_name,student_type) VALUES($1,$2,'student',$3,$4,$5,$6) RETURNING user_id,role,full_name,first_name,last_name,student_type,email,email_verified_at`,
+      `INSERT INTO users(email,password_hash,role,full_name,first_name,last_name,student_type,student_year) VALUES($1,$2,'student',$3,$4,$5,$6,$7) RETURNING user_id,role,full_name,first_name,last_name,student_type,student_year,email,email_verified_at`,
       [
         data.email,
         hash,
@@ -298,6 +309,7 @@ app.post('/api/v1/auth/register', async (req, res, next) => {
         identity.firstName,
         identity.lastName,
         data.studentType || 'it',
+        data.studentYear || 1,
       ],
     );
     await issueVerificationMail(result.rows[0].user_id, data.email);
@@ -757,6 +769,7 @@ const profileSchema = z
     firstName: personNameSchema.optional(),
     lastName: personNameSchema.optional().nullable(),
     studentType: z.enum(['it', 'business']).optional(),
+    studentYear: z.number().int().min(1).max(3).optional(),
     preferredLanguages: z
       .array(z.string().trim().min(1).max(40))
       .max(10)
@@ -769,7 +782,7 @@ const currentPasswordSchema = z
 
 const profileUser = async (userId) => {
   const result = await pool.query(
-    `SELECT u.user_id,u.role,u.full_name,u.first_name,u.last_name,u.student_type,
+    `SELECT u.user_id,u.role,u.full_name,u.first_name,u.last_name,u.student_type,u.student_year,
             u.email,u.email_verified_at,u.pending_email,
             COALESCE(json_agg(pl.name ORDER BY pl.name) FILTER (WHERE pl.name IS NOT NULL), '[]') AS preferred_languages,
             EXISTS(SELECT 1 FROM mfa_credentials mc WHERE mc.user_id=u.user_id AND mc.enabled) AS mfa_enabled
@@ -826,12 +839,13 @@ app.patch('/api/v1/me/profile', requireAuth, async (req, res, next) => {
             : null,
     };
     await pool.query(
-      `UPDATE users SET first_name=$1,last_name=$2,full_name=$3,student_type=CASE WHEN role='student' THEN COALESCE($4,student_type) ELSE NULL END WHERE user_id=$5`,
+      `UPDATE users SET first_name=$1,last_name=$2,full_name=$3,student_type=CASE WHEN role='student' THEN COALESCE($4,student_type) ELSE NULL END,student_year=CASE WHEN role='student' THEN COALESCE($5,student_year) ELSE NULL END WHERE user_id=$6`,
       [
         identity.firstName,
         identity.lastName,
         [identity.firstName, identity.lastName].filter(Boolean).join(' '),
         data.studentType ?? null,
+        data.studentYear ?? null,
         req.user.userId,
       ],
     );
@@ -996,6 +1010,135 @@ app.post('/api/v1/me/email', requireAuth, async (req, res, next) => {
   }
 });
 
+const catalogueQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(50).default(20),
+    search: z.string().trim().max(100).default(''),
+    sort: z.enum(['code', 'name', 'newest']).default('code'),
+  })
+  .strict();
+
+const paged = (page, pageSize, total) => ({
+  page,
+  pageSize,
+  total,
+  pageCount: Math.max(1, Math.ceil(total / pageSize)),
+});
+
+app.get('/api/v1/me/modules', requireAuth, async (req, res, next) => {
+  try {
+    const query = parse(catalogueQuerySchema, req.query, req, res, 422);
+    if (!query) return;
+    const offset = (query.page - 1) * query.pageSize;
+    const ownership =
+      req.user.role === 'lecturer'
+        ? 'm.lecturer_id=$1'
+        : 'EXISTS (SELECT 1 FROM enrollments me WHERE me.module_id=m.module_id AND me.student_id=$1)';
+    const filter = query.search
+      ? ` AND (m.module_code ILIKE $2 OR m.module_name ILIKE $2)`
+      : '';
+    const values = query.search
+      ? [req.user.userId, `%${query.search}%`]
+      : [req.user.userId];
+    const count = await pool.query(
+      `SELECT count(*)::int AS total FROM modules m WHERE ${ownership}${filter}`,
+      values,
+    );
+    const order =
+      query.sort === 'name'
+        ? 'm.module_name ASC, m.module_code ASC'
+        : query.sort === 'newest'
+          ? 'm.created_date DESC, m.module_code ASC'
+          : 'm.module_code ASC';
+    const pageValues = [...values, query.pageSize, offset];
+    const result = await pool.query(
+      `SELECT m.module_id,m.module_code,m.module_name,m.description,m.year,m.programme,m.offering,
+              u.full_name AS lecturer_name,
+              (SELECT count(*)::int FROM quizzes q WHERE q.module_id=m.module_id AND q.status='published') AS quizzes_available,
+              (SELECT count(*)::int FROM resources r WHERE r.module_id=m.module_id AND r.created_date >= now()-interval '14 days') AS new_resources_count,
+              false AS has_in_progress_game
+         FROM modules m JOIN users u ON u.user_id=m.lecturer_id
+        WHERE ${ownership}${filter}
+        ORDER BY ${order}
+        LIMIT $${pageValues.length - 1} OFFSET $${pageValues.length}`,
+      pageValues,
+    );
+    // Generic and game-specific plays are checked separately so this card never
+    // exposes another student's play state.
+    if (req.user.role === 'student' && result.rows.length) {
+      const ids = result.rows.map((row) => row.module_id);
+      const plays = await pool.query(
+        `SELECT DISTINCT q.module_id FROM game_plays gp JOIN quizzes q ON q.quiz_id=gp.quiz_id WHERE gp.student_id=$1 AND gp.status='in_progress' AND q.module_id=ANY($2::uuid[])
+         UNION
+         SELECT DISTINCT q.module_id FROM game_sessions gs JOIN games g ON g.game_id=gs.game_id JOIN quizzes q ON q.quiz_id=g.quiz_id WHERE gs.student_id=$1 AND gs.status='in_progress' AND q.module_id=ANY($2::uuid[])`,
+        [req.user.userId, ids],
+      );
+      const active = new Set(plays.rows.map((row) => row.module_id));
+      for (const row of result.rows)
+        row.has_in_progress_game = active.has(row.module_id);
+    }
+    res.json({
+      data: result.rows,
+      pagination: paged(query.page, query.pageSize, count.rows[0].total),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/v1/me/modules/lookahead', requireAuth, async (req, res, next) => {
+  try {
+    if (req.user.role !== 'student')
+      return error(res, 403, 'FORBIDDEN', 'Students only.', requestId(req));
+    if (req.user.studentYear !== 1)
+      return res.json({ data: [], preview: false });
+    const result = await pool.query(
+      `SELECT m.module_id,m.module_code,m.module_name,m.description,m.year,m.programme,m.offering,
+              COALESCE(json_agg(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '[]') AS topics,
+              ARRAY[]::text[] AS prerequisite_hints
+         FROM modules m LEFT JOIN topics t ON t.module_id=m.module_id
+        WHERE m.year=2 AND (m.programme=$1 OR m.programme='both')
+        GROUP BY m.module_id ORDER BY m.module_code`,
+      [req.user.studentType],
+    );
+    res.json({ data: result.rows, preview: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/v1/resources/modules', requireAuth, async (req, res, next) => {
+  try {
+    const query = parse(catalogueQuerySchema, req.query, req, res, 422);
+    if (!query) return;
+    const offset = (query.page - 1) * query.pageSize;
+    const ownership =
+      req.user.role === 'lecturer'
+        ? 'm.lecturer_id=$1'
+        : 'EXISTS (SELECT 1 FROM enrollments e WHERE e.module_id=m.module_id AND e.student_id=$1)';
+    const result = await pool.query(
+      `SELECT m.module_id,m.module_code,m.module_name,count(r.resource_id)::int AS resource_count,
+              max(r.created_date) AS last_updated
+         FROM modules m LEFT JOIN resources r ON r.module_id=m.module_id
+        WHERE ${ownership}
+        GROUP BY m.module_id ORDER BY m.module_code
+        LIMIT $2 OFFSET $3`,
+      [req.user.userId, query.pageSize, offset],
+    );
+    const count = await pool.query(
+      `SELECT count(*)::int AS total FROM modules m WHERE ${ownership}`,
+      [req.user.userId],
+    );
+    res.json({
+      data: result.rows,
+      pagination: paged(query.page, query.pageSize, count.rows[0].total),
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
 app.get('/api/v1/modules', requireAuth, async (req, res, next) => {
   try {
     const result =
@@ -1022,10 +1165,24 @@ app.post(
       const data = parse(moduleSchema, req.body, req, res);
       if (!data || !visibleText('moduleName', req, res, data.moduleName))
         return;
+      if (
+        data.description &&
+        !visibleText('moduleDescription', req, res, data.description)
+      )
+        return;
       const joinCode = crypto.randomBytes(12).toString('base64url');
       const result = await pool.query(
-        `INSERT INTO modules(lecturer_id,module_code,module_name,join_code) VALUES($1,$2,$3,$4) RETURNING *`,
-        [req.user.userId, data.moduleCode, data.moduleName, joinCode],
+        `INSERT INTO modules(lecturer_id,module_code,module_name,description,year,programme,offering,join_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [
+          req.user.userId,
+          data.moduleCode,
+          data.moduleName,
+          data.description || '',
+          data.year || 1,
+          data.programme || 'both',
+          data.offering || 'Semester 1',
+          joinCode,
+        ],
       );
       res.status(201).json({ module: result.rows[0] });
     } catch (e) {
@@ -1133,6 +1290,8 @@ app.get(
   requireAuth,
   async (req, res, next) => {
     try {
+      const query = parse(catalogueQuerySchema, req.query, req, res, 422);
+      if (!query) return;
       const lecturer = await pool.query(
         'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
         [req.params.moduleId, req.user.userId],
@@ -1159,11 +1318,28 @@ app.get(
             requestId(req),
           );
       }
-      const result = await pool.query(
-        `SELECT DISTINCT r.* FROM resources r LEFT JOIN group_members gm ON gm.group_id=r.group_id AND gm.student_id=$2 WHERE r.module_id=$1 AND (r.group_id IS NULL OR gm.student_id IS NOT NULL OR EXISTS (SELECT 1 FROM modules m WHERE m.module_id=r.module_id AND m.lecturer_id=$2)) ORDER BY r.created_date DESC`,
-        [req.params.moduleId, req.user.userId],
+      const search = query.search ? ' AND r.title ILIKE $3' : '';
+      const baseValues = query.search
+        ? [req.params.moduleId, req.user.userId, `%${query.search}%`]
+        : [req.params.moduleId, req.user.userId];
+      const count = await pool.query(
+        `SELECT count(DISTINCT r.resource_id)::int AS total
+           FROM resources r LEFT JOIN group_members gm ON gm.group_id=r.group_id AND gm.student_id=$2
+          WHERE r.module_id=$1
+            AND (r.group_id IS NULL OR gm.student_id IS NOT NULL OR EXISTS (SELECT 1 FROM modules m WHERE m.module_id=r.module_id AND m.lecturer_id=$2))${search}`,
+        baseValues,
       );
-      res.json({ data: result.rows });
+      const result = await pool.query(
+        `SELECT DISTINCT r.* FROM resources r LEFT JOIN group_members gm ON gm.group_id=r.group_id AND gm.student_id=$2
+          WHERE r.module_id=$1
+            AND (r.group_id IS NULL OR gm.student_id IS NOT NULL OR EXISTS (SELECT 1 FROM modules m WHERE m.module_id=r.module_id AND m.lecturer_id=$2))${search}
+          ORDER BY r.created_date DESC LIMIT $${baseValues.length + 1} OFFSET $${baseValues.length + 2}`,
+        [...baseValues, query.pageSize, (query.page - 1) * query.pageSize],
+      );
+      res.json({
+        data: result.rows,
+        pagination: paged(query.page, query.pageSize, count.rows[0].total),
+      });
     } catch (e) {
       next(e);
     }
