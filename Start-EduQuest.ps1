@@ -2,23 +2,32 @@ param([switch]$DryRun)
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
-  Write-Error "EduQuest project folder does not exist: $ProjectRoot"
-  exit 1
-}
-Set-Location -LiteralPath $ProjectRoot
+$LogPath = Join-Path $ProjectRoot 'docs\eduquest-launch.log'
 
-if ($DryRun) {
-  Write-Host "DRY RUN: project root = $ProjectRoot"
-  Write-Host "Would run: npm run db:start"
-  Write-Host "Would run: npm run db:migrate"
-  Write-Host "Would run: npm run seed"
-  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
-  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
-  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
-  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""
-  exit 0
+function Say($message) { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $message" }
+function Step($name, [scriptblock]$action) {
+  Say "STEP: $name"
+  try { & $action; if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "Exit code $LASTEXITCODE" } }
+  catch { throw "${name}: $($_.Exception.Message)" }
 }
+
+try {
+  if (-not (Test-Path -LiteralPath $ProjectRoot -PathType Container)) {
+    throw "EduQuest project folder does not exist: $ProjectRoot"
+  }
+  Step 'Set working directory' { Set-Location -LiteralPath $ProjectRoot; Say "Working directory: $((Get-Location).Path)" }
+
+  if ($DryRun) {
+    Say "DRY RUN: project root = $ProjectRoot"
+    Say 'Would run: npm run db:start'
+    Say 'Would run: npm run db:migrate'
+    Say 'Would run: npm run seed'
+    Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
+    Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
+    Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""
+    Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
+    exit 0
+  }
 
 function Stop-ProjectProcess($port) {
   $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
@@ -41,45 +50,38 @@ function Wait-Health($url, $headers = @{}) {
   throw "Health check failed: $url"
 }
 
-if (-not (Test-Path 'node_modules')) { npm install }
-npm run setup:token
-foreach ($port in @(4000, 5173, 8000)) { Stop-ProjectProcess $port }
+  Step 'Install dependencies if needed' { if (-not (Test-Path 'node_modules')) { npm install } }
+  Step 'Set up service token' { npm run setup:token }
+  Step 'Stop old project processes' { foreach ($port in @(4000, 5173, 8000)) { Stop-ProjectProcess $port } }
 
-Write-Host 'Starting database...'
-npm run db:start
-npm run db:migrate
-npm run seed
+  Step 'Start database' { npm run db:start }
+  Step 'Run migrations' { npm run db:migrate }
+  Step 'Seed demo data' { npm run seed }
 
-$tokenLine = Get-Content .env | Where-Object { $_ -match '^AI_SERVICE_TOKEN=' } | Select-Object -First 1
-$token = $tokenLine.Substring('AI_SERVICE_TOKEN='.Length)
-$env:AI_SERVICE_TOKEN = $token
+  $tokenLine = Get-Content .env | Where-Object { $_ -match '^AI_SERVICE_TOKEN=' } | Select-Object -First 1
+  if (-not $tokenLine) { throw 'AI_SERVICE_TOKEN is missing: run npm run setup:token' }
+  $token = $tokenLine.Substring('AI_SERVICE_TOKEN='.Length).Trim().Trim('"')
+  if ([string]::IsNullOrWhiteSpace($token)) { throw 'AI_SERVICE_TOKEN is empty: run npm run setup:token' }
+  $env:AI_SERVICE_TOKEN = $token
 
-Write-Host 'Starting backend...'
-Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-backend.ps1" -WorkingDirectory $ProjectRoot
-Write-Host 'Starting AI service...'
-Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-ai-service.ps1" -WorkingDirectory $ProjectRoot
-Write-Host 'Starting frontend...'
-Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-frontend.ps1" -WorkingDirectory $ProjectRoot
-Write-Host 'Starting AI worker...'
-Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-worker.ps1" -WorkingDirectory $ProjectRoot
+  Step 'Start backend' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-backend.ps1" -WorkingDirectory $ProjectRoot }
+  Step 'Start AI service' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-ai-service.ps1" -WorkingDirectory $ProjectRoot }
+  Step 'Start AI worker' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-worker.ps1" -WorkingDirectory $ProjectRoot }
+  Step 'Start frontend' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-frontend.ps1" -WorkingDirectory $ProjectRoot }
 
-try {
-  Wait-Health 'http://127.0.0.1:4000/health'
-  Wait-Health 'http://127.0.0.1:8000/health' @{ 'x-ai-service-token' = $token }
-  Wait-Health 'http://127.0.0.1:5173/health'
+  Step 'Check backend health' { Wait-Health 'http://127.0.0.1:4000/health' }
+  Step 'Check AI service health' { Wait-Health 'http://127.0.0.1:8000/health' @{ 'x-ai-service-token' = $token } }
+  Step 'Check frontend health' { Wait-Health 'http://127.0.0.1:5173/health' }
+
+  Say 'EduQuest is running:'
+  Say 'Frontend: http://127.0.0.1:5173'
+  Say 'Backend:  http://127.0.0.1:4000'
+  Say 'AI:       http://127.0.0.1:8000'
 } catch {
-  Write-Error "EduQuest startup failed: $($_.Exception.Message)"
+  Write-Host "FAILED: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "Working directory: $((Get-Location).Path)"
+  Write-Host 'Fix the reported step, then double-click Run EduQuest.bat again.'
   exit 1
+} finally {
+  Read-Host 'Press Enter to close'
 }
-
-Write-Host ''
-Write-Host 'EduQuest is running:'
-Write-Host '  Frontend: http://127.0.0.1:5173'
-Write-Host '  Backend:  http://127.0.0.1:4000'
-Write-Host '  AI:       http://127.0.0.1:8000'
-Write-Host 'Keep this window open while using the app.'
-Read-Host 'Press Enter to close'
