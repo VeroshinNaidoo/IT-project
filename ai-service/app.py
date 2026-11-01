@@ -11,10 +11,10 @@ import re
 import time
 from urllib.parse import urlparse
 from typing import Protocol
-from dotenv import load_dotenv
+from config import load_clean_env
 from pydantic import BaseModel, Field, field_validator
 
-load_dotenv(os.environ.get("EDUQUEST_ENV_FILE", Path(__file__).resolve().parent.parent / ".env"))
+load_clean_env(os.environ.get("EDUQUEST_ENV_FILE", Path(__file__).resolve().parent.parent / ".env"))
 
 
 def require_service_token():

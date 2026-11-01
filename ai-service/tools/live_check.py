@@ -4,20 +4,33 @@ import os
 import random
 import sys
 import time
+import argparse
 from pathlib import Path
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ai-service"))
-from dotenv import load_dotenv
+from config import load_clean_env
 from app import OpenAICompatibleProvider, QuizRequest
 
-load_dotenv(ROOT / ".env")
+load_clean_env(ROOT / ".env")
 fixture_dir = ROOT / "ai-service" / "tests" / "fixtures"
 source = (fixture_dir / "clean-databases.txt").read_text(encoding="utf-8")
 provider_name = os.environ.get("AI_PROVIDER", "mock")
 url = urlparse(os.environ.get("AI_BASE_URL", ""))
 model = os.environ.get("AI_MODEL", "")
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--prepare", action="store_true")
+if parser.parse_args().prepare:
+    print(f"provider={provider_name}")
+    print(f"host={url.hostname or 'none'}")
+    if not model.strip():
+        print("AI_MODEL is empty in .env")
+        raise SystemExit(2)
+    print(f"model={model.strip()}")
+    raise SystemExit(0)
+
 print(f"provider={provider_name}")
 print(f"host={url.hostname or 'none'}")
 print(f"model={model or 'none'}")
