@@ -2486,6 +2486,61 @@ app.post(
 );
 
 app.post(
+  '/api/v1/quizzes/:quizId/publish-check',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      if (!parse(z.object({}).strict(), req.body || {}, req, res, 422)) return;
+      const quiz = await lecturerQuizOwner(req.params.quizId, req.user.userId);
+      if (!quiz)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this quiz.',
+          requestId(req),
+        );
+      const rows = await pool.query(
+        "SELECT q.*,json_agg(json_build_object('optionText',o.option_text,'isCorrect',o.is_correct)) FILTER (WHERE o.option_id IS NOT NULL) options FROM questions q LEFT JOIN question_options o ON o.question_id=q.question_id WHERE q.quiz_id=$1 GROUP BY q.question_id ORDER BY q.display_order,q.question_id",
+        [req.params.quizId],
+      );
+      const checklist = publishChecklist({
+        moduleId: quiz.module_id,
+        title: quiz.title,
+        isCompetitive: quiz.is_competitive,
+        closesAt: quiz.closes_at,
+        questions: rows.rows.map((question) => ({
+          questionId: question.question_id,
+          questionText: question.question_text,
+          questionType: question.question_type,
+          difficultyLevel: question.difficulty_level,
+          marks: Number(question.marks),
+          options: question.options || [],
+          acceptedAnswers: question.accepted_answers || [],
+          ignorePunctuation: question.ignore_punctuation,
+          codeLanguage: question.code_language,
+          codeBefore: question.code_before,
+          codeAfter: question.code_after,
+          expectedOutput: question.expected_output,
+          explanation: question.explanation,
+          displayOrder: question.display_order,
+          source: 'manual',
+        })),
+      });
+      res.json({
+        checklist: {
+          ok: checklist.ok,
+          issues: checklist.ok ? [] : checklist.issues,
+        },
+      });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
   '/api/v1/quizzes/:quizId/questions',
   requireAuth,
   requireRole('lecturer'),

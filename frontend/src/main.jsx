@@ -2309,39 +2309,81 @@ export function QuizAuthoring({ onDone }) {
   const [correct, setCorrect] = useState(0);
   const [type, setType] = useState('multiple_choice');
   const [message, setMessage] = useState('');
+  const [quizId, setQuizId] = useState('');
   const submit = async (status = 'draft') => {
     setMessage('');
-    const result = await api('/quizzes/manual', {
-      method: 'POST',
-      body: JSON.stringify({
-        moduleId,
-        title,
-        status,
-        isCompetitive: mode === 'competitive',
-        questions: [
-          {
-            questionType: type,
-            questionText,
-            marks: 1,
-            difficultyLevel: 3,
-            options:
-              type === 'multiple_choice'
-                ? options.map((optionText, index) => ({
-                    optionText,
-                    isCorrect: index === correct,
-                  }))
-                : [],
-            acceptedAnswers: type === 'short_answer' ? [options[0] || ''] : [],
-          },
-        ],
-      }),
-    });
-    if (!result) return;
-    if (result.error)
-      setMessage(result.error.message || 'Please check the fields.');
-    else {
+    try {
+      const result = await api('/quizzes/manual', {
+        method: 'POST',
+        body: JSON.stringify({
+          moduleId,
+          title,
+          status: status === 'published' ? 'draft' : status,
+          isCompetitive: mode === 'competitive',
+          questions: [
+            {
+              questionType: type,
+              questionText,
+              marks: 1,
+              difficultyLevel: 3,
+              options:
+                type === 'multiple_choice'
+                  ? options.map((optionText, index) => ({
+                      optionText,
+                      isCorrect: index === correct,
+                    }))
+                  : [],
+              acceptedAnswers:
+                type === 'short_answer' ? [options[0] || ''] : [],
+            },
+          ],
+        }),
+      });
+      const createdQuizId = result.quiz.quiz_id;
+      setQuizId(createdQuizId);
+      if (status === 'published') {
+        const check = await api(`/quizzes/${createdQuizId}/publish-check`, {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        if (!check.checklist.ok) {
+          setMessage(
+            `Publish blocked: ${check.checklist.issues
+              .map((issue) => issue.message)
+              .join('; ')}`,
+          );
+          return;
+        }
+        await api(`/quizzes/${createdQuizId}/publish`, {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+      }
       setMessage(status === 'published' ? 'Quiz published.' : 'Draft saved.');
-      onDone?.();
+      if (status === 'published') onDone?.();
+    } catch (reason) {
+      setMessage(reason.message || 'Please check the fields.');
+    }
+  };
+  const dryRun = async () => {
+    if (!quizId) {
+      setMessage('Save the draft first to run the publish checklist.');
+      return;
+    }
+    try {
+      const check = await api(`/quizzes/${quizId}/publish-check`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setMessage(
+        check.checklist.ok
+          ? 'Dry run passed: this quiz can be published.'
+          : `Dry run blocked: ${check.checklist.issues
+              .map((issue) => issue.message)
+              .join('; ')}`,
+      );
+    } catch (reason) {
+      setMessage(reason.message || 'Dry run failed.');
     }
   };
   return (
@@ -2485,6 +2527,9 @@ export function QuizAuthoring({ onDone }) {
       </aside>
       <div className="button-row">
         <button onClick={() => submit('draft')}>Save draft</button>
+        <button className="secondary" onClick={dryRun}>
+          Run publish checklist
+        </button>
         <button className="secondary" onClick={() => submit('published')}>
           Publish quiz
         </button>

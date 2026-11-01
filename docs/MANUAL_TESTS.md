@@ -141,3 +141,4 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 5. Log in as a student and confirm authoring routes return 403 and answers are not visible before submission.
 
 6. Add a short-answer question with two accepted answers and ignore-punctuation enabled. Take it as a student using different case and punctuation; confirm marks and feedback are correct. Submit blank and confirm it is unanswered. Add a code question and confirm its before snippet is visible before submit while the after snippet appears only in feedback.
+7. Save a lecturer draft, run **Run publish checklist**, and confirm an empty or unanswerable draft is blocked with a useful issue. Confirm the student preview never creates an attempt. For a complete mixed quiz, publish one multiple-choice, true/false, short-answer and code question, take it as a student, verify the score on the leaderboard, and confirm a second competitive attempt is rejected.

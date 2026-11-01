@@ -245,6 +245,9 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 | Games exclude non-fixed-option questions while mixed quizzes remain available    | implemented and tested | game route eligibility queries; `backend/tests/game-availability.test.js`                                                        |
 | Student short-answer and code rendering without pre-submit answer leakage        | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx` — manual quiz taking question types                                        |
 | Code answers are shown only in post-submit feedback                              | implemented and tested | `backend/src/app.js`, `frontend/src/main.jsx`                                                                                    |
+| Lecturer per-question student preview without attempt creation                   | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx`                                                                            |
+| Explicit pre-publish dry run blocks unanswerable/unscorable drafts               | implemented and tested | `POST /api/v1/quizzes/:quizId/publish-check`, `backend/tests/api.test.js`, `backend/tests/authorization-matrix.test.js`          |
+| Full all-question-type lecturer-to-student browser journey and leaderboard check | implemented, untested  | Backend supports all four types; independent end-to-end journey remains outstanding                                              |
 
 | Requirement                                             | Evidence                                                                                                                                       |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -33,6 +33,11 @@ import {
 } from './main.jsx';
 
 describe('manual quiz authoring', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
   it('shows lecturer-only starting points, mode explanations and question types', async () => {
     window.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -45,6 +50,39 @@ describe('manual quiz authoring', () => {
     expect(screen.getByText(/unlimited attempts/i)).toBeTruthy();
     expect(screen.getByText(/one scored attempt/i)).toBeTruthy();
     expect(screen.getByLabelText('Question type')).toBeTruthy();
+  });
+
+  it('runs the publish checklist and shows a blocking result before publishing', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ data: [{ module_id: 'm1', module_name: 'Web' }] }),
+      )
+      .mockResolvedValueOnce(response({ quiz: { quiz_id: 'quiz-draft' } }))
+      .mockResolvedValueOnce(
+        response({
+          checklist: {
+            ok: false,
+            issues: [{ message: 'Add at least one question.' }],
+          },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<QuizAuthoring />);
+    await screen.findByRole('heading', { name: 'Create quiz' });
+    fireEvent.change(screen.getByLabelText('Module'), {
+      target: { value: 'm1' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(screen.getByText('Draft saved.')).toBeTruthy());
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Run publish checklist' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByText('Dry run blocked: Add at least one question.'),
+      ).toBeTruthy(),
+    );
   });
 });
 

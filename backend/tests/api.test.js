@@ -398,6 +398,31 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
     expect(Number(blank.body.result.score)).toBe(0);
   });
 
+  it('runs a lecturer publish dry run and blocks unanswerable drafts', async () => {
+    const draft = await lecturerAgent.post('/api/v1/quizzes/manual').send({
+      moduleId: moduleRecord.module_id,
+      title: 'Dry run checklist quiz',
+      status: 'draft',
+      questions: [],
+    });
+    expect(draft.status).toBe(201);
+    const blocked = await lecturerAgent
+      .post(`/api/v1/quizzes/${draft.body.quiz.quiz_id}/publish-check`)
+      .send({});
+    expect(blocked.status).toBe(200);
+    expect(blocked.body.checklist.ok).toBe(false);
+    expect(blocked.body.checklist.issues[0].path).toEqual(['questions']);
+
+    const valid = await lecturerAgent
+      .post(`/api/v1/quizzes/${quizRecord.quiz_id}/publish-check`)
+      .send({});
+    expect(valid.status).toBe(200);
+    expect(valid.body.checklist.ok).toBe(true);
+    expect(JSON.stringify(valid.body)).not.toMatch(
+      /acceptedAnswers|password_hash|token_hash/i,
+    );
+  });
+
   it('blocks a second competitive attempt and rejects a late submission', async () => {
     expect(
       (

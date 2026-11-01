@@ -39,6 +39,7 @@ const routePolicies = {
   'POST /api/v1/quizzes': { auth: 'lecturer' },
   'POST /api/v1/quizzes/manual': { auth: 'lecturer' },
   'POST /api/v1/quizzes/:quizId/publish': { auth: 'lecturer' },
+  'POST /api/v1/quizzes/:quizId/publish-check': { auth: 'lecturer' },
   'POST /api/v1/quizzes/:quizId/questions': { auth: 'lecturer' },
   'PATCH /api/v1/quizzes/:quizId/questions/:questionId': { auth: 'lecturer' },
   'DELETE /api/v1/quizzes/:quizId/questions/:questionId': { auth: 'lecturer' },

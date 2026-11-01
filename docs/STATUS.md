@@ -169,3 +169,5 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 Implemented in the backend and lecturer frontend: draft creation, mode selection, question-type validation, publish checklist, ownership-protected question CRUD, reorder and duplication endpoints. Short-answer scoring and mixed-type student taking are now implemented and tested. Full browser coverage and the richer live preview/editor workflow remain to be completed.
 
 Evidence for this slice: `backend/tests/api.test.js` 28/28 API tests, `frontend/src/main.test.jsx` 57/57 component tests, and `db/migrations/024_short_answer_invariants.sql`.
+
+Manual-quiz completion update: the read-only student preview remains attempt-free and has frontend coverage. A lecturer-only `POST /api/v1/quizzes/:quizId/publish-check` dry-run endpoint returns only pass/fail and validation issues, and blocks unanswerable drafts; it is covered by API and authorization-matrix tests. The complete browser journey using all four question types is not yet independently tested.

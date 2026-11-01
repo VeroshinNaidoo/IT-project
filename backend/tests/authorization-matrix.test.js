@@ -211,6 +211,7 @@ const bodies = {
     ],
   }),
   'POST /api/v1/quizzes/:quizId/publish': () => ({}),
+  'POST /api/v1/quizzes/:quizId/publish-check': () => ({}),
   'POST /api/v1/quizzes/:quizId/questions': () => ({
     questionType: 'multiple_choice',
     questionText: 'Added matrix question',
@@ -389,6 +390,10 @@ const specs = {
   'POST /api/v1/quizzes/manual': ['/api/v1/quizzes/manual', 'lecturer'],
   'POST /api/v1/quizzes/:quizId/publish': [
     '/api/v1/quizzes/:authorQuizId/publish',
+    'lecturer',
+  ],
+  'POST /api/v1/quizzes/:quizId/publish-check': [
+    '/api/v1/quizzes/:authorQuizId/publish-check',
     'lecturer',
   ],
   'POST /api/v1/quizzes/:quizId/questions': [
@@ -1170,7 +1175,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(94);
+    expect(routeInventory.length).toBe(95);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();
