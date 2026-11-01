@@ -24,6 +24,7 @@ export default defineConfig({
       'backend/tests/pixel-racer-api.test.js',
       'backend/tests/timer-trivia-api.test.js',
       'backend/tests/module-resource-catalogue-api.test.js',
+      'backend/tests/labs-api.test.js',
     ],
     fileParallelism: false,
     maxWorkers: 1,

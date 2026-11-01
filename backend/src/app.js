@@ -109,6 +109,90 @@ const visibleText = (field, req, res, value) => {
   error(res, 422, 'TEXT_NOT_ALLOWED', profanityMessage, requestId(req));
   return false;
 };
+const labText = z
+  .string()
+  .trim()
+  .min(1)
+  .max(5000)
+  .refine(
+    (value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value),
+    {
+      message: 'Please remove control characters.',
+    },
+  )
+  .refine(noProfanity(), { message: profanityMessage });
+const labTitle = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .refine(
+    (value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value),
+    {
+      message: 'Please remove control characters.',
+    },
+  )
+  .refine(noProfanity(), { message: profanityMessage });
+const codeText = z
+  .string()
+  .max(20_000)
+  .refine(
+    (value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value),
+    {
+      message: 'Please remove control characters.',
+    },
+  );
+const labCheck = z
+  .object({
+    type: z.enum([
+      'element_exists',
+      'text_contains',
+      'attribute_equals',
+      'computed_style_equals',
+      'element_count',
+      'function_returns',
+    ]),
+    selector: z.string().trim().max(300).optional(),
+    text: z.string().max(500).optional(),
+    attribute: z.string().trim().max(100).optional(),
+    expected: z
+      .union([z.string().max(500), z.number(), z.boolean()])
+      .optional(),
+    property: z.string().trim().max(100).optional(),
+    functionName: z
+      .string()
+      .regex(/^[A-Za-z_$][\w$]*$/)
+      .optional(),
+    args: z
+      .array(z.union([z.string().max(200), z.number(), z.boolean()]))
+      .max(5)
+      .optional(),
+    hint: z
+      .string()
+      .max(300)
+      .refine(noProfanity(), { message: profanityMessage })
+      .optional(),
+  })
+  .strict();
+const codeLabConfig = z
+  .object({
+    starterHtml: codeText.default(''),
+    starterCss: codeText.default(''),
+    starterJs: codeText.default(''),
+    checks: z.array(labCheck).max(10).default([]),
+    modelSolution: z
+      .object({ html: codeText, css: codeText, js: codeText })
+      .strict()
+      .optional(),
+    allowModelSolution: z.boolean().default(false),
+  })
+  .strict();
+const labConfig = z.union([codeLabConfig, z.object({}).strict()]);
+const sanitizeSubmission = (value) => {
+  const text = JSON.stringify(value);
+  if (text.length > 65_000) throw new Error('LAB_SUBMISSION_TOO_LARGE');
+  return value;
+};
 const parse = (schema, value, req, res, validationStatus = 400) => {
   const result = schema.safeParse(value);
   if (!result.success) {
@@ -3114,6 +3198,335 @@ app.get(
       res.json({ data: activity.rows });
     } catch (caught) {
       next(caught);
+    }
+  },
+);
+
+const labBaseSchema = z
+  .object({
+    moduleId: z.string().uuid(),
+    kind: z.enum(['code', 'spreadsheet', 'calculator', 'scenario']),
+    title: labTitle,
+    instructions: labText,
+    difficulty: z.number().int().min(1).max(5),
+    status: z.enum(['draft', 'published']),
+    config: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+const labCreateSchema = labBaseSchema.extend({
+  status: z.enum(['draft', 'published']).default('draft'),
+  config: z.record(z.string(), z.unknown()).default({}),
+});
+const labPatchSchema = labBaseSchema
+  .omit({ moduleId: true })
+  .partial()
+  .strict();
+
+const labConfigFor = (kind, config) => {
+  const parsed = (
+    kind === 'code' ? codeLabConfig : z.object({}).strict()
+  ).safeParse(config);
+  return parsed.success ? parsed.data : null;
+};
+const labAccess = async (labId, user) => {
+  const result = await pool.query(
+    `SELECT l.*,m.module_name,m.module_code,m.lecturer_id
+     FROM labs l JOIN modules m ON m.module_id=l.module_id WHERE l.lab_id=$1`,
+    [labId],
+  );
+  if (!result.rowCount) return null;
+  const lab = result.rows[0];
+  if (user.role === 'lecturer')
+    return lab.lecturer_id === user.userId ? lab : false;
+  const enrolled = await pool.query(
+    'SELECT 1 FROM enrollments WHERE student_id=$1 AND module_id=$2',
+    [user.userId, lab.module_id],
+  );
+  return enrolled.rowCount && lab.status === 'published' ? lab : false;
+};
+const labClientView = (lab, user) => {
+  const config = { ...lab.config };
+  if (user.role === 'student') {
+    delete config.modelSolution;
+    delete config.allowModelSolution;
+    config.checks = (config.checks || []).map(
+      ({ expected: _expected, ...check }) => check,
+    );
+  }
+  return { ...lab, config };
+};
+
+app.get('/api/v1/labs', requireAuth, async (req, res, next) => {
+  try {
+    const query = z
+      .object({
+        moduleId: z.string().uuid().optional(),
+        search: z.string().trim().max(100).default(''),
+        page: z.coerce.number().int().min(1).default(1),
+        pageSize: z.coerce.number().int().min(1).max(50).default(20),
+      })
+      .strict();
+    const options = parse(query, req.query, req, res, 422);
+    if (!options) return;
+    const programmeOrder =
+      req.user.studentType === 'business'
+        ? "CASE WHEN l.kind IN ('spreadsheet','calculator','scenario') THEN 0 ELSE 1 END"
+        : "CASE WHEN l.kind='code' THEN 0 ELSE 1 END";
+    const ownership =
+      req.user.role === 'lecturer'
+        ? ['m.lecturer_id=$1', req.user.userId]
+        : [
+            "EXISTS (SELECT 1 FROM enrollments e WHERE e.module_id=l.module_id AND e.student_id=$1) AND l.status='published'",
+            req.user.userId,
+          ];
+    const params = [
+      ownership[1],
+      options.moduleId || null,
+      `%${options.search}%`,
+      options.pageSize,
+      (options.page - 1) * options.pageSize,
+    ];
+    const rows = await pool.query(
+      `SELECT l.lab_id,l.module_id,l.kind,l.title,l.instructions,l.difficulty,l.status,l.created_by,l.created_at,l.updated_at,m.module_code,m.module_name,
+              COALESCE(la.checks_passed,0)::int AS checks_passed,COALESCE(la.checks_total,jsonb_array_length(COALESCE(l.config->'checks','[]'::jsonb)))::int AS checks_total,COALESCE(la.completed,false) AS completed
+       FROM labs l JOIN modules m ON m.module_id=l.module_id LEFT JOIN lab_attempts la ON la.lab_id=l.lab_id AND la.student_id=$1
+       WHERE ${ownership[0]} AND ($2::uuid IS NULL OR l.module_id=$2) AND ($3='' OR l.title ILIKE $3)
+       ORDER BY ${programmeOrder},l.created_at DESC LIMIT $4 OFFSET $5`,
+      params,
+    );
+    res.json({
+      data: rows.rows,
+      pagination: {
+        page: options.page,
+        pageSize: options.pageSize,
+        total: rows.rowCount,
+        pages: Math.max(1, Math.ceil(rows.rowCount / options.pageSize)),
+      },
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post(
+  '/api/v1/labs',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(labCreateSchema, req.body, req, res, 422);
+      if (!data) return;
+      if (
+        !visibleText('labTitle', req, res, data.title) ||
+        !visibleText('labInstructions', req, res, data.instructions)
+      )
+        return;
+      const config = labConfigFor(data.kind, data.config);
+      if (!config)
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Please check the lab configuration.',
+          requestId(req),
+        );
+      const owned = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [data.moduleId, req.user.userId],
+      );
+      if (!owned.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      const result = await pool.query(
+        `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [
+          data.moduleId,
+          data.kind,
+          data.title,
+          data.instructions,
+          data.difficulty,
+          data.status,
+          req.user.userId,
+          config,
+        ],
+      );
+      res.status(201).json({ lab: result.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get('/api/v1/labs/:labId', requireAuth, async (req, res, next) => {
+  try {
+    const lab = await labAccess(req.params.labId, req.user);
+    if (!lab)
+      return error(res, 404, 'NOT_FOUND', 'Lab not found.', requestId(req));
+    res.json({ lab: labClientView(lab, req.user) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.patch(
+  '/api/v1/labs/:labId',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(labPatchSchema, req.body, req, res, 422);
+      if (!data) return;
+      if (data.title && !visibleText('labTitle', req, res, data.title)) return;
+      if (
+        data.instructions &&
+        !visibleText('labInstructions', req, res, data.instructions)
+      )
+        return;
+      const existing = await labAccess(req.params.labId, req.user);
+      if (!existing)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this lab.',
+          requestId(req),
+        );
+      const config = data.config
+        ? labConfigFor(data.kind || existing.kind, data.config)
+        : existing.config;
+      if (!config)
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Please check the lab configuration.',
+          requestId(req),
+        );
+      const result = await pool.query(
+        `UPDATE labs SET kind=COALESCE($1,kind),title=COALESCE($2,title),instructions=COALESCE($3,instructions),difficulty=COALESCE($4,difficulty),status=COALESCE($5,status),config=$6,updated_at=now() WHERE lab_id=$7 RETURNING *`,
+        [
+          data.kind || null,
+          data.title || null,
+          data.instructions || null,
+          data.difficulty || null,
+          data.status || null,
+          config,
+          req.params.labId,
+        ],
+      );
+      res.json({ lab: result.rows[0] });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/labs/:labId/attempt',
+  requireAuth,
+  requireRole('student'),
+  async (req, res, next) => {
+    try {
+      const lab = await labAccess(req.params.labId, req.user);
+      if (!lab)
+        return error(res, 404, 'NOT_FOUND', 'Lab not found.', requestId(req));
+      const result = await pool.query(
+        'SELECT * FROM lab_attempts WHERE lab_id=$1 AND student_id=$2',
+        [req.params.labId, req.user.userId],
+      );
+      res.json({ attempt: result.rows[0] || null });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.put(
+  '/api/v1/labs/:labId/attempt',
+  requireAuth,
+  requireRole('student'),
+  async (req, res, next) => {
+    try {
+      const data = parse(
+        z
+          .object({
+            submission: z.record(z.string(), z.unknown()),
+            checksPassed: z.number().int().min(0),
+            checksTotal: z.number().int().min(0),
+            completed: z.boolean(),
+          })
+          .strict(),
+        req.body,
+        req,
+        res,
+        422,
+      );
+      if (!data) return;
+      const lab = await labAccess(req.params.labId, req.user);
+      if (!lab)
+        return error(res, 404, 'NOT_FOUND', 'Lab not found.', requestId(req));
+      sanitizeSubmission(data.submission);
+      const total = Math.min(
+        data.checksTotal,
+        Array.isArray(lab.config.checks) ? lab.config.checks.length : 0,
+      );
+      const passed = Math.min(data.checksPassed, total);
+      const result = await pool.query(
+        `INSERT INTO lab_attempts(lab_id,student_id,submission,checks_passed,checks_total,completed,updated_at) VALUES($1,$2,$3,$4,$5,$6,now()) ON CONFLICT(lab_id,student_id) DO UPDATE SET submission=EXCLUDED.submission,checks_passed=EXCLUDED.checks_passed,checks_total=EXCLUDED.checks_total,completed=EXCLUDED.completed,updated_at=now() RETURNING *`,
+        [
+          req.params.labId,
+          req.user.userId,
+          data.submission,
+          passed,
+          total,
+          data.completed && passed === total,
+        ],
+      );
+      res.json({ attempt: result.rows[0], selfChecked: true });
+    } catch (e) {
+      if (e.message === 'LAB_SUBMISSION_TOO_LARGE')
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Your saved work is too large.',
+          requestId(req),
+        );
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/modules/:moduleId/labs/activity',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const owned = await pool.query(
+        'SELECT 1 FROM modules WHERE module_id=$1 AND lecturer_id=$2',
+        [req.params.moduleId, req.user.userId],
+      );
+      if (!owned.rowCount)
+        return error(
+          res,
+          403,
+          'FORBIDDEN',
+          'You do not manage this module.',
+          requestId(req),
+        );
+      const result = await pool.query(
+        `SELECT l.lab_id,l.title,l.kind,count(la.attempt_id)::int AS started,count(la.attempt_id) FILTER (WHERE la.completed)::int AS completed FROM labs l LEFT JOIN lab_attempts la ON la.lab_id=l.lab_id WHERE l.module_id=$1 GROUP BY l.lab_id ORDER BY l.created_at DESC`,
+        [req.params.moduleId],
+      );
+      res.json({ data: result.rows });
+    } catch (e) {
+      next(e);
     }
   },
 );

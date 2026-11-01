@@ -240,3 +240,11 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Fixed the launcher path so it starts the persistent AI worker alongside the backend, AI service and frontend.
 - Added frontend controls and editable draft metadata for Practice/Competitive mode, title and closing time, plus queued-job cancel/retry/status states.
 - Evidence so far: frontend 49/49 and DB/API focused tests 29/29; authorization matrix 78/78; full JavaScript suite 172 pure/frontend and 228 DB/API, zero skipped. Browser gate and final lint/format/type-check/build remain to run.
+
+## 2026-11-01 — Practice Lab / IT Code Lab
+
+- Added migration 022 with module-scoped `labs` and owner-scoped `lab_attempts`.
+- Added strict Zod-backed lab create/edit/read/save routes, profanity checks, student enrollment visibility, lecturer ownership and aggregate activity.
+- Added a browser-only Code Lab with HTML/CSS/JavaScript tabs, line numbers, sandboxed CSP preview, watchdog, console, declarative checks, reset, hint and draft save.
+- Added seeded IT first-year Code Labs and Playground creation by stable module/title keys.
+- Focused gate: lab API 8/8; authorization matrix green after fixing PATCH default status unpublishing labs. Full frontend/browser gate remains to run.

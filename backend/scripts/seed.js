@@ -112,6 +112,100 @@ try {
       ],
     );
   }
+  const itModule = (
+    await client.query(
+      "SELECT module_id FROM modules WHERE module_code='DEMO-IT101'",
+    )
+  ).rows[0];
+  for (const student of students)
+    await client.query(
+      'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+      [student, itModule.module_id],
+    );
+  const codeLabs = [
+    [
+      'Headings and paragraphs',
+      'Build a clear heading and supporting paragraph.',
+      '<h1>Welcome</h1><p>Learning by building.</p>',
+      [
+        {
+          type: 'element_exists',
+          selector: 'h1',
+          hint: 'Add one main heading.',
+        },
+      ],
+    ],
+    [
+      'Change text colour',
+      'Use CSS to make the heading easy to read.',
+      '<h1 class="headline">Colour me</h1>',
+      [
+        {
+          type: 'computed_style_equals',
+          selector: '.headline',
+          property: 'color',
+          expected: 'rgb(59, 75, 219)',
+          hint: 'Choose a readable colour in CSS.',
+        },
+      ],
+    ],
+    [
+      'Build a styled button',
+      'Create a button and change its style.',
+      '<button class="action">Start</button>',
+      [
+        {
+          type: 'element_exists',
+          selector: 'button',
+          hint: 'Add a button element.',
+        },
+        {
+          type: 'attribute_equals',
+          selector: 'button',
+          attribute: 'type',
+          expected: 'button',
+          hint: 'Give it a button type.',
+        },
+      ],
+    ],
+    [
+      'Fix the broken HTML',
+      'Repair the document structure so the message is visible.',
+      '<p>Fix this message</p>',
+      [
+        {
+          type: 'text_contains',
+          selector: 'p',
+          text: 'Fix',
+          hint: 'Keep the message in a paragraph.',
+        },
+      ],
+    ],
+    [
+      'Playground',
+      'Try HTML, CSS and JavaScript safely in your browser.',
+      '<h1>Try it</h1><p>Experiment here.</p>',
+      [],
+    ],
+  ];
+  for (const [title, instructions, starterHtml, checks] of codeLabs) {
+    const exists = await client.query(
+      'SELECT 1 FROM labs WHERE module_id=$1 AND title=$2 LIMIT 1',
+      [itModule.module_id, title],
+    );
+    if (!exists.rowCount)
+      await client.query(
+        `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config) VALUES($1,'code',$2,$3,$4,'published',$5,$6)`,
+        [
+          itModule.module_id,
+          title,
+          instructions,
+          title === 'Playground' ? 1 : 2,
+          lecturer,
+          { starterHtml, starterCss: '', starterJs: '', checks },
+        ],
+      );
+  }
   for (const student of students)
     await client.query(
       'INSERT INTO enrollments(student_id,module_id) VALUES($1,$2) ON CONFLICT DO NOTHING',

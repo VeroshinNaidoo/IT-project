@@ -221,6 +221,7 @@ export function App() {
     'Leaderboard',
     'Quizzes',
     'Games',
+    'Practice Labs',
     'Profile',
   ];
   const lecturerScreens = [
@@ -228,6 +229,7 @@ export function App() {
     'Resources',
     'Quizzes',
     'Games',
+    'Practice Labs',
     'Analytics',
     'Profile',
   ];
@@ -321,6 +323,7 @@ export function App() {
             }}
           />
         )}
+        {screen === 'Practice Labs' && <PracticeLabs user={user} />}
         {screen === 'Quizzes' && (
           <Quizzes
             onTake={(id) => {
@@ -425,6 +428,294 @@ function State({ state, empty = 'Nothing here yet.' }) {
   if (state.error) return <p className="field-error">{state.error}</p>;
   if (!state.data.length) return <p className="empty-state">{empty}</p>;
   return null;
+}
+
+const labSrcDoc = (
+  html,
+  css,
+  js,
+  checks = [],
+) => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:"><style>${css}</style></head><body>${html}<script>
+(() => {
+  const send = (message) => parent.postMessage(message, '*');
+  const safe = (value) => { try { return String(value); } catch (_) { return '[unprintable]'; } };
+  const originalLog = console.log, originalError = console.error;
+  console.log = (...args) => { send({ type: 'console', level: 'log', text: args.map(safe).join(' ') }); originalLog(...args); };
+  console.error = (...args) => { send({ type: 'console', level: 'error', text: args.map(safe).join(' ') }); originalError(...args); };
+  const checks = ${JSON.stringify(checks)};
+  const runChecks = () => checks.map((check) => { try {
+    const node = check.selector ? document.querySelector(check.selector) : null;
+    if (check.type === 'element_exists') return { passed: Boolean(node) };
+    if (check.type === 'text_contains') return { passed: Boolean(node && node.textContent.includes(check.text)) };
+    if (check.type === 'attribute_equals') return { passed: Boolean(node && node.getAttribute(check.attribute) === String(check.expected)) };
+    if (check.type === 'computed_style_equals') return { passed: Boolean(node && getComputedStyle(node)[check.property] === String(check.expected)) };
+    if (check.type === 'element_count') return { passed: document.querySelectorAll(check.selector).length === Number(check.expected) };
+    if (check.type === 'function_returns') { const fn = window[check.functionName]; return { passed: typeof fn === 'function' && fn(...(check.args || [])) === check.expected }; }
+    return { passed: false };
+  } catch (_) { return { passed: false }; } });
+  window.addEventListener('message', (event) => { if (event.source !== parent || event.data?.type !== 'run-checks') return; send({ type: 'checks', results: runChecks() }); });
+  const beat = () => send({ type: 'heartbeat' }); setInterval(beat, 500); beat();
+  try { ${js} } catch (error) { console.error(error?.message || 'Your script could not run.'); }
+})();</script></body></html>`;
+
+export function CodeLabPlayer({ lab, onBack }) {
+  const [tab, setTab] = useState('html');
+  const [code, setCode] = useState({
+    html: lab.config?.starterHtml || '',
+    css: lab.config?.starterCss || '',
+    js: lab.config?.starterJs || '',
+  });
+  const [frameKey, setFrameKey] = useState(0);
+  const [ran, setRan] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [checks, setChecks] = useState([]);
+  const [slow, setSlow] = useState(false);
+  const [message, setMessage] = useState('');
+  const frameRef = useRef(null);
+  const lastBeat = useRef(Date.now());
+  const original = {
+    html: lab.config?.starterHtml || '',
+    css: lab.config?.starterCss || '',
+    js: lab.config?.starterJs || '',
+  };
+  useEffect(() => {
+    const listener = (event) => {
+      if (!frameRef.current || event.source !== frameRef.current.contentWindow)
+        return;
+      if (event.data?.type === 'heartbeat') lastBeat.current = Date.now();
+      if (event.data?.type === 'console')
+        setLogs((items) => [...items.slice(-19), event.data]);
+      if (event.data?.type === 'checks') setChecks(event.data.results);
+    };
+    window.addEventListener('message', listener);
+    const watchdog = window.setInterval(() => {
+      if (Date.now() - lastBeat.current > 3000) {
+        setSlow(true);
+        setFrameKey((value) => value + 1);
+        lastBeat.current = Date.now();
+      }
+    }, 500);
+    return () => {
+      window.removeEventListener('message', listener);
+      window.clearInterval(watchdog);
+    };
+  }, []);
+  const run = () => {
+    setSlow(false);
+    setRan(true);
+    setLogs([]);
+    setChecks([]);
+    setFrameKey((value) => value + 1);
+  };
+  useEffect(() => {
+    if (!ran) return;
+    const timer = window.setTimeout(
+      () =>
+        frameRef.current?.contentWindow?.postMessage(
+          { type: 'run-checks' },
+          '*',
+        ),
+      100,
+    );
+    return () => window.clearTimeout(timer);
+  }, [ran, frameKey]);
+  const save = async () => {
+    try {
+      const result = await api(`/labs/${lab.lab_id}/attempt`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          submission: code,
+          checksPassed: checks.filter((item) => item.passed).length,
+          checksTotal: checks.length,
+          completed: checks.length > 0 && checks.every((item) => item.passed),
+        }),
+      });
+      setMessage(
+        result.attempt?.completed
+          ? 'Completed — your self-checked progress is saved.'
+          : 'Draft saved. Checks run in your browser.',
+      );
+    } catch (error) {
+      setMessage(error.message);
+    }
+  };
+  const update = (value) =>
+    setCode((current) => ({ ...current, [tab]: value.slice(0, 20000) }));
+  return (
+    <section className="practice-lab-page">
+      <button className="link-button" onClick={onBack}>
+        ← Back to Practice Labs
+      </button>
+      <div className="lab-heading">
+        <div>
+          <span className="eyebrow">
+            CODE LAB · DIFFICULTY {lab.difficulty}
+          </span>
+          <h2>{lab.title}</h2>
+          <p>{lab.instructions}</p>
+        </div>
+        <div className="lab-actions">
+          <button className="secondary" onClick={() => setCode(original)}>
+            Reset
+          </button>
+          <button
+            className="secondary"
+            onClick={() =>
+              setMessage(
+                'Try changing one small thing, then run your check again.',
+              )
+            }
+          >
+            Show hint
+          </button>
+          <button className="primary" onClick={save}>
+            Save draft
+          </button>
+        </div>
+      </div>
+      {message && (
+        <p className="success-message" aria-live="polite">
+          {message}
+        </p>
+      )}
+      {slow && (
+        <p className="field-error" role="alert">
+          Your code ran too long and was stopped.
+        </p>
+      )}
+      <div className="lab-workbench">
+        <article className="card code-editor">
+          <div className="lab-tabs" role="tablist">
+            {['html', 'css', 'js'].map((item) => (
+              <button
+                key={item}
+                role="tab"
+                aria-selected={tab === item}
+                className={tab === item ? 'active' : ''}
+                onClick={() => setTab(item)}
+              >
+                {item === 'js' ? 'JavaScript' : item.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <div className="editor-wrap">
+            <div className="line-numbers" aria-hidden="true">
+              {code[tab].split('\n').map((_, index) => (
+                <span key={index}>{index + 1}</span>
+              ))}
+            </div>
+            <textarea
+              aria-label={`${tab} code`}
+              value={code[tab]}
+              onChange={(event) => update(event.target.value)}
+              spellCheck="false"
+            />
+          </div>
+          <button className="primary" onClick={run}>
+            Run
+          </button>
+        </article>
+        <article className="card lab-preview">
+          <h2>Live preview</h2>
+          <iframe
+            key={frameKey}
+            ref={frameRef}
+            title="Code preview"
+            sandbox="allow-scripts"
+            srcDoc={labSrcDoc(
+              code.html,
+              code.css,
+              code.js,
+              lab.config?.checks || [],
+            )}
+          />
+          <h2>Console</h2>
+          <div className="lab-console" aria-live="polite">
+            {logs.length ? (
+              logs.map((log, index) => (
+                <p key={index} className={log.level}>
+                  {log.text}
+                </p>
+              ))
+            ) : (
+              <p className="muted">Run your code to see messages.</p>
+            )}
+          </div>
+        </article>
+      </div>
+      <article className="card lab-checks">
+        <h2>Progress</h2>
+        <p>
+          {checks.filter((item) => item.passed).length} of{' '}
+          {checks.length || lab.config?.checks?.length || 0} checks passed{' '}
+          <span className="self-checked">Self-checked in your browser</span>
+        </p>
+        {checks.map((check, index) => (
+          <div className="check-row" key={index}>
+            <span aria-hidden="true">{check.passed ? '✓' : '○'}</span> Check{' '}
+            {index + 1}: {check.passed ? 'passed' : 'not yet'}
+          </div>
+        ))}
+      </article>
+    </section>
+  );
+}
+
+export function PracticeLabs({ user }) {
+  const state = useData('/labs?page=1&pageSize=50');
+  const [selected, setSelected] = useState(null);
+  const [search, setSearch] = useState('');
+  const labs = state.data.filter((lab) =>
+    lab.title.toLowerCase().includes(search.toLowerCase()),
+  );
+  if (selected)
+    return <CodeLabPlayer lab={selected} onBack={() => setSelected(null)} />;
+  return (
+    <section className="practice-labs-page">
+      <div className="card hero">
+        <span className="eyebrow">PRACTICE LABS</span>
+        <h2>Learn by building</h2>
+        <p>
+          Experiment safely in your browser. Your code never leaves this page
+          until you save a draft.
+        </p>
+        <input
+          aria-label="Search practice labs"
+          placeholder="Search labs"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+      <State
+        state={state}
+        empty="No published practice labs are available yet."
+      />
+      <div className="lab-grid">
+        {labs.map((lab) => (
+          <article className="card lab-card" key={lab.lab_id}>
+            <span className="lab-icon" aria-hidden="true">
+              &lt;/&gt;
+            </span>
+            <span className="eyebrow">
+              {lab.kind} · Level {lab.difficulty}
+            </span>
+            <h3>{lab.title}</h3>
+            <p>{lab.instructions}</p>
+            <span className="tag">Practice only</span>
+            <button className="primary" onClick={() => setSelected(lab)}>
+              Open lab
+            </button>
+          </article>
+        ))}
+      </div>
+      {user.role === 'lecturer' && (
+        <p className="muted">
+          Lecturer view: create and publish labs through the lab authoring API;
+          student code is never executed on the server.
+        </p>
+      )}
+    </section>
+  );
 }
 function Dashboard({ user }) {
   const state = useData('/modules');

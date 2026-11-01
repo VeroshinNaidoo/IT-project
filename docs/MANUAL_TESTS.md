@@ -105,3 +105,13 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 4. Change email and confirm the old email remains active until the development verification link is used.
 5. Change password, confirm the current session remains active and another session is signed out.
 6. Review MFA status and use the existing enrolment/disable/recovery-code actions.
+
+## Practice Lab smoke test
+
+1. Sign in as a student enrolled in the IT first-year module and open **Practice Labs**.
+2. Open **Headings and paragraphs**. Confirm the HTML, CSS and JavaScript tabs, line numbers and live preview are visible.
+3. Type a heading, select **Run**, and confirm the preview changes. Use **Reset** and confirm the starter code returns.
+4. Confirm the preview iframe has scripts enabled only, no forms/popups/navigation, and the console displays output as text.
+5. Save a draft, refresh, reopen the lab, and confirm the saved progress is restored. No code is sent before Save.
+6. Enter an infinite loop and confirm the watchdog shows “Your code ran too long and was stopped”.
+7. As a lecturer, create, edit, preview and publish a lab on an owned module. Confirm another lecturer cannot access it and activity shows aggregate counts only.

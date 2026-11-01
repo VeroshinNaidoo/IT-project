@@ -116,3 +116,10 @@
 - Recommendation score is deterministic: +30 matching module, +20 matching Year, +20 matching programme (including `both`), +10 per preferred-language overlap capped at +20, and +10 for a focus match. Reasons expose only aggregate matches.
 - A student creator becomes leader. Leaders can add/remove co-leaders. A leader must hand over before leaving; a database trigger prevents deleting or demoting the last leader.
 - Group updates are leader-authored, profanity-checked, sanitized plain text capped at 200 characters. The UI displays one latest `Doing now` item and up to three `Next up` items.
+
+## 2026-11-01 — Practice Lab / IT Code Lab
+
+- Lab checks are declarative only in v1. The server stores lecturer configuration and student self-checked progress, but never executes lecturer or student code.
+- The preview is an iframe using `sandbox="allow-scripts"` only, with a network-blocking CSP. The browser watchdog recreates a stalled frame after three seconds.
+- Student submissions are progress evidence, not authoritative grading. Lab results never affect leaderboards, scored attempts or quiz analytics (INV-66).
+- A plain textarea editor with line numbers is used to avoid adding an unnecessary dependency; it keeps the Code Lab offline and auditable.

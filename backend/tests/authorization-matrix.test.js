@@ -45,6 +45,7 @@ const verificationToken = 'matrix-verification-token-1234567890';
 const pathFor = (template, values = fixture) =>
   template
     .replace(':moduleId', values.moduleId)
+    .replace(':labId', values.labId)
     .replace(':groupId', values.groupId)
     .replace(':joinGroupId', values.joinGroupId)
     .replace(':resourceId', values.resourceId)
@@ -237,6 +238,26 @@ const bodies = {
   'POST /api/v1/games/timer-trivia/plays/:id/answer': () => ({
     optionId: fixture.timerOptionId,
   }),
+  'POST /api/v1/labs': () => ({
+    moduleId: fixture.moduleId,
+    kind: 'code',
+    title: `Matrix Lab ${Date.now()}`,
+    instructions: 'Build a heading.',
+    difficulty: 1,
+    config: {
+      starterHtml: '<h1>Start</h1>',
+      starterCss: '',
+      starterJs: '',
+      checks: [],
+    },
+  }),
+  'PATCH /api/v1/labs/:labId': () => ({ title: 'Updated Matrix Lab' }),
+  'PUT /api/v1/labs/:labId/attempt': () => ({
+    submission: { html: '<h1>Start</h1>', css: '', js: '' },
+    checksPassed: 0,
+    checksTotal: 0,
+    completed: true,
+  }),
 };
 
 const specs = {
@@ -330,6 +351,16 @@ const specs = {
   ],
   'POST /api/v1/ai-generation-jobs/:jobId/retry': [
     '/api/v1/ai-generation-jobs/:jobId/retry',
+    'lecturer',
+  ],
+  'GET /api/v1/labs': ['/api/v1/labs', 'student'],
+  'POST /api/v1/labs': ['/api/v1/labs', 'lecturer'],
+  'GET /api/v1/labs/:labId': ['/api/v1/labs/:labId', 'student'],
+  'PATCH /api/v1/labs/:labId': ['/api/v1/labs/:labId', 'lecturer'],
+  'GET /api/v1/labs/:labId/attempt': ['/api/v1/labs/:labId/attempt', 'student'],
+  'PUT /api/v1/labs/:labId/attempt': ['/api/v1/labs/:labId/attempt', 'student'],
+  'GET /api/v1/modules/:moduleId/labs/activity': [
+    '/api/v1/modules/:moduleId/labs/activity',
     'lecturer',
   ],
   'GET /api/v1/quizzes/:quizId': ['/api/v1/quizzes/:quizId', 'lecturer'],
@@ -503,6 +534,21 @@ async function createFixture() {
     await pool.query(
       "INSERT INTO modules(lecturer_id,module_code,module_name,join_code) VALUES($1,'MATRIX101','Matrix Module','MATRIXJOIN2026') ON CONFLICT(module_code) DO UPDATE SET lecturer_id=excluded.lecturer_id RETURNING *",
       [ids[users.lecturer.email]],
+    )
+  ).rows[0];
+  const labRow = (
+    await pool.query(
+      `INSERT INTO labs(module_id,kind,title,instructions,difficulty,status,created_by,config) VALUES($1,'code','Matrix Lab','Build a heading.',1,'published',$2,$3) RETURNING lab_id`,
+      [
+        moduleRow.module_id,
+        ids[users.lecturer.email],
+        {
+          starterHtml: '<h1>Start</h1>',
+          starterCss: '',
+          starterJs: '',
+          checks: [],
+        },
+      ],
     )
   ).rows[0];
   await pool.query(
@@ -777,6 +823,7 @@ async function createFixture() {
     studentId: ids[users.outsider.email],
     updateId: groupUpdate.update_id,
     moduleId: moduleRow.module_id,
+    labId: labRow.lab_id,
     joinCode: moduleRow.join_code,
     groupId: group.group_id,
     joinGroupId: joinGroup.group_id,
@@ -905,6 +952,7 @@ async function assertRoute(route, [template, successRole]) {
       const ownerPath = pathFor(template, {
         ...fixture,
         moduleId: uuid(),
+        labId: uuid(),
         groupId: uuid(),
         joinGroupId: uuid(),
         resourceId: uuid(),
@@ -985,7 +1033,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(76);
+    expect(routeInventory.length).toBe(83);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

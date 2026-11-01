@@ -1,6 +1,56 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('Practice Lab uses a scripts-only sandbox and exposes accessible editor controls', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith('/auth/me')
+      ? {
+          user: {
+            userId: 'student-1',
+            role: 'student',
+            full_name: 'Demo Student',
+          },
+        }
+      : path.endsWith('/labs')
+        ? {
+            data: [
+              {
+                lab_id: 'lab-1',
+                kind: 'code',
+                title: 'Heading lab',
+                instructions: 'Build a heading.',
+                difficulty: 1,
+                config: {
+                  starterHtml: '<h1>Hello</h1>',
+                  starterCss: '',
+                  starterJs: '',
+                  checks: [],
+                },
+              },
+            ],
+          }
+        : { data: [] };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Practice Labs' }).click();
+  await expect(page.getByText('Heading lab')).toBeVisible();
+  await page.getByRole('button', { name: 'Open lab' }).click();
+  const frame = page.getByTitle('Code preview');
+  await expect(frame).toBeVisible();
+  await expect(frame).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect(page.getByRole('button', { name: 'Run' })).toBeVisible();
+  await page.waitForTimeout(300);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('authentication screen is usable at the required viewport', async ({
   page,
 }) => {

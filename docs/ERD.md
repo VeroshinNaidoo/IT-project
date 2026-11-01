@@ -82,3 +82,17 @@ erDiagram
 
 `USERS.StudentYear` is nullable for lecturers and required 1–3 for students. `MODULES.Year` is 1–3, `MODULES.Programme` is `it|business|both`, `MODULES.Offering` is a non-empty offering label, and `MODULES.Description` is bounded text. The enrolled-module and resource-tile endpoints project only owner/enrollment-visible data. The look-ahead endpoint projects year-2 module metadata and topic/prerequisite hints only; it does not return resources, quizzes, answers or enrolment actions.
 Study-group collaboration adds `GROUP_LANGUAGES(GroupID, LanguageID)`, `GROUP_LEADERS(GroupID, StudentID, Role)`, and `GROUP_UPDATES(UpdateID, GroupID, AuthorID, Kind, Text, TopicID, PlannedFor, CreatedAt)`. `STUDY_GROUPS` now also has `Focus`, `Description`, and `Visibility`. A database trigger prevents removing or demoting the last leader.
+
+### Practice Labs
+
+`LABS` stores lecturer-owned, module-scoped practice activities and kind-specific JSON configuration. `LAB_ATTEMPTS` stores one student-owned draft/progress record per lab. Submission checks are explicitly self-checked in the browser; these rows are not scored quiz attempts and are excluded from leaderboards and analytics.
+
+```mermaid
+erDiagram
+  MODULES ||--o{ LABS : contains
+  USERS ||--o{ LABS : authors
+  LABS ||--o{ LAB_ATTEMPTS : receives
+  USERS ||--o{ LAB_ATTEMPTS : makes
+  LABS { uuid lab_id PK uuid module_id FK text kind text title text instructions smallint difficulty text status uuid created_by FK jsonb config }
+  LAB_ATTEMPTS { uuid attempt_id PK uuid lab_id FK uuid student_id FK jsonb submission int checks_passed int checks_total boolean completed timestamptz updated_at }
+```

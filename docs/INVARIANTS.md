@@ -77,6 +77,16 @@
 Game access policy is centralized in `canAccessGame`: lecturers always have access; students on competitive quizzes require their own completed scored attempt. Infected, Island Escape, Memory Match, Boss Battle, Pixel Car Racer, and Timer Trivia are enabled. Flashcards stays disabled.
 The Games chooser invariants are exercised by `backend/tests/game-availability.test.js`, `backend/tests/api.test.js`, `backend/tests/authorization-matrix.test.js`, `frontend/src/main.test.jsx`, and the six-project Playwright/axe chooser flow. The chooser is read-only and never returns question text, options, correctness, or another player's play state.
 
+## Practice Lab invariants
+
+| ID     | Invariant                                                                                                            | Enforcement                                          | Evidence                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
+| INV-64 | Labs are module-scoped and students see only published labs in enrolled modules                                      | Scoped lab queries and `labAccess`                   | `backend/tests/labs-api.test.js`                                               |
+| INV-65 | Lab configuration is strict, kind-specific, bounded and profanity-checked                                            | Zod schemas and text checks                          | `backend/tests/labs-api.test.js`                                               |
+| INV-66 | Student lab submissions are self-checked progress only and never affect scored attempts, leaderboards or analytics   | Separate `lab_attempts` persistence                  | `backend/tests/labs-api.test.js`                                               |
+| INV-67 | Student code is never executed on the server; browser preview uses a scripts-only sandbox and a network-blocking CSP | `srcdoc` iframe with watchdog and declarative checks | `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`                      |
+| INV-68 | Lab attempts are owner-scoped and lecturer activity is aggregate-only                                                | Route role and ownership checks                      | `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js` |
+
 ## Identity invariants
 
 | Invariant                                                                                   | Enforcement                                                                             | Evidence                                                                     |

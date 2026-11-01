@@ -207,3 +207,14 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 | Worker is started by the local launcher and advances queued jobs           | automated | `Start-EduQuest.ps1`, `scripts/run-worker.ps1`, `backend/tests/ai-worker.test.js`              |
 | Stuck jobs expose elapsed time, diagnostics, cancel and retry actions      | automated | `frontend/src/main.jsx`, `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`             |
 | New AI routes are authorization-matrix covered                             | automated | `backend/src/authorization-matrix.js`, `backend/tests/authorization-matrix.test.js` (78 tests) |
+
+## Practice Lab / IT Code Lab
+
+| Requirement                                                                 | Status              | Evidence                                                                                             |
+| --------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------- |
+| FR-29: published labs are scoped to enrolled students and owned lecturers   | automated           | `backend/src/app.js`, `backend/tests/labs-api.test.js`, `backend/tests/authorization-matrix.test.js` |
+| IT Code Lab editor, tabs, line numbers, reset, hint and responsive preview  | implemented, tested | `frontend/src/main.jsx`, `frontend/src/styles.css`, frontend component tests                         |
+| Browser sandbox has `allow-scripts` only and blocks network access with CSP | implemented, tested | `CodeLabPlayer` srcdoc, `frontend/e2e/main.spec.js`                                                  |
+| Student code is never executed server-side; saves are self-checked progress | automated           | `backend/tests/labs-api.test.js`, INV-66/67                                                          |
+| Lab checks and aggregate lecturer activity                                  | automated           | `backend/tests/labs-api.test.js`                                                                     |
+| Practice Lab routes have behavioural authorization coverage                 | automated           | `backend/tests/authorization-matrix.test.js`                                                         |

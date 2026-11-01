@@ -24,6 +24,8 @@ import {
   Resources,
   Groups,
   ProfilePage,
+  PracticeLabs,
+  CodeLabPlayer,
 } from './main.jsx';
 
 const bossQuestion = {
@@ -1930,5 +1932,74 @@ it('profile page shows inline validation errors and MFA actions', async () => {
   ).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Disable MFA' }));
   await waitFor(() => expect(screen.getByText('MFA updated.')).toBeTruthy());
+  vi.unstubAllGlobals();
+});
+
+it('practice labs lists labs and opens the browser-only code lab', async () => {
+  cleanup();
+  const lab = {
+    lab_id: 'lab-1',
+    kind: 'code',
+    title: 'Heading lab',
+    instructions: 'Build a heading.',
+    difficulty: 1,
+    config: {
+      starterHtml: '<h1>Hello</h1>',
+      starterCss: '',
+      starterJs: '',
+      checks: [],
+    },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [lab] }),
+    }),
+  );
+  render(<PracticeLabs user={{ role: 'student' }} />);
+  expect(await screen.findByText('Heading lab')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Open lab' }));
+  expect(await screen.findByTitle('Code preview')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'HTML' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Run' })).toBeTruthy();
+  const frame = screen.getByTitle('Code preview');
+  expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+  expect(frame.srcdoc).toContain("default-src 'none'");
+  vi.unstubAllGlobals();
+});
+
+it('code lab keeps console output escaped and provides reset and save controls', async () => {
+  cleanup();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ attempt: { completed: false } }),
+    }),
+  );
+  render(
+    <CodeLabPlayer
+      lab={{
+        lab_id: 'lab-2',
+        title: 'Safe lab',
+        instructions: 'Try it.',
+        difficulty: 1,
+        config: {
+          starterHtml: '<p>Start</p>',
+          starterCss: '',
+          starterJs: '',
+          checks: [],
+        },
+      }}
+      onBack={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('0 of 0 checks passed')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await waitFor(() => expect(screen.getByText(/Draft saved/)).toBeTruthy());
   vi.unstubAllGlobals();
 });

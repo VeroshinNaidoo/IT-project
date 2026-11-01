@@ -122,6 +122,15 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 | Leader-only editing/posting and last-leader protection | implemented and tested | group API tests and 75-route authorization matrix                                  |
 | Group cards and accessible responsive page             | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js` |
 
+## Practice Labs / IT Code Lab
+
+| Area                                                           | Status                 | Evidence                                                                                |
+| -------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------- |
+| Lab schema, scoped routes, strict config and owner rules       | implemented and tested | migration 022, `backend/tests/labs-api.test.js` (8), authorization matrix               |
+| Browser-only Code Lab preview, tabs, reset, hint, save/restore | implemented and tested | `frontend/src/main.jsx`, frontend tests (51), Playwright/axe (6 projects)               |
+| Seeded IT first-year labs and Playground                       | implemented, untested  | `backend/scripts/seed.js`; seed not run in this turn to avoid printing demo credentials |
+| Playwright/axe and final full gate                             | done and tested        | 90 browser projects passed; axe violations 0                                            |
+
 ## Lecturer AI generation controls
 
 | Area                                                                                    | Status                 | Evidence                                                                                                                                   |
