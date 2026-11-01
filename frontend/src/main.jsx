@@ -926,6 +926,11 @@ export function ResourceRow({ resource, lecturer }) {
       {job && (
         <p className="job-status" aria-live="polite">
           Generation status: <b>{job.status}</b>
+          {job.providerMode === 'mock' && (
+            <span className="demo-banner">
+              Demo mode: questions are simulated
+            </span>
+          )}
           {job.status === 'failed' && (
             <>
               <span className="field-error">

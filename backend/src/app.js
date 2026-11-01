@@ -2193,7 +2193,12 @@ app.post(
           options.difficulty,
         ],
       );
-      res.status(202).json({ job: job.rows[0] });
+      res.status(202).json({
+        job: {
+          ...job.rows[0],
+          providerMode: process.env.AI_PROVIDER || 'mock',
+        },
+      });
     } catch (e) {
       next(e);
     }
@@ -2322,7 +2327,12 @@ app.get(
           'Generation job not found.',
           requestId(req),
         );
-      res.json({ job: result.rows[0] });
+      res.json({
+        job: {
+          ...result.rows[0],
+          providerMode: process.env.AI_PROVIDER || 'mock',
+        },
+      });
     } catch (e) {
       next(e);
     }
