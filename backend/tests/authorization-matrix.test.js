@@ -115,6 +115,20 @@ const bodies = {
     email: users.student.email,
     password: users.student.password,
   }),
+  'POST /api/v1/auth/login/mfa': () => ({
+    challengeId: '00000000-0000-0000-0000-000000000000',
+    code: '000000',
+  }),
+  'POST /api/v1/mfa/enrol': () => ({}),
+  'POST /api/v1/mfa/confirm': () => ({ code: '000000' }),
+  'POST /api/v1/mfa/disable': () => ({
+    password: users.lecturer.password,
+    code: '000000',
+  }),
+  'POST /api/v1/mfa/recovery-codes/regenerate': () => ({
+    password: users.lecturer.password,
+    code: '000000',
+  }),
   'PUT /api/v1/auth/me': () => ({ fullName: 'Updated Matrix Student' }),
   'POST /api/v1/modules': () => ({
     moduleCode: `M${Date.now().toString().slice(-6)}`,
@@ -199,6 +213,14 @@ const specs = {
   'GET /health': ['/health', null],
   'POST /api/v1/auth/register': ['/api/v1/auth/register', null],
   'POST /api/v1/auth/login': ['/api/v1/auth/login', null],
+  'POST /api/v1/auth/login/mfa': ['/api/v1/auth/login/mfa', null],
+  'POST /api/v1/mfa/enrol': ['/api/v1/mfa/enrol', 'lecturer'],
+  'POST /api/v1/mfa/confirm': ['/api/v1/mfa/confirm', 'lecturer'],
+  'POST /api/v1/mfa/disable': ['/api/v1/mfa/disable', 'lecturer'],
+  'POST /api/v1/mfa/recovery-codes/regenerate': [
+    '/api/v1/mfa/recovery-codes/regenerate',
+    'lecturer',
+  ],
   'GET /api/v1/auth/verify-email': [
     `/api/v1/auth/verify-email?token=${verificationToken}`,
     null,
@@ -387,6 +409,10 @@ async function createFixture() {
         values,
       );
   }
+  await pool.query(
+    'UPDATE users SET email_verified_at=now() WHERE email=ANY($1)',
+    [[users.lecturer.email, users.student.email, users.outsider.email]],
+  );
   const result = await pool.query(
     'SELECT email,user_id FROM users WHERE email=ANY($1)',
     [[users.lecturer.email, users.student.email, users.outsider.email]],
@@ -718,6 +744,28 @@ async function assertRoute(route, [template, successRole]) {
   const path = pathFor(template);
   const body = bodies[route]?.() ?? {};
   const isPublic = authorizationMatrix[route].auth === 'public';
+  if (
+    route === 'POST /api/v1/auth/login/mfa' ||
+    route.startsWith('POST /api/v1/mfa/')
+  ) {
+    const unauthenticated = await send(request(app), method, path, body);
+    expect([401, 422], `${route} unauthenticated`).toContain(
+      unauthenticated.status,
+    );
+    const wrongShape = await send(
+      successRole ? await login(successRole) : request(app),
+      method,
+      path,
+      { unknownField: true },
+    );
+    expect([400, 401, 409, 422], `${route} invalid`).toContain(
+      wrongShape.status,
+    );
+    expect(JSON.stringify(wrongShape.body)).not.toMatch(
+      /secret|recovery|token|hash/i,
+    );
+    return;
+  }
   if (!isPublic) {
     expect(
       (await send(request(app), method, path, body)).status,
@@ -827,7 +875,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(53);
+    expect(routeInventory.length).toBe(58);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

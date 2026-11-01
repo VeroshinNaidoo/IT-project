@@ -93,10 +93,11 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 
 ## Registration and login improvement — current slice
 
-| Area                                                                   | Status          | Evidence                                                                                |
-| ---------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------- |
-| Split first/last names, Unicode validation and student type            | done and tested | `db/migrations/016_identity_and_verification.sql`, `backend/tests/identity-api.test.js` |
-| Password policy and confirmation                                       | done and tested | `backend/src/app.js`, identity API tests, frontend authentication test                  |
-| Case-insensitive email normalization and duplicate rejection           | done and tested | identity API tests and existing authorization matrix                                    |
-| Development email verification token                                   | done and tested | verification API test; ignored `docs/dev-mail/` file mailer                             |
-| MFA enrolment, two-step login, recovery codes and lecturer enforcement | not started     | Storage/key scaffolding exists, executable MFA flows are not implemented                |
+| Area                                                           | Status                 | Evidence                                                                                |
+| -------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------- |
+| Split first/last names, Unicode validation and student type    | done and tested        | `db/migrations/016_identity_and_verification.sql`, `backend/tests/identity-api.test.js` |
+| Password policy and confirmation                               | done and tested        | `backend/src/app.js`, identity API tests, frontend authentication test                  |
+| Case-insensitive email normalization and duplicate rejection   | done and tested        | identity API tests and existing authorization matrix                                    |
+| Development email verification token                           | done and tested        | verification API test; ignored `docs/dev-mail/` file mailer                             |
+| MFA enrolment, TOTP two-step login, recovery codes and lockout | implemented and tested | `backend/src/mfa.js`, `backend/tests/mfa-api.test.js` (5 named integration tests)       |
+| Lecturer MFA enforcement and MFA frontend                      | not started            | Explicitly out of scope for this backend-only slice                                     |

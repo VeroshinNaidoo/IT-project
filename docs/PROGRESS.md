@@ -216,4 +216,5 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added development-only file mailer and single-use 24-hour verification endpoint.
 - Added frontend split-name fields, student type selection, live text strength meter, and 44 frontend identity tests plus 7 identity API tests.
 - Gate result: 179 pure/frontend and 179 DB/API tests passed with zero skips; lint and type-check passed.
-- Remaining: MFA enrolment, TOTP two-step login, recovery codes, lockout/rate limiting, lecturer enforcement, and the required new browser/axe flows are not complete yet.
+- Added the MFA backend: AES-256-GCM encrypted TOTP secret, QR data URL enrolment, RFC 6238 confirmation, five-minute login challenges, replay protection, one-use recovery codes, five-attempt challenge lockout, and account lockout tracking.
+- Remaining: lecturer MFA enforcement, MFA frontend, and browser/axe coverage are intentionally deferred to the next slice.
