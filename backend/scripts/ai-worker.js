@@ -72,6 +72,11 @@ const extractText = async (resource) => {
 };
 
 const claimJob = async () => {
+  await pool.query(
+    `UPDATE ai_generation_jobs
+     SET status='failed', error_code='QUEUE_TIMEOUT', updated_at=now()
+     WHERE status='queued' AND created_at < now() - interval '10 minutes'`,
+  );
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -135,8 +140,16 @@ const processJob = async (job) => {
     try {
       await client.query('BEGIN');
       const quiz = await client.query(
-        `INSERT INTO quizzes(module_id,resource_id,created_by,title,status) SELECT module_id,$1,$2,$3,'draft' FROM resources WHERE resource_id=$1 RETURNING quiz_id,module_id`,
-        [job.resource_id, job.requested_by, output.title],
+        `INSERT INTO quizzes(module_id,resource_id,created_by,title,is_competitive,closes_at,status)
+         SELECT module_id,$1,$2,$3,$4,$5,'draft' FROM resources WHERE resource_id=$1
+         RETURNING quiz_id,module_id`,
+        [
+          job.resource_id,
+          job.requested_by,
+          job.quiz_title || output.title,
+          job.quiz_mode === 'competitive',
+          job.closes_at || null,
+        ],
       );
       for (const question of output.questions) {
         const topic = await client.query(

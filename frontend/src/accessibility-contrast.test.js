@@ -22,7 +22,8 @@ function contrastRatio(foreground, background) {
 
 const tokenPairs = [
   ['ink on ground', '#14213D', '#F6F4EF', 'normal'],
-  ['muted on card', '#68718B', '#FFFFFF', 'normal'],
+  ['muted on card', '#4B5572', '#FFFFFF', 'normal'],
+  ['muted on primary tint', '#4B5572', '#E4E7FB', 'normal'],
   ['page description on ground', '#59647B', '#F6F4EF', 'normal'],
   ['primary button text', '#FFFFFF', '#3B4BDB', 'component'],
   ['primary hover text', '#FFFFFF', '#2D3CBD', 'component'],

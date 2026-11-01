@@ -2154,6 +2154,22 @@ app.get(
   },
 );
 
+const generationJobView = (row) => {
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(row.created_at).getTime()) / 1000),
+  );
+  return {
+    ...row,
+    elapsedSeconds,
+    queuedMessage:
+      row.status === 'queued' && elapsedSeconds >= 60
+        ? 'This job has been queued for over a minute. The AI service may be unreachable, the model may be slow, or the worker may not be running.'
+        : null,
+    providerMode: process.env.AI_PROVIDER || 'mock',
+  };
+};
+
 app.post(
   '/api/v1/resources/:resourceId/generation-jobs',
   requireAuth,
@@ -2161,7 +2177,7 @@ app.post(
   async (req, res, next) => {
     try {
       const resource = await pool.query(
-        'SELECT resource_id FROM resources r JOIN modules m ON m.module_id=r.module_id WHERE r.resource_id=$1 AND m.lecturer_id=$2',
+        'SELECT r.resource_id,r.title FROM resources r JOIN modules m ON m.module_id=r.module_id WHERE r.resource_id=$1 AND m.lecturer_id=$2',
         [req.params.resourceId, req.user.userId],
       );
       if (!resource.rowCount)
@@ -2177,26 +2193,32 @@ app.post(
           .object({
             questionCount: z.number().int().min(1).max(50).default(5),
             difficulty: z.string().trim().min(1).max(40).default('mixed'),
+            quizMode: z.enum(['practice', 'competitive']),
+            title: titleSchema.optional(),
+            closesAt: z.string().datetime().nullable().optional(),
           })
           .strict(),
         req.body || {},
         req,
         res,
+        422,
       );
       if (!options) return;
       const job = await pool.query(
-        `INSERT INTO ai_generation_jobs(requested_by,resource_id,question_count,difficulty) VALUES($1,$2,$3,$4) RETURNING *`,
+        `INSERT INTO ai_generation_jobs(requested_by,resource_id,question_count,difficulty,quiz_mode,quiz_title,closes_at) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [
           req.user.userId,
           req.params.resourceId,
           options.questionCount,
           options.difficulty,
+          options.quizMode,
+          options.title || resource.rows[0].title,
+          options.closesAt || null,
         ],
       );
       res.status(202).json({
         job: {
-          ...job.rows[0],
-          providerMode: process.env.AI_PROVIDER || 'mock',
+          ...generationJobView(job.rows[0]),
         },
       });
     } catch (e) {
@@ -2329,10 +2351,120 @@ app.get(
         );
       res.json({
         job: {
-          ...result.rows[0],
-          providerMode: process.env.AI_PROVIDER || 'mock',
+          ...generationJobView(result.rows[0]),
         },
       });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/ai-status',
+  requireAuth,
+  requireRole('lecturer'),
+  async (_req, res) => {
+    const selected = (process.env.AI_PROVIDER || 'mock').toLowerCase();
+    let host = 'local';
+    try {
+      if (process.env.AI_BASE_URL)
+        host = new URL(process.env.AI_BASE_URL).hostname;
+    } catch {
+      host = 'invalid';
+    }
+    const configured =
+      selected === 'mock' ||
+      (selected === 'openai_compatible' &&
+        Boolean(
+          process.env.AI_BASE_URL &&
+          process.env.AI_API_KEY &&
+          process.env.AI_MODEL,
+        ));
+    let reachable = selected === 'mock';
+    if (configured && !reachable) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 1000);
+        const response = await fetch(
+          `${process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000'}/health`,
+          {
+            headers: {
+              'x-ai-service-token': process.env.AI_SERVICE_TOKEN || '',
+            },
+            signal: controller.signal,
+          },
+        );
+        clearTimeout(timer);
+        reachable = response.ok;
+      } catch {
+        reachable = false;
+      }
+    }
+    res.json({
+      provider: selected,
+      configured,
+      reachable,
+      host,
+      model: process.env.AI_MODEL || 'mock',
+      message:
+        configured && reachable
+          ? null
+          : 'AI service is not reachable or is misconfigured.',
+    });
+  },
+);
+
+app.post(
+  '/api/v1/ai-generation-jobs/:jobId/cancel',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(z.object({}).strict(), req.body || {}, req, res);
+      if (!data) return;
+      const result = await pool.query(
+        `UPDATE ai_generation_jobs SET status='failed',error_code='CANCELLED',updated_at=now()
+       WHERE job_id=$1 AND requested_by=$2 AND status IN ('queued','running') RETURNING *`,
+        [req.params.jobId, req.user.userId],
+      );
+      if (!result.rowCount)
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Generation job not found.',
+          requestId(req),
+        );
+      res.json({ job: generationJobView(result.rows[0]) });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.post(
+  '/api/v1/ai-generation-jobs/:jobId/retry',
+  requireAuth,
+  requireRole('lecturer'),
+  async (req, res, next) => {
+    try {
+      const data = parse(z.object({}).strict(), req.body || {}, req, res);
+      if (!data) return;
+      const result = await pool.query(
+        `UPDATE ai_generation_jobs SET status='queued',error_code=NULL,attempts=0,updated_at=now()
+       WHERE job_id=$1 AND requested_by=$2 AND status='failed' RETURNING *`,
+        [req.params.jobId, req.user.userId],
+      );
+      if (!result.rowCount)
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Failed generation job not found.',
+          requestId(req),
+        );
+      res.status(202).json({ job: generationJobView(result.rows[0]) });
     } catch (e) {
       next(e);
     }

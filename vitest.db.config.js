@@ -28,10 +28,10 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     minWorkers: 1,
-    pool: 'forks',
+    pool: 'threads',
     poolOptions: {
-      forks: {
-        singleFork: true,
+      threads: {
+        singleThread: true,
       },
     },
     isolate: true,

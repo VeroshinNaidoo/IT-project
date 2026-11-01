@@ -1469,6 +1469,9 @@ describe('frontend authentication and role routing', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
+        response({ configured: true, reachable: true, provider: 'mock' }),
+      )
+      .mockResolvedValueOnce(
         response({ job: { job_id: 'job-1', status: 'queued' } }),
       )
       .mockResolvedValueOnce(
@@ -1543,12 +1546,15 @@ describe('frontend authentication and role routing', () => {
       target: { value: 'competitive' },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Publish quiz' }));
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBe(5));
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBe(6));
   });
 
   it('shows a friendly failed state and exposes retry', async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(
+        response({ configured: true, reachable: true, provider: 'mock' }),
+      )
       .mockResolvedValueOnce(
         response({ job: { job_id: 'job-2', status: 'queued' } }),
       )
@@ -1577,10 +1583,11 @@ describe('frontend authentication and role routing', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Generate quiz' }));
     await waitFor(
-      () => expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy(),
+      () =>
+        expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy(),
       { timeout: 1000 },
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() =>
       expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(3),
     );

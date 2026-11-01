@@ -497,7 +497,7 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
   it('queues an AI job and restricts polling to its requester', async () => {
     const queued = await lecturerAgent
       .post(`/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`)
-      .send({ questionCount: 7, difficulty: 'hard' });
+      .send({ questionCount: 7, difficulty: 'hard', quizMode: 'practice' });
     expect(queued.status).toBe(202);
     expect(queued.body.job.status).toBe('queued');
     expect(queued.body.job.question_count).toBe(7);
@@ -514,6 +514,62 @@ describe('Milestones 2–5 API authorization and profanity boundary', () => {
         )
       ).status,
     ).toBe(404);
+  });
+
+  it('validates and stores quiz mode, title and closing time for generation jobs', async () => {
+    const invalid = await lecturerAgent
+      .post(`/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`)
+      .send({ questionCount: 5, difficulty: 'mixed' });
+    expect(invalid.status).toBe(422);
+    expect(invalid.body.error.code).toBe('VALIDATION_ERROR');
+
+    const closesAt = '2030-01-01T12:00:00.000Z';
+    const created = await lecturerAgent
+      .post(`/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`)
+      .send({
+        questionCount: 5,
+        difficulty: 'mixed',
+        quizMode: 'competitive',
+        title: 'Timed database revision',
+        closesAt,
+      });
+    expect(created.status).toBe(202);
+    expect(created.body.job.quiz_mode).toBe('competitive');
+    expect(created.body.job.quiz_title).toBe('Timed database revision');
+    expect(new Date(created.body.job.closes_at).toISOString()).toBe(closesAt);
+  });
+
+  it('reports AI status and supports cancelling then retrying a generation job', async () => {
+    const status = await lecturerAgent.get('/api/v1/ai-status');
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual(
+      expect.objectContaining({
+        provider: expect.any(String),
+        configured: expect.any(Boolean),
+        reachable: expect.any(Boolean),
+        host: expect.any(String),
+        model: expect.any(String),
+      }),
+    );
+    expect(JSON.stringify(status.body)).not.toMatch(/api[_-]?key|token/i);
+
+    const created = await lecturerAgent
+      .post(`/api/v1/resources/${resourceRecord.resource_id}/generation-jobs`)
+      .send({ questionCount: 5, difficulty: 'mixed', quizMode: 'practice' });
+    const jobId = created.body.job.job_id;
+    const cancelled = await lecturerAgent
+      .post(`/api/v1/ai-generation-jobs/${jobId}/cancel`)
+      .send({});
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.job.status).toBe('failed');
+    expect(cancelled.body.job.error_code).toBe('CANCELLED');
+
+    const retried = await lecturerAgent
+      .post(`/api/v1/ai-generation-jobs/${jobId}/retry`)
+      .send({});
+    expect(retried.status).toBe(202);
+    expect(retried.body.job.status).toBe('queued');
+    expect(retried.body.job.error_code).toBeNull();
   });
 
   it('serves a data-driven game chooser with availability, search and resume-safe data', async () => {

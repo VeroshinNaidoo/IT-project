@@ -29,13 +29,13 @@ correction is global: disabled controls now remain opaque, disabled primary cont
 use `#56617A`, and disabled secondary controls use ink `#14213D` on the existing
 primary tint `#E4E7FB`.
 
-| Token/state                 | Old effective value            | New value          | Measured ratio                          |
-| --------------------------- | ------------------------------ | ------------------ | --------------------------------------- |
-| Disabled control opacity    | `0.55`                         | `1`                | evaluated at the explicit state colours |
-| Disabled primary background | blended `#7E87E2`              | `#56617A`          | white text: `6.20:1`                    |
-| Disabled secondary text     | blended `#9BA0AF`              | `#14213D`          | on `#E4E7FB`: `13.02:1`                 |
-| Existing muted text         | `#68718B`                      | unchanged          | on white: `4.86:1`                      |
-| Warning text inside cards   | inherited `#68718B` (`4.06:1`) | explicit `#6B4400` | on `#FCE9C4`: `7.17:1`                  |
+| Token/state                 | Old effective value            | New value          | Measured ratio                                |
+| --------------------------- | ------------------------------ | ------------------ | --------------------------------------------- |
+| Disabled control opacity    | `0.55`                         | `1`                | evaluated at the explicit state colours       |
+| Disabled primary background | blended `#7E87E2`              | `#56617A`          | white text: `6.20:1`                          |
+| Disabled secondary text     | blended `#9BA0AF`              | `#14213D`          | on `#E4E7FB`: `13.02:1`                       |
+| Existing muted text         | `#68718B`                      | `#4B5572`          | on white: `7.13:1`; on primary tint: `6.03:1` |
+| Warning text inside cards   | inherited `#68718B` (`4.06:1`) | explicit `#6B4400` | on `#FCE9C4`: `7.17:1`                        |
 
 The shared contrast regression test covers the normal text and component pairs used
 by the app and requires at least `4.5:1` for normal text and `3:1` for components.

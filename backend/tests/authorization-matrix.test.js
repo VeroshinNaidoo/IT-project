@@ -186,6 +186,7 @@ const bodies = {
   'POST /api/v1/resources/:resourceId/generation-jobs': () => ({
     questionCount: 5,
     difficulty: 'mixed',
+    quizMode: 'practice',
   }),
   'PUT /api/v1/quizzes/:quizId': () => ({
     title: 'Updated Matrix Quiz',
@@ -320,6 +321,15 @@ const specs = {
   ],
   'GET /api/v1/ai-generation-jobs/:jobId': [
     '/api/v1/ai-generation-jobs/:jobId',
+    'lecturer',
+  ],
+  'GET /api/v1/ai-status': ['/api/v1/ai-status', 'lecturer'],
+  'POST /api/v1/ai-generation-jobs/:jobId/cancel': [
+    '/api/v1/ai-generation-jobs/:jobId/cancel',
+    'lecturer',
+  ],
+  'POST /api/v1/ai-generation-jobs/:jobId/retry': [
+    '/api/v1/ai-generation-jobs/:jobId/retry',
     'lecturer',
   ],
   'GET /api/v1/quizzes/:quizId': ['/api/v1/quizzes/:quizId', 'lecturer'],
@@ -975,7 +985,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(73);
+    expect(routeInventory.length).toBe(76);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

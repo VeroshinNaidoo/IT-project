@@ -232,3 +232,11 @@ Remaining before FR-23 can be marked done: frontend screen, seed fixture, Playwr
 - Added group languages, focus, description, visibility, leaders/co-leaders, updates and last-leader protection.
 - Added scoped group routes with profanity checks and deterministic recommendations.
 - Added study-group cards with filters, recommendation reasons, language chips and membership actions, plus API/unit/frontend/browser/axe tests.
+
+## 2026-11-01 — Lecturer AI generation controls
+
+- Added strict generation metadata for quiz mode, title and optional closing time, persisted on `ai_generation_jobs` and used by the worker when creating the draft quiz.
+- Added lecturer-only AI status, cancel and retry endpoints; queued jobs expose elapsed time and a diagnostic message, and the worker marks queued jobs older than ten minutes as failed.
+- Fixed the launcher path so it starts the persistent AI worker alongside the backend, AI service and frontend.
+- Added frontend controls and editable draft metadata for Practice/Competitive mode, title and closing time, plus queued-job cancel/retry/status states.
+- Evidence so far: frontend 49/49 and DB/API focused tests 29/29; authorization matrix 78/78; full JavaScript suite 172 pure/frontend and 228 DB/API, zero skipped. Browser gate and final lint/format/type-check/build remain to run.

@@ -198,3 +198,12 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 | Scoped listing, filters, pagination, recommendation reasons and membership | automated | `GET /api/v1/groups`, `backend/tests/study-groups-api.test.js`, `frontend/src/main.test.jsx`    |
 | Leadership, updates, join/leave and profanity authorization                | automated | `backend/src/authorization-matrix.js`, `backend/tests/authorization-matrix.test.js` (75 routes) |
 | Responsive accessible group page                                           | automated | `frontend/e2e/main.spec.js`, Chromium/Firefox at 390/768/1280 with axe                          |
+
+## Lecturer AI generation controls
+
+| Requirement                                                                | Status    | Evidence                                                                                       |
+| -------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| Generation mode, title and closing time are server-validated and persisted | automated | `backend/src/app.js`, migration 021, `backend/tests/api.test.js`                               |
+| Worker is started by the local launcher and advances queued jobs           | automated | `Start-EduQuest.ps1`, `scripts/run-worker.ps1`, `backend/tests/ai-worker.test.js`              |
+| Stuck jobs expose elapsed time, diagnostics, cancel and retry actions      | automated | `frontend/src/main.jsx`, `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js`             |
+| New AI routes are authorization-matrix covered                             | automated | `backend/src/authorization-matrix.js`, `backend/tests/authorization-matrix.test.js` (78 tests) |

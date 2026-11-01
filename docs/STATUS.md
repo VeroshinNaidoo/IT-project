@@ -121,3 +121,12 @@ FR-24 solo is green: Timer Trivia is covered by 10 engine/property tests, 11 API
 | Scoped listing, filters, recommendations, join/leave   | implemented and tested | `/api/v1/groups`, API and recommendation tests                                     |
 | Leader-only editing/posting and last-leader protection | implemented and tested | group API tests and 75-route authorization matrix                                  |
 | Group cards and accessible responsive page             | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx`, `frontend/e2e/main.spec.js` |
+
+## Lecturer AI generation controls
+
+| Area                                                                                    | Status                 | Evidence                                                                                                                                   |
+| --------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Practice/Competitive mode, title and optional closing time validated and stored on jobs | implemented and tested | `db/migrations/021_ai_generation_metadata.sql`, `backend/tests/api.test.js` — named metadata validation test                               |
+| Worker startup and stale queued-job handling                                            | implemented and tested | `Start-EduQuest.ps1`, `scripts/run-worker.ps1`, `backend/scripts/ai-worker.js`, `backend/tests/ai-worker.test.js` — queued-job pickup test |
+| AI status, cancel and retry controls                                                    | implemented and tested | `backend/src/app.js`, `backend/tests/api.test.js`, `backend/tests/authorization-matrix.test.js` (78 tests)                                 |
+| Lecturer generation panel and editable draft metadata                                   | implemented and tested | `frontend/src/main.jsx`, `frontend/src/main.test.jsx` (49 tests), `frontend/e2e/main.spec.js`                                              |

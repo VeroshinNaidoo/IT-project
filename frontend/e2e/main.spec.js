@@ -15,6 +15,92 @@ test('authentication screen is usable at the required viewport', async ({
   expect(results.violations).toEqual([]);
 });
 
+test('lecturer generation panel exposes mode metadata and stuck-job controls', async ({
+  page,
+}) => {
+  let jobStatus = 'queued';
+  const oldCreatedAt = '2020-01-01T00:00:00.000Z';
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    let body = { data: [] };
+    let status = 200;
+    if (path.endsWith('/auth/me'))
+      body = { user: { userId: 'lecturer-1', role: 'lecturer' } };
+    else if (path.endsWith('/me/modules')) body = { data: [] };
+    else if (path.endsWith('/resources/modules'))
+      body = {
+        data: [
+          {
+            module_id: 'module-1',
+            module_code: 'DB101',
+            module_name: 'Databases',
+            resource_count: 1,
+            last_updated: oldCreatedAt,
+          },
+        ],
+      };
+    else if (path.endsWith('/modules')) body = { data: [] };
+    else if (path.endsWith('/modules/module-1/resources'))
+      body = {
+        data: [
+          {
+            resource_id: 'resource-1',
+            title: 'Database notes',
+            resource_type: 'txt',
+          },
+        ],
+      };
+    else if (path.endsWith('/ai-status'))
+      body = { provider: 'mock', configured: true, reachable: true };
+    else if (path.endsWith('/generation-jobs'))
+      body = {
+        job: {
+          job_id: 'job-1',
+          status: 'queued',
+          created_at: oldCreatedAt,
+        },
+      };
+    else if (path.endsWith('/ai-generation-jobs/job-1'))
+      body = {
+        job: { job_id: 'job-1', status: jobStatus, created_at: oldCreatedAt },
+      };
+    else if (path.endsWith('/cancel')) {
+      jobStatus = 'failed';
+      body = {
+        job: {
+          job_id: 'job-1',
+          status: 'failed',
+          error_code: 'CANCELLED',
+          created_at: oldCreatedAt,
+        },
+      };
+    } else if (request.method() !== 'GET') body = { data: [] };
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Resources' }).click();
+  await page.getByRole('button', { name: /DB101/ }).click();
+  await expect(page.getByText('Database notes')).toBeVisible();
+  await expect(page.getByLabel('Quiz mode')).toHaveValue('practice');
+  await expect(page.getByLabel('Quiz title')).toHaveValue('Database notes');
+  await page.getByRole('button', { name: 'Generate quiz' }).click();
+  await expect(page.getByText(/queued for/)).toBeVisible();
+  await expect(page.getByText(/AI service may be unreachable/)).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(
+    page.getByText('Quiz generation failed. Please try again.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('Games chooser shows catalogue cards, reasons, resume and axe-clean layout', async ({
   page,
 }) => {

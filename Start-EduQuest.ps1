@@ -16,6 +16,7 @@ if ($DryRun) {
   Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
   Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
   Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
+  Write-Host "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""
   exit 0
 }
 
@@ -62,6 +63,9 @@ Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass',
 Write-Host 'Starting frontend...'
 Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""
 Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-frontend.ps1" -WorkingDirectory $ProjectRoot
+Write-Host 'Starting AI worker...'
+Write-Host "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""
+Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-worker.ps1" -WorkingDirectory $ProjectRoot
 
 try {
   Wait-Health 'http://127.0.0.1:4000/health'

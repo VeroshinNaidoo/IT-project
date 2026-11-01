@@ -816,8 +816,13 @@ export function Resources({ user }) {
 export function ResourceRow({ resource, lecturer }) {
   const [questionCount, setQuestionCount] = useState(5);
   const [difficulty, setDifficulty] = useState('mixed');
+  const [quizMode, setQuizMode] = useState('practice');
+  const [quizTitle, setQuizTitle] = useState(resource.title);
+  const [closesAt, setClosesAt] = useState('');
   const [job, setJob] = useState(null);
   const [quiz, setQuiz] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
+  const [now, setNow] = useState(Date.now());
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const generate = async () => {
@@ -831,6 +836,9 @@ export function ResourceRow({ resource, lecturer }) {
           body: JSON.stringify({
             questionCount: Number(questionCount),
             difficulty,
+            quizMode,
+            title: quizTitle,
+            closesAt: closesAt ? new Date(closesAt).toISOString() : null,
           }),
         },
       );
@@ -840,7 +848,16 @@ export function ResourceRow({ resource, lecturer }) {
     }
   };
   useEffect(() => {
+    if (!lecturer) return undefined;
+    api('/ai-status')
+      .then((body) => setAiStatus(body))
+      .catch(() => setAiStatus({ configured: false, reachable: false }));
+    return undefined;
+  }, [lecturer]);
+  useEffect(() => {
     if (!job || !['queued', 'running'].includes(job.status)) return undefined;
+    setNow(Date.now());
+    const clock = setInterval(() => setNow(Date.now()), 1000);
     const poll = async () => {
       try {
         const body = await api(`/ai-generation-jobs/${job.job_id}`);
@@ -851,10 +868,28 @@ export function ResourceRow({ resource, lecturer }) {
         setError(reason.message);
       }
     };
-    const timer = setInterval(poll, 100);
+    const timer = setInterval(poll, 1000);
     poll();
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      clearInterval(clock);
+    };
   }, [job?.job_id, job?.status]);
+  const cancel = async () => {
+    const body = await api(`/ai-generation-jobs/${job.job_id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    setJob(body.job);
+  };
+  const retry = async () => {
+    const body = await api(`/ai-generation-jobs/${job.job_id}/retry`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+    setJob(body.job);
+    setError('');
+  };
   const publish = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -919,25 +954,104 @@ export function ResourceRow({ resource, lecturer }) {
             <option value="hard">Hard</option>
           </select>
         </label>
-        <button className="primary" onClick={generate}>
+        <label>
+          Quiz mode
+          <select
+            value={quizMode}
+            onChange={(event) => setQuizMode(event.target.value)}
+            required
+          >
+            <option value="practice">Practice</option>
+            <option value="competitive">Competitive</option>
+          </select>
+          <small>
+            {quizMode === 'practice'
+              ? 'Revision with unlimited attempts and no leaderboard.'
+              : 'One scored attempt; appears on the leaderboard.'}
+          </small>
+        </label>
+        <label>
+          Quiz title
+          <input
+            value={quizTitle}
+            onChange={(event) => setQuizTitle(event.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Closing date and time (optional)
+          <input
+            type="datetime-local"
+            value={closesAt}
+            onChange={(event) => setClosesAt(event.target.value)}
+          />
+        </label>
+        {(aiStatus && !aiStatus.configured) ||
+        (aiStatus && !aiStatus.reachable) ? (
+          <p className="field-error">
+            AI service is not reachable or is misconfigured. Check the{' '}
+            <a href="#ai-status">AI status indicator</a> before generating.
+          </p>
+        ) : null}
+        <p id="ai-status" className="muted" aria-live="polite">
+          AI status:{' '}
+          {aiStatus
+            ? aiStatus.configured && aiStatus.reachable
+              ? 'ready'
+              : 'unavailable'
+            : 'checking'}
+        </p>
+        <button
+          className="primary"
+          onClick={generate}
+          disabled={Boolean(
+            aiStatus && (!aiStatus.configured || !aiStatus.reachable),
+          )}
+        >
           Generate quiz
         </button>
       </div>
       {job && (
         <p className="job-status" aria-live="polite">
           Generation status: <b>{job.status}</b>
+          {job.created_at && job.status === 'queued' && (
+            <span>
+              {' '}
+              queued for{' '}
+              {Math.max(
+                0,
+                Math.floor((now - new Date(job.created_at).getTime()) / 1000),
+              )}{' '}
+              seconds
+            </span>
+          )}
           {job.providerMode === 'mock' && (
             <span className="demo-banner">
               Demo mode: questions are simulated
             </span>
+          )}
+          {job.status === 'queued' &&
+            (job.queuedMessage ||
+              (job.created_at &&
+                now - new Date(job.created_at).getTime() >= 60000)) && (
+              <span className="field-error">
+                This is taking longer than expected. The AI service may be
+                unreachable, the model may be slow, or the worker may not be
+                running.
+              </span>
+            )}
+          {['queued', 'running'].includes(job.status) && (
+            <button className="link-button" onClick={cancel}>
+              Cancel
+            </button>
           )}
           {job.status === 'failed' && (
             <>
               <span className="field-error">
                 Quiz generation failed. Please try again.
               </span>
-              <button className="link-button" onClick={generate}>
-                Retry
+              <button className="link-button" onClick={retry}>
+                Try again
               </button>
             </>
           )}
@@ -948,7 +1062,7 @@ export function ResourceRow({ resource, lecturer }) {
         <form onSubmit={publish} className="generated-quiz">
           <h3>Generated draft</h3>
           <label>
-            Quiz title
+            Draft quiz title
             <input
               value={quiz.title}
               onChange={(event) =>
@@ -970,6 +1084,25 @@ export function ResourceRow({ resource, lecturer }) {
               <option value="practice">Practice</option>
               <option value="competitive">Competitive</option>
             </select>
+          </label>
+          <label>
+            Closing date and time (optional)
+            <input
+              type="datetime-local"
+              value={
+                quiz.closes_at
+                  ? new Date(quiz.closes_at).toISOString().slice(0, 16)
+                  : ''
+              }
+              onChange={(event) =>
+                setQuiz({
+                  ...quiz,
+                  closes_at: event.target.value
+                    ? new Date(event.target.value).toISOString()
+                    : null,
+                })
+              }
+            />
           </label>
           <div className="draft-questions">
             {quiz.questions?.map((question) => (

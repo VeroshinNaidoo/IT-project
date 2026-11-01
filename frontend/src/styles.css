@@ -260,7 +260,7 @@ h1 {
   max-width: 460px;
 }
 .card p {
-  color: #68718b;
+  color: #4b5572;
   line-height: 1.6;
 }
 label {
@@ -297,7 +297,7 @@ button:disabled {
 }
 .list-row small,
 .muted {
-  color: #68718b;
+  color: #4b5572;
 }
 .resource-generation {
   margin-top: 12px;
@@ -327,7 +327,7 @@ button:disabled {
 }
 .empty-state {
   padding: 18px 0;
-  color: #68718b;
+  color: #4b5572;
 }
 .field-error {
   color: #b3261e !important;
@@ -392,7 +392,7 @@ button:disabled {
   color: #3b4bdb;
 }
 .stat span {
-  color: #68718b;
+  color: #4b5572;
 }
 .amber {
   background: #fce9c4;

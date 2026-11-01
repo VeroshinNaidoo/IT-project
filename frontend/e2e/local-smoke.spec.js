@@ -27,7 +27,7 @@ test('seeded lecturer logs in, generates a quiz and publishes it', async ({
     timeout: 20000,
   });
   await resource
-    .getByLabel('Quiz title')
+    .getByLabel('Quiz title', { exact: true })
     .fill(`Browser smoke ${test.info().project.name}`);
   const published = page.waitForResponse(
     (response) =>
