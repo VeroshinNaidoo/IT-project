@@ -23,6 +23,8 @@ describe('EduQuest launcher', () => {
     if (existsSync(desktopBat)) {
       const bat = readFileSync(desktopBat, 'utf8');
       expect(bat).toContain(`-File "%ROOT%\\Start-EduQuest.ps1"`);
+      expect(bat).toContain('set "RUNLOG=');
+      expect(bat).toContain('> "%RUNLOG%" 2>&1');
     }
   });
 
@@ -51,6 +53,8 @@ describe('EduQuest launcher', () => {
     expect(source).toContain(
       "ArgumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $quotedScriptPath)",
     );
+    expect(source).toContain('RedirectStandardOutput = $standardOutput');
+    expect(source).toContain('RedirectStandardError = $standardError');
     expect(source).not.toMatch(
       /-File',\s*"\$ProjectRoot\\scripts\\run-(?:backend|ai-service|worker|frontend)\.ps1"/,
     );

@@ -3,6 +3,7 @@ param([switch]$DryRun)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 $LogPath = Join-Path $ProjectRoot 'docs\eduquest-launch.log'
+$RuntimeLogDirectory = Join-Path $ProjectRoot 'docs\runtime-logs'
 
 function Say($message) { Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $message" }
 function Step($name, [scriptblock]$action) {
@@ -41,6 +42,26 @@ function Stop-ProjectProcess($port) {
   }
 }
 
+function Stop-ProcessTree([int]$processId) {
+  $processes = Get-CimInstance Win32_Process
+  $children = @($processes | Where-Object { $_.ParentProcessId -eq $processId })
+  foreach ($child in $children) { Stop-ProcessTree $child.ProcessId }
+  Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+}
+
+function Stop-PreviousProjectLaunchers {
+  $normalRoot = $ProjectRoot.Replace('/', '\').ToLowerInvariant()
+  $knownScripts = @('run-backend.ps1', 'run-ai-service.ps1', 'run-worker.ps1', 'run-frontend.ps1', 'run-session-reminders.ps1')
+  $launchers = Get-CimInstance Win32_Process | Where-Object {
+    $command = if ($_.CommandLine) { $_.CommandLine.Replace('/', '\').ToLowerInvariant() } else { '' }
+    $_.Name -eq 'powershell.exe' -and $command.Contains($normalRoot) -and ($knownScripts | Where-Object { $command.Contains($_) })
+  }
+  foreach ($launcher in $launchers) {
+    Say "Stopping previous EduQuest $($launcher.ProcessId)"
+    Stop-ProcessTree $launcher.ProcessId
+  }
+}
+
 function Wait-Health($url, $headers = @{}) {
   for ($attempt = 1; $attempt -le 60; $attempt++) {
     try {
@@ -57,11 +78,17 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
     throw "$name script does not exist: $scriptPath"
   }
   $quotedScriptPath = '"' + $scriptPath + '"'
+  New-Item -ItemType Directory -Path $RuntimeLogDirectory -Force | Out-Null
+  $logStem = [IO.Path]::GetFileNameWithoutExtension($relativePath)
+  $standardOutput = Join-Path $RuntimeLogDirectory "$logStem.out.log"
+  $standardError = Join-Path $RuntimeLogDirectory "$logStem.err.log"
   Say "Command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File $quotedScriptPath"
   $startArguments = @{
     FilePath = 'powershell.exe'
     ArgumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $quotedScriptPath)
     WorkingDirectory = $ProjectRoot
+    RedirectStandardOutput = $standardOutput
+    RedirectStandardError = $standardError
   }
   if ($Hidden) { $startArguments.WindowStyle = 'Hidden' }
   Start-Process @startArguments
@@ -69,7 +96,10 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
 
   Step 'Install dependencies if needed' { if (-not (Test-Path 'node_modules')) { npm install } }
   Step 'Set up service token' { npm run setup:token }
-  Step 'Stop old project processes' { foreach ($port in @(4000, 5173, 8000)) { Stop-ProjectProcess $port } }
+  Step 'Stop old project processes' {
+    Stop-PreviousProjectLaunchers
+    foreach ($port in @(4000, 5173, 8000)) { Stop-ProjectProcess $port }
+  }
 
   Step 'Start database' { npm run db:start }
   Step 'Run migrations' { npm run db:migrate }
