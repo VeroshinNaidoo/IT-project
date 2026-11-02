@@ -83,6 +83,8 @@ def test_batching_merges_and_deduplicates():
     result = provider.generate_quiz(request(count=2))
     assert len(result.questions) == 2
     assert len(calls.calls) == 3
+    assert "Do not repeat or closely paraphrase" in calls.calls[1]["messages"][0]["content"]
+    assert "Database indexing speeds up lookups" in calls.calls[1]["messages"][0]["content"]
 
 
 def test_groundedness_drops_unsupported_question():

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ai-service"))
 from config import load_clean_env
 from app import OpenAICompatibleProvider, QuizRequest
+from tools.report_io import write_report
 
 load_clean_env(ROOT / ".env")
 fixture_dir = ROOT / "ai-service" / "tests" / "fixtures"
@@ -67,11 +68,11 @@ except Exception as exc:
     report = "# AI test report\n\nLocal live check failed before a verified generation.\n\n"
     report += f"- Provider: `{provider_name}`\n- Host: `{url.hostname or 'none'}`\n- Model: `{model or 'none'}`\n- Classification: `{classification}`\n- Elapsed seconds: `{elapsed:.2f}`\n"
     report += "\nNo secret values were recorded. Start Ollama and ensure the configured model is installed, then rerun this checker.\n"
-    (ROOT / "docs" / "AI_TEST_REPORT.md").write_text(report, encoding="utf-8")
+    write_report(ROOT / "docs" / "AI_TEST_REPORT.md", report)
     raise SystemExit(1)
 
 # A successful run writes a compact human-review sample without credentials.
-all_questions = []
+all_questions = [("clean-databases.txt", question) for question in result.questions]
 for fixture in sorted(fixture_dir.glob("*.txt"))[:6]:
     try:
         response = provider.generate_quiz(QuizRequest(extracted_text=fixture.read_text(encoding="utf-8"), question_count=3, difficulty="mixed"))
@@ -84,4 +85,12 @@ review = ["# Human review sample\n", "Generated from local fixtures; review grou
 for fixture_name, question in all_questions[:15]:
     review.append(f"## Source fixture: {fixture_name}\n")
     review.append(f"- Question: {question.question_text}\n- Topic: {question.topic}\n- Level: {question.difficulty_level}\n- Options: {json.dumps([o.option_text for o in question.options])}\n- Marked answer: {next(o.option_text for o in question.options if o.is_correct)}\n- Explanation: {question.explanation}\n")
-(ROOT / "ai-service" / "tests" / "quality" / "review.md").write_text("\n".join(review), encoding="utf-8")
+write_report(ROOT / "ai-service" / "tests" / "quality" / "review.md", "\n".join(review))
+
+report = "# AI test report\n\nLocal live generation completed through the strict provider pipeline.\n\n"
+report += f"- Provider: `{provider_name}`\n- Host: `{url.hostname or 'none'}`\n- Model: `{model}`\n"
+report += f"- Valid questions: `{len(result.questions)}`\n- Elapsed seconds: `{elapsed:.2f}`\n"
+report += "- Strict schema validation: `PASS`\n- Groundedness filter: `PASS for accepted questions`\n"
+report += f"- Human-review questions written: `{min(15, len(all_questions))}`\n"
+report += "\nThe groundedness check is lexical and therefore only a rough automated check; human review remains necessary. No secret values were recorded.\n"
+write_report(ROOT / "docs" / "AI_TEST_REPORT.md", report)

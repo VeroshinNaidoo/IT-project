@@ -210,7 +210,7 @@ class OpenAICompatibleProvider(OpenAIProvider):
         evidence = set(re.findall(r"[a-z0-9]{4,}", correct.option_text.lower())) if correct else set()
         return len(source_words) < 3 or bool(source_words & evidence)
 
-    def _request_batch(self, request, count, model, feedback=""):
+    def _request_batch(self, request, count, model, feedback="", avoid_questions=()):
         prompt = (
             "Create exactly " + str(count) + " quiz questions from the source below. Return JSON only. "
             "Use only the text provided. Test understanding, not outside trivia. Use plausible wrong options. "
@@ -223,6 +223,11 @@ class OpenAICompatibleProvider(OpenAIProvider):
         )
         if feedback:
             prompt += "\n\nPrevious output failed validation. Correct these issues and return a complete replacement JSON response: " + feedback[:500]
+        if avoid_questions:
+            prompt += (
+                "\n\nCreate different questions. Do not repeat or closely paraphrase any of these already accepted questions:\n- "
+                + "\n- ".join(avoid_questions[-20:])
+            )
         kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": self.max_tokens, "temperature": 0}
         try:
             result = self.client.chat.completions.create(response_format={"type": "json_object"}, **kwargs)
@@ -258,7 +263,13 @@ class OpenAICompatibleProvider(OpenAIProvider):
                     try:
                         if time.monotonic() >= deadline:
                             raise TimeoutError("generation deadline exceeded")
-                        response = self._request_batch(request, batch_count, model, validation_feedback)
+                        response = self._request_batch(
+                            request,
+                            batch_count,
+                            model,
+                            validation_feedback,
+                            [question.question_text for question in collected],
+                        )
                         title = response.title
                         for question in response.questions:
                             key = re.sub(r"\W+", " ", question.question_text.lower()).strip()

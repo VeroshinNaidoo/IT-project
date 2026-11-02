@@ -1,11 +1,14 @@
 # AI test report
 
-Local live check failed before a verified generation.
+Local live generation completed through the strict provider pipeline.
 
 - Provider: `openai_compatible`
 - Host: `127.0.0.1`
 - Model: `llama3.2:3b`
-- Classification: `model-not-downloaded`
-- Elapsed seconds: `9.17`
+- Valid questions: `3`
+- Elapsed seconds: `65.00`
+- Strict schema validation: `PASS`
+- Groundedness filter: `PASS for accepted questions`
+- Human-review questions written: `3`
 
-No secret values were recorded. Start Ollama and ensure the configured model is installed, then rerun this checker.
+The groundedness check is lexical and therefore only a rough automated check; human review remains necessary. No secret values were recorded.
