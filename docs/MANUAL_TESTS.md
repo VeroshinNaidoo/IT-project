@@ -142,3 +142,12 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 
 6. Add a short-answer question with two accepted answers and ignore-punctuation enabled. Take it as a student using different case and punctuation; confirm marks and feedback are correct. Submit blank and confirm it is unanswered. Add a code question and confirm its before snippet is visible before submit while the after snippet appears only in feedback.
 7. Save a lecturer draft, run **Run publish checklist**, and confirm an empty or unanswerable draft is blocked with a useful issue. Confirm the student preview never creates an attempt. For a complete mixed quiz, publish one multiple-choice, true/false, short-answer and code question, take it as a student, verify the score on the leaderboard, and confirm a second competitive attempt is rejected.
+
+## Study sessions and calendar
+
+1. Sign in as a group leader, open **Study groups** and choose **Study sessions** for a group. Create a one-hour session, then create two weekly occurrences. Confirm each is separately visible and editable.
+2. Try an overlapping time. Confirm it is saved with a warning rather than blocked. Try a past start, an eight-hour-plus duration, or an `http:` online link; confirm each is rejected.
+3. Add a preparation resource, open it as a group member, then try using a resource from another module; confirm the latter is refused.
+4. Switch between list, month and week views with keyboard Tab/Enter. Open a session, RSVP **Going**, **Maybe**, and **Not going**, and confirm only leaders see RSVP names.
+5. Cancel a session with a reason. Confirm it remains displayed as cancelled and members receive an in-app notification. Check the bell’s unread count and mark one notification read.
+6. Download the group and session `.ics` files. Leave the group as a member and confirm the calendar, details, resource download and RSVP are no longer accessible.

@@ -102,3 +102,22 @@ erDiagram
 ### Manual quiz authoring additions
 
 `questions` now stores `question_type`, `accepted_answers`, `ignore_punctuation`, bounded code display fields and `display_order`. `student_answers.option_id` is nullable when a short-answer response is stored in `answer_text`; the check constraint requires one of those answer forms. Authoring routes remain owned by the lecturer who owns the quiz module.
+
+### Study session additions
+
+```mermaid
+erDiagram
+  STUDY_GROUPS ||--o{ GROUP_SESSIONS : schedules
+  USERS ||--o{ GROUP_SESSIONS : creates
+  TOPICS ||--o{ GROUP_SESSIONS : references
+  GROUP_SESSIONS ||--o{ SESSION_PREPARATION_RESOURCES : includes
+  RESOURCES ||--o{ SESSION_PREPARATION_RESOURCES : links
+  GROUP_SESSIONS ||--o{ SESSION_RSVPS : receives
+  USERS ||--o{ SESSION_RSVPS : responds
+  USERS ||--o{ NOTIFICATIONS : receives
+  GROUP_SESSIONS ||--o{ NOTIFICATIONS : concerns
+  GROUP_SESSIONS { uuid session_id PK uuid group_id FK uuid created_by FK uuid topic_ref FK text status timestamptz starts_at timestamptz ends_at }
+  SESSION_PREPARATION_RESOURCES { uuid session_id PK_FK uuid resource_id PK_FK }
+  SESSION_RSVPS { uuid session_id PK_FK uuid student_id PK_FK text response }
+  NOTIFICATIONS { uuid notification_id PK uuid user_id FK uuid session_id FK text kind jsonb payload timestamptz read_at text dedup_key }
+```

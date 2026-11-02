@@ -171,3 +171,10 @@ Implemented in the backend and lecturer frontend: draft creation, mode selection
 Evidence for this slice: `backend/tests/api.test.js` 29/29 API tests, `frontend/src/main.test.jsx` 59/59 component tests, and `db/migrations/024_short_answer_invariants.sql`.
 
 Manual-quiz completion update: the lecturer now has a quiz-level editor with settings, question cards, add-question types, expand/collapse, reorder, duplicate/delete, marks, status, per-question previews and publish checklist controls. The read-only preview remains attempt-free. A lecturer-only `POST /api/v1/quizzes/:quizId/publish-check` dry-run endpoint returns only pass/fail and validation issues, and blocks unanswerable drafts; it is covered by API and authorization-matrix tests. The complete browser journey using all four question types is not yet independently tested.
+
+## 2026-11-02 — Study group sessions and calendar
+
+- Implemented: migration 025 adds sessions, scoped preparation resources, RSVPs, notifications and update-to-session links without altering existing group data.
+- Implemented: leader/co-leader lifecycle controls, individual weekly occurrences, clash warnings, member RSVP, read-only lecturer access, escaped `.ics` downloads and an idempotent reminder worker.
+- Implemented: dashboard next-three card, group-card next session, list/month/week calendar, resource links, notification bell and mark-read actions.
+- Tested: session unit checks 2/2; dedicated DB/API checks 11/11; behavioural authorization matrix 111/111; frontend component checks 5/5. The full isolated browser/axe matrix passed 132/132 in Chromium and Firefox at 390, 768 and 1280 pixels, with zero axe violations and zero skipped checks.

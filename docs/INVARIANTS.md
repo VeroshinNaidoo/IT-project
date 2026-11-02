@@ -138,3 +138,15 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 - INV-28: short-answer submissions are normalized server-side, capped at 2000 characters, and matched only against lecturer-provided accepted answers; blank answers are unanswered and score zero.
 - INV-29: option-based games exclude short-answer and code questions; mixed quizzes remain playable using only eligible fixed-option questions.
 - INV-30: code question content is displayed as escaped text and is never executed by the server.
+
+## Study session and notification invariants
+
+- INV-73: A group session has a future start when created, a positive duration of no more than eight hours, and every cancellation has a non-empty reason.
+- INV-74: Session preparation resources belong to the session group’s module and are visible to that group; foreign and other-group resources are rejected.
+- INV-75: Only group leaders and co-leaders create, edit, cancel or duplicate sessions. Members RSVP only; module lecturers are read-only unless they are group members.
+- INV-76: RSVP names are visible only to a leader or co-leader. Counts and the caller’s own response are safe for ordinary members.
+- INV-77: A departing member loses session access and all of their RSVPs and related session notifications are removed.
+- INV-78: Calendar output escapes RFC 5545 text characters and emits no remote content.
+- INV-79: Session event notifications and RSVP reminder notifications are idempotent across worker restarts through a per-user deduplication key.
+
+Evidence: `backend/tests/group-sessions-api.test.js`, `backend/src/groups/sessions.test.js`, `backend/tests/authorization-matrix.test.js`, and `frontend/src/study-sessions.test.jsx`.

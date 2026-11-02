@@ -9,6 +9,7 @@ process.env.PG_POOL_MAX = '4';
 export default defineConfig({
   test: {
     include: [
+      'backend/tests/group-sessions-api.test.js',
       'backend/tests/study-groups-api.test.js',
       'backend/tests/ai-worker.test.js',
       'backend/tests/identity-api.test.js',
@@ -29,6 +30,10 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     minWorkers: 1,
+    // Password hashing and the PGlite socket server occasionally exceed Vitest's
+    // generic 5s default on Windows. This does not relax assertions; it gives
+    // the serial database integration suite its documented 15s ceiling.
+    testTimeout: 15000,
     pool: 'threads',
     poolOptions: {
       threads: {

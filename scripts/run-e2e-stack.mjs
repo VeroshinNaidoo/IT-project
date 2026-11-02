@@ -7,15 +7,19 @@ import pg from 'pg';
 const env = {
   ...process.env,
   DATABASE_URL:
-    'postgres://postgres:postgres@127.0.0.1:55434/eduquest_e2e?sslmode=disable',
+    'postgres://postgres:postgres@127.0.0.1:55436/eduquest_e2e?sslmode=disable',
   TEST_DATABASE_URL:
-    'postgres://postgres:postgres@127.0.0.1:55434/eduquest_e2e?sslmode=disable',
-  PORT: '4191',
-  BACKEND_PORT: '4191',
-  AI_PORT: '8191',
-  AI_SERVICE_URL: 'http://127.0.0.1:8191',
-  VITE_PORT: '5191',
+    'postgres://postgres:postgres@127.0.0.1:55436/eduquest_e2e?sslmode=disable',
+  PORT: '4391',
+  BACKEND_PORT: '4391',
+  AI_PORT: '8391',
+  AI_SERVICE_URL: 'http://127.0.0.1:8391',
+  VITE_PORT: '5391',
   AI_PROVIDER: 'mock',
+  PGLITE_E2E_DIR: '.pgdata/e2e-suite-55436',
+  // The socket adapter is single-connection. Serialising backend queries avoids
+  // protocol-level errors when one browser page loads several summaries.
+  PG_POOL_MAX: '1',
 };
 
 const dbUrl = env.DATABASE_URL;
@@ -28,13 +32,13 @@ if (oldPid) {
   await new Promise((resolve) => setTimeout(resolve, 500));
 }
 await unlink(dbPidPath).catch(() => {});
-await rm('.pgdata/e2e-suite', { recursive: true, force: true });
+await rm(env.PGLITE_E2E_DIR, { recursive: true, force: true });
 const db = spawn(
   process.execPath,
   ['scripts/pglite-server.mjs', 'daemon', 'e2e'],
   {
     cwd: process.cwd(),
-    env: { ...env, PGLITE_E2E_PORT: '55434' },
+    env: { ...env, PGLITE_E2E_PORT: '55436' },
     stdio: 'inherit',
     windowsHide: true,
   },
@@ -82,6 +86,7 @@ await runSetup('backend/scripts/reset-test-db.js');
 await runSetup('backend/scripts/seed.js');
 
 const commands = [
+  [process.execPath, ['backend/scripts/session-reminders.js']],
   [process.execPath, ['backend/src/index.js']],
   ['python', ['ai-service/run.py']],
   [process.execPath, ['backend/scripts/ai-worker.js']],

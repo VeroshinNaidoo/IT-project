@@ -1,0 +1,65 @@
+.session-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin: 20px 0;
+}
+.card.notification-panel {
+  animation: none;
+  color: #14213d;
+  background: #fff;
+  max-height: 60vh;
+  max-width: min(100%, 420px);
+  min-width: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.notification-panel *,
+.sessions,
+.sessions * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notification-panel button {
+  min-height: 44px;
+  white-space: normal;
+}
+.session-calendar section {
+  border: 1px solid #e3dfd5;
+  border-radius: 16px;
+  background: #fff;
+  padding: 10px;
+  min-height: 110px;
+  overflow-wrap: anywhere;
+}
+.sessions button,
+.sessions a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  white-space: normal;
+}
+.session-calendar button {
+  width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.sessions form {
+  margin: 20px 0;
+  max-width: 680px;
+}
+.sessions input,
+.sessions select {
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .calendar-blank {
+    display: none;
+  }
+  .session-calendar {
+    grid-template-columns: 1fr;
+  }
+  .sessions .button-row {
+    flex-wrap: wrap;
+  }
+}

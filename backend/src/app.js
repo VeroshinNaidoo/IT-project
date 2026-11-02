@@ -47,6 +47,7 @@ import { registerBossBattleRoutes } from './games/boss_battle/routes.js';
 import { registerPixelRacerRoutes } from './games/pixel_racer/routes.js';
 import { registerTimerTriviaRoutes } from './games/timer_trivia/routes.js';
 import { recommendationReason, scoreGroup } from './groups/recommendations.js';
+import { registerSessionRoutes } from './groups/sessions.js';
 import {
   codesMatch,
   decryptSecret,
@@ -512,6 +513,7 @@ const groupUpdateSchema = z
       .refine(noProfanity(), { message: profanityMessage }),
     topicId: z.string().uuid().optional().nullable(),
     plannedFor: z.string().datetime().optional().nullable(),
+    sessionId: z.string().uuid().optional().nullable(),
   })
   .strict();
 const titleSchema = z
@@ -882,7 +884,7 @@ app.get('/api/v1/groups', requireAuth, async (req, res, next) => {
         (SELECT COALESCE(json_agg(json_build_object('student_id',gl.student_id,'name',u.full_name,'role',gl.role) ORDER BY gl.role,u.full_name),'[]'::json) FROM group_leaders gl JOIN users u ON u.user_id=gl.student_id WHERE gl.group_id=g.group_id) AS leaders,
         (SELECT COALESCE(json_agg(pl.name ORDER BY pl.name),'[]'::json) FROM group_languages gl JOIN programming_languages pl ON pl.language_id=gl.language_id WHERE gl.group_id=g.group_id) AS languages,
         (SELECT json_build_object('update_id',gu.update_id,'text',gu.text,'planned_for',gu.planned_for,'created_at',gu.created_at,'topic',t.name) FROM group_updates gu LEFT JOIN topics t ON t.topic_id=gu.topic_id WHERE gu.group_id=g.group_id AND gu.kind='doing_now' ORDER BY gu.created_at DESC LIMIT 1) AS latest_doing_now,
-        (SELECT COALESCE(json_agg(nu.item ORDER BY nu.planned_for NULLS LAST, nu.created_at DESC),'[]'::json) FROM (SELECT json_build_object('update_id',gu.update_id,'text',gu.text,'planned_for',gu.planned_for,'created_at',gu.created_at,'topic',t.name) AS item,gu.planned_for,gu.created_at FROM group_updates gu LEFT JOIN topics t ON t.topic_id=gu.topic_id WHERE gu.group_id=g.group_id AND gu.kind='next_up' ORDER BY gu.planned_for NULLS LAST,gu.created_at DESC LIMIT 3) nu) AS next_up
+        (SELECT COALESCE(json_agg(nu.item ORDER BY nu.planned_for NULLS LAST, nu.created_at DESC),'[]'::json) FROM (SELECT json_build_object('update_id',gu.update_id,'text',gu.text,'planned_for',gu.planned_for,'created_at',gu.created_at,'topic',t.name,'session_id',gu.session_id) AS item,gu.planned_for,gu.created_at FROM group_updates gu LEFT JOIN topics t ON t.topic_id=gu.topic_id WHERE gu.group_id=g.group_id AND gu.kind='next_up' ORDER BY gu.planned_for NULLS LAST,gu.created_at DESC LIMIT 3) nu) AS next_up
        FROM study_groups g JOIN modules m ON m.module_id=g.module_id
       WHERE ${conditions.join(' AND ')} ORDER BY g.created_date DESC LIMIT 500`,
       params,
@@ -1200,8 +1202,24 @@ app.post(
           'Only group leaders can post updates.',
           requestId(req),
         );
+      if (
+        data.sessionId &&
+        !(
+          await pool.query(
+            'SELECT 1 FROM group_sessions WHERE session_id=$1 AND group_id=$2',
+            [data.sessionId, req.params.groupId],
+          )
+        ).rowCount
+      )
+        return error(
+          res,
+          422,
+          'VALIDATION_ERROR',
+          'Choose a session in this group.',
+          requestId(req),
+        );
       const result = await pool.query(
-        `INSERT INTO group_updates(group_id,author_id,kind,text,topic_id,planned_for) VALUES($1,$2,$3,$4,$5,$6) RETURNING update_id,group_id,author_id,kind,text,topic_id,planned_for,created_at`,
+        `INSERT INTO group_updates(group_id,author_id,kind,text,topic_id,planned_for,session_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING update_id,group_id,author_id,kind,text,topic_id,planned_for,session_id,created_at`,
         [
           req.params.groupId,
           req.user.userId,
@@ -1209,6 +1227,7 @@ app.post(
           data.text,
           data.topicId || null,
           data.plannedFor || null,
+          data.sessionId || null,
         ],
       );
       res.status(201).json({ update: result.rows[0] });
@@ -4498,6 +4517,7 @@ registerMemoryMatchRoutes({ app, pool, requireAuth, error, requestId });
 registerBossBattleRoutes({ app, pool, requireAuth, error, requestId });
 registerPixelRacerRoutes({ app, pool, requireAuth, error, requestId });
 registerTimerTriviaRoutes({ app, pool, requireAuth, error, requestId });
+registerSessionRoutes({ app, pool, requireAuth, error, requestId });
 
 app.use((err, req, res, _next) => {
   console.error(

@@ -36,7 +36,7 @@ const configs = {
   e2e: {
     port: Number(process.env.PGLITE_E2E_PORT ?? 55434),
     database: 'eduquest_e2e',
-    dir: path.join(dataRoot, 'e2e-suite'),
+    dir: process.env.PGLITE_E2E_DIR ?? path.join(dataRoot, 'e2e-suite'),
     pid: path.join(root, '.pglite-e2e.pid'),
   },
 };

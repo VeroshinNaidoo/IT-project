@@ -1,5 +1,13 @@
 # EduQuest progress
 
+## Study group sessions and calendar — 2026-11-02
+
+- Added migration 025 with group sessions, preparation-resource scope, RSVPs, notifications, and a session reference for existing group updates while preserving existing data.
+- Added membership- and leader-scoped session lifecycle APIs: create/edit/cancel/duplicate/weekly recurrence, clash warnings, RSVP privacy, escaped iCalendar downloads, notifications, and idempotent 24-hour/one-hour reminder processing.
+- Added the dashboard next-three card, group-card next session, accessible list/month/week calendar, read-only lecturer calendar view, notifications bell, and session detail/resource actions.
+- Stabilised the isolated PGlite browser stack with an e2e-only data directory, distinct ports, readiness checks, and a one-connection pool limit; browser tests cannot use the development database.
+- Gate: unit/backend/frontend 204/204, DB/API 286/286, Python 43/43, and full Chromium/Firefox browser and axe matrix 132/132. Zero skipped checks and zero axe violations. Lint, formatting, type-check, and production build passed.
+
 ## FR-28 — Island Escape solo — 2026-10-27
 
 - Built the pure deterministic three-phase engine, centralized configuration, strict versioned state schema, difficulty-ramped question selection, setback/recycling rules, personal-best tracking, and replayable append-only moves.

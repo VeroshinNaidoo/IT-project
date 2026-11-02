@@ -22,6 +22,7 @@ try {
     Say 'Would run: npm run db:start'
     Say 'Would run: npm run db:migrate'
     Say 'Would run: npm run seed'
+    Say 'Would start: study session reminders worker'
     Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""
     Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""
     Say "Would start: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""
@@ -57,6 +58,7 @@ function Wait-Health($url, $headers = @{}) {
   Step 'Start database' { npm run db:start }
   Step 'Run migrations' { npm run db:migrate }
   Step 'Seed demo data' { npm run seed }
+  Step 'Start session reminders' { Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$ProjectRoot\scripts\run-session-reminders.ps1`"" -WorkingDirectory $ProjectRoot }
 
   $tokenLine = Get-Content .env | Where-Object { $_ -match '^AI_SERVICE_TOKEN=' } | Select-Object -First 1
   if (-not $tokenLine) { throw 'AI_SERVICE_TOKEN is missing: run npm run setup:token' }

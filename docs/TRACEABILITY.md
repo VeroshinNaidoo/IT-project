@@ -256,3 +256,16 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 | Strict MC, true/false, short-answer and code validation | `backend/src/quizzes/validation.js`; `backend/src/quizzes/validation.test.js`                                                                  |
 | Publish checklist and attempted-quiz locking            | `POST /api/v1/quizzes/:quizId/publish`, question mutation routes; authorization matrix                                                         |
 | No server-side code execution                           | code fields are persisted/displayed as text; validation tests cover bounded snippets                                                           |
+
+## Study group sessions and calendar
+
+| Requirement                                                              | Status              | Evidence                                                                      |
+| ------------------------------------------------------------------------ | ------------------- | ----------------------------------------------------------------------------- |
+| Group session data, bounded future duration and resource scope           | automated           | `025_group_sessions.sql`, `backend/tests/group-sessions-api.test.js`          |
+| Leader/co-leader session lifecycle and weekly recurrence                 | automated           | `backend/src/groups/sessions.js`, `backend/tests/group-sessions-api.test.js`  |
+| Membership-scoped list, calendar, details, RSVP privacy and cancellation | automated           | `backend/tests/group-sessions-api.test.js`, authorization matrix              |
+| Dashboard and group-card next-session surfaces                           | implemented, tested | `frontend/src/study-sessions.jsx`, `frontend/src/study-sessions.test.jsx`     |
+| Session-linked “next up” update                                          | automated           | `backend/tests/group-sessions-api.test.js`                                    |
+| In-app notifications, mark-read and idempotent 24h/1h reminders          | automated           | `backend/src/groups/sessions.js`, worker, API tests                           |
+| Escaped group/session iCalendar downloads                                | automated           | `backend/src/groups/sessions.test.js`, API tests                              |
+| Responsive, keyboard-operable month/week calendar and accessible details | automated           | `frontend/src/study-sessions.test.jsx`, `frontend/e2e/study-sessions.spec.js` |

@@ -91,7 +91,7 @@
 
 ## 2026-11-01 — Demo-data and browser-test isolation
 
-- Browser and axe tests use a fresh per-run PGlite instance in `.pgdata/e2e-suite` on port 55434, with backend, AI service and frontend ports 4191, 8191 and 5191. The runner waits for `select 1`, seeds that database, and tears it down; a guard rejects the development database target.
+- Browser and axe tests use a fresh per-run PGlite instance in `.pgdata/e2e-suite` on port 55436, with backend, AI service and frontend ports 4391, 8391 and 5391. The runner waits for `select 1`, seeds that database, and tears it down; a guard rejects the development database target.
 - `npm run seed` is intentionally idempotent and non-destructive, using stable demo keys and preserving existing attempts and game plays. `npm run seed:reset` is a separate interactive operation, disabled in production.
 - The quizzes API and UI use server pagination (20 by default), title search, and newest-first ordering so accumulated data cannot flood the page.
 - Identity upgrade slice: existing `full_name` is retained for compatibility while `first_name`, optional `last_name`, `student_type`, and `email_verified_at` are added. Legacy rows are backfilled by splitting on the first space; legacy fixture inserts receive a safe default student type through the migration trigger. New registration uses the split-name fields and stronger password policy.
@@ -135,3 +135,11 @@
 
 - Lecturers can create draft quizzes manually or publish them through the same strict question validation boundary used by the manual authoring API. A published quiz with attempts is treated as immutable for destructive question edits; lecturers duplicate it into a new draft instead.
 - Code-question snippets are escaped display data only. EduQuest never executes lecturer or student code on the server; previews use the existing isolated client sandbox rules where applicable.
+
+## Study group sessions and calendar
+
+- A recurrence is expanded into separate weekly session rows (one to twelve inclusive) instead of a recurrence rule. Each occurrence can therefore be edited, cancelled or duplicated independently.
+- Session clashes are warnings, not booking blocks: leaders see their group’s overlapping sessions and members see overlaps with sessions they already RSVP’d “going” to.
+- Module lecturers can read calendars for their own modules, but are read-only unless they also belong to that study group. This preserves the student-led group boundary.
+- The reminder worker runs once per minute. For a session that enters both reminder windows after downtime, it may produce both the 24-hour and one-hour reminders; unique `(user, dedup_key)` prevents repeats after a restart.
+- Calendar downloads use a minimal escaped RFC 5545 representation. They contain no remote resources, invitation addresses or user data beyond the session’s own public-to-group fields.

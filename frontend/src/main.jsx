@@ -2,6 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import { evaluateSpreadsheet } from './spreadsheet.js';
+import {
+  StudySessions,
+  UpcomingSessions,
+  Notifications,
+  SessionDirectory,
+} from './study-sessions.jsx';
 
 const api = async (path, options = {}) => {
   const response = await fetch(`/api/v1${path}`, {
@@ -205,6 +211,11 @@ export function App() {
   const [screen, setScreen] = useState('Dashboard');
   const [quizId, setQuizId] = useState(null);
   const [gameQuizId, setGameQuizId] = useState(null);
+  const [studySession, setStudySession] = useState(null);
+  const openStudySession = (groupId, sessionId) => {
+    setStudySession({ groupId, sessionId });
+    setScreen('Study sessions');
+  };
   useEffect(() => {
     api('/auth/me')
       .then((body) => setUser(body.user))
@@ -226,6 +237,7 @@ export function App() {
     'Profile',
   ];
   const lecturerScreens = [
+    'Study calendar',
     'Modules',
     'Resources',
     'Quizzes',
@@ -265,6 +277,7 @@ export function App() {
       </aside>
       <main>
         <header>
+          <Notifications onOpen={openStudySession} />
           <div>
             <span className="eyebrow">
               {user.role === 'student' ? 'LEARNING HUB' : 'LECTURER HUB'}
@@ -298,10 +311,30 @@ export function App() {
             Edit profile
           </button>
         </header>
-        {screen === 'Dashboard' && <Dashboard user={user} />}
+        {screen === 'Dashboard' && (
+          <>
+            <UpcomingSessions onOpen={openStudySession} />
+            <Dashboard user={user} />
+          </>
+        )}
+        {screen === 'Study sessions' && studySession && (
+          <StudySessions
+            {...studySession}
+            onBack={() =>
+              setScreen(
+                user.role === 'lecturer' ? 'Study calendar' : 'Study groups',
+              )
+            }
+          />
+        )}
         {screen === 'Modules' && <Modules user={user} />}
         {screen === 'Resources' && <Resources user={user} />}
-        {screen === 'Study groups' && <Groups user={user} />}
+        {screen === 'Study groups' && (
+          <Groups user={user} onSession={openStudySession} />
+        )}
+        {screen === 'Study calendar' && user.role === 'lecturer' && (
+          <SessionDirectory onOpen={openStudySession} />
+        )}
         {screen === 'Leaderboard' && <Leaderboard user={user} />}
         {screen === 'Analytics' && <Analytics user={user} />}
         {screen === 'Profile' && (
@@ -1986,7 +2019,7 @@ export function ResourceRow({ resource, lecturer }) {
     </div>
   );
 }
-export function Groups({ user }) {
+export function Groups({ user, onSession }) {
   const modules = useData('/me/modules?page=1&pageSize=50&sort=code');
   const [search, setSearch] = useState('');
   const [moduleId, setModuleId] = useState('');
@@ -2177,6 +2210,14 @@ export function Groups({ user }) {
               {group.module_code} · {group.module_name}
             </span>
             <h3>{group.group_name}</h3>
+            {(group.is_member || user.role === 'lecturer') && (
+              <>
+                <button onClick={() => onSession?.(group.group_id)}>
+                  Study sessions
+                </button>
+                <UpcomingSessions groupId={group.group_id} onOpen={onSession} />
+              </>
+            )}
             <p>{group.description || 'A focused study group.'}</p>
             <p>
               <strong>Leaders:</strong>{' '}
@@ -2208,6 +2249,16 @@ export function Groups({ user }) {
                 {group.next_up.map((item) => (
                   <small className="update-line" key={item.update_id}>
                     {item.text}
+                    {item.session_id &&
+                      (group.is_member || user.role === 'lecturer') && (
+                        <button
+                          onClick={() =>
+                            onSession(group.group_id, item.session_id)
+                          }
+                        >
+                          Open study session
+                        </button>
+                      )}
                     {item.planned_for
                       ? ` · ${new Date(item.planned_for).toLocaleDateString()}`
                       : ''}

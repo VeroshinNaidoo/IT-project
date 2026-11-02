@@ -2,6 +2,36 @@
 // Every API route must have an explicit entry. This is intentionally data-only so
 // authorization policy can be reviewed without reading handler implementation.
 const routePolicies = {
+  'GET /api/v1/me/sessions': { auth: 'student|lecturer' },
+  'GET /api/v1/groups/:groupId/sessions': { auth: 'student|lecturer' },
+  'POST /api/v1/groups/:groupId/sessions': { auth: 'student' },
+  'PATCH /api/v1/groups/:groupId/sessions/:sessionId': { auth: 'student' },
+  'POST /api/v1/groups/:groupId/sessions/:sessionId/cancel': {
+    auth: 'student',
+  },
+  'POST /api/v1/groups/:groupId/sessions/:sessionId/duplicate': {
+    auth: 'student',
+  },
+  'GET /api/v1/groups/:groupId/sessions/calendar.ics': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/groups/:groupId/sessions/preparation-options': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/groups/:groupId/sessions/:sessionId/resources/:resourceId': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/groups/:groupId/sessions/:sessionId/calendar.ics': {
+    auth: 'student|lecturer',
+  },
+  'GET /api/v1/groups/:groupId/sessions/:sessionId': {
+    auth: 'student|lecturer',
+  },
+  'PUT /api/v1/groups/:groupId/sessions/:sessionId/rsvp': { auth: 'student' },
+  'GET /api/v1/me/notifications': { auth: 'student|lecturer' },
+  'POST /api/v1/me/notifications/:notificationId/read': {
+    auth: 'student|lecturer',
+  },
   'GET /health': { auth: 'public' },
   'POST /api/v1/auth/register': { auth: 'public' },
   'POST /api/v1/auth/login': { auth: 'public' },
