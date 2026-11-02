@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 function relativeLuminance(hex) {
   const channels = hex
@@ -41,5 +43,15 @@ describe('shared design token contrast', () => {
         `${name}: ${foreground} on ${background}`,
       ).toBeGreaterThanOrEqual(minimum);
     }
+  });
+
+  it('does not reduce card text contrast during the entrance animation', () => {
+    const stylesheet = readFileSync(
+      fileURLToPath(new URL('./styles.css', import.meta.url)),
+      'utf8',
+    );
+    const animation = stylesheet.match(/@keyframes arrive\s*\{([\s\S]*?)\n\}/)?.[1];
+    expect(animation).toBeTruthy();
+    expect(animation).not.toMatch(/opacity\s*:/);
   });
 });

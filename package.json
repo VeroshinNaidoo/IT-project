@@ -25,7 +25,7 @@
     "db:restore": "node scripts/db-restore.mjs",
     "backup:pg": "node scripts/backup-pg.mjs",
     "restore:pg": "node scripts/restore-pg.mjs",
-    "test:backup": "npm run db:test:reset && node scripts/test-backup-restore.mjs",
+    "test:backup": "node scripts/run-backup-test.mjs",
     "test:seed": "node scripts/test-seed-idempotence.mjs",
     "lint": "eslint .",
     "format:check": "prettier --check .",

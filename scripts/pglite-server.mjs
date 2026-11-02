@@ -185,6 +185,46 @@ async function start() {
   );
 }
 
+async function startRole(role) {
+  const config = configs[role];
+  if (!config) throw new Error(`Unknown PGlite role: ${role}`);
+  await writeEnv();
+  if (existsSync(config.pid)) {
+    const pid = Number(await readFile(config.pid, 'utf8'));
+    try {
+      process.kill(pid, 0);
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+      await unlink(config.pid);
+    }
+  }
+  if (!existsSync(config.pid)) {
+    const child = spawn(process.execPath, [scriptPath, 'daemon', role], {
+      cwd: root,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    child.unref();
+  }
+  await waitFor(config.port, config.database);
+  console.log(`PGlite ${role} server ready on 127.0.0.1:${config.port}`);
+}
+
+async function stopRole(role) {
+  const config = configs[role];
+  if (!config) throw new Error(`Unknown PGlite role: ${role}`);
+  if (!existsSync(config.pid)) return;
+  const pid = Number(await readFile(config.pid, 'utf8'));
+  try {
+    process.kill(pid, 'SIGTERM');
+    console.log(`Stopping PGlite ${role} server`);
+  } catch (error) {
+    if (error.code !== 'ESRCH') throw error;
+    await unlink(config.pid).catch(() => {});
+  }
+}
+
 async function stop() {
   for (const config of Object.values(configs)) {
     if (existsSync(config.pid)) {
@@ -209,6 +249,11 @@ async function status() {
 const [command, role] = process.argv.slice(2);
 if (command === 'daemon') await daemon(role);
 else if (command === 'start') await start();
+else if (command === 'start-role') await startRole(role);
+else if (command === 'stop-role') await stopRole(role);
 else if (command === 'stop') await stop();
 else if (command === 'status') await status();
-else throw new Error('Usage: start|stop|status');
+else
+  throw new Error(
+    'Usage: start|start-role <role>|stop-role <role>|stop|status',
+  );
