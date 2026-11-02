@@ -112,10 +112,10 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
   if ([string]::IsNullOrWhiteSpace($token)) { throw 'AI_SERVICE_TOKEN is empty: run npm run setup:token' }
   $env:AI_SERVICE_TOKEN = $token
 
-  Step 'Start backend' { Start-ProjectScript 'Backend' 'scripts\run-backend.ps1' }
-  Step 'Start AI service' { Start-ProjectScript 'AI service' 'scripts\run-ai-service.ps1' }
-  Step 'Start AI worker' { Start-ProjectScript 'AI worker' 'scripts\run-worker.ps1' }
-  Step 'Start frontend' { Start-ProjectScript 'Frontend' 'scripts\run-frontend.ps1' }
+  Step 'Start backend' { Start-ProjectScript 'Backend' 'scripts\run-backend.ps1' -Hidden }
+  Step 'Start AI service' { Start-ProjectScript 'AI service' 'scripts\run-ai-service.ps1' -Hidden }
+  Step 'Start AI worker' { Start-ProjectScript 'AI worker' 'scripts\run-worker.ps1' -Hidden }
+  Step 'Start frontend' { Start-ProjectScript 'Frontend' 'scripts\run-frontend.ps1' -Hidden }
 
   Step 'Check backend health' { Wait-Health 'http://127.0.0.1:4000/health' }
   Step 'Check AI service health' { Wait-Health 'http://127.0.0.1:8000/health' @{ 'x-ai-service-token' = $token } }

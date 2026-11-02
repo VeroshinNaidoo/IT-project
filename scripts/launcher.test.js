@@ -59,4 +59,18 @@ describe('EduQuest launcher', () => {
       /-File',\s*"\$ProjectRoot\\scripts\\run-(?:backend|ai-service|worker|frontend)\.ps1"/,
     );
   });
+
+  it('runs every long-lived service hidden behind the single launcher window', () => {
+    const source = readFileSync(script, 'utf8');
+    for (const [name, file] of [
+      ['Backend', 'run-backend.ps1'],
+      ['AI service', 'run-ai-service.ps1'],
+      ['AI worker', 'run-worker.ps1'],
+      ['Frontend', 'run-frontend.ps1'],
+    ]) {
+      expect(source).toContain(
+        `Start-ProjectScript '${name}' 'scripts\\${file}' -Hidden`,
+      );
+    }
+  });
 });
