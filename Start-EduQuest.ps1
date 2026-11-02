@@ -62,14 +62,58 @@ function Stop-PreviousProjectLaunchers {
   }
 }
 
-function Wait-Health($url, $headers = @{}) {
+function Wait-Health($url, $headers = @{}, $process = $null, $serviceName = 'Service') {
+  $consecutiveSuccesses = 0
   for ($attempt = 1; $attempt -le 60; $attempt++) {
+    if ($process -and $process.HasExited) {
+      throw "$serviceName exited before becoming healthy (exit code $($process.ExitCode)). Check docs\runtime-logs."
+    }
     try {
       $response = Invoke-WebRequest -Uri $url -Headers $headers -UseBasicParsing -TimeoutSec 2
-      if ($response.StatusCode -eq 200) { return }
-    } catch { Start-Sleep -Milliseconds 500 }
+      if ($response.StatusCode -eq 200) {
+        $consecutiveSuccesses++
+        if ($consecutiveSuccesses -ge 3) { return }
+      } else { $consecutiveSuccesses = 0 }
+    } catch { $consecutiveSuccesses = 0 }
+    Start-Sleep -Milliseconds 500
   }
   throw "Health check failed: $url"
+}
+
+function Read-EnvValue([string]$name) {
+  $line = Get-Content .env | Where-Object { $_ -match "^\s*$([regex]::Escape($name))\s*=" } | Select-Object -First 1
+  if (-not $line) { return '' }
+  return ($line.Substring($line.IndexOf('=') + 1).Trim().Trim('"').Trim("'"))
+}
+
+function Ensure-LocalAiProvider {
+  $provider = Read-EnvValue 'AI_PROVIDER'
+  $baseUrl = Read-EnvValue 'AI_BASE_URL'
+  $model = Read-EnvValue 'AI_MODEL'
+  if ($provider -ne 'openai_compatible' -or [string]::IsNullOrWhiteSpace($baseUrl)) { return }
+  try { $uri = [Uri]$baseUrl } catch { throw 'AI_BASE_URL is malformed in .env.' }
+  if ($uri.Host -notin @('127.0.0.1', 'localhost') -or $uri.Port -ne 11434) { return }
+  if ([string]::IsNullOrWhiteSpace($model)) { throw 'AI_MODEL is empty in .env.' }
+
+  $tagsUrl = 'http://127.0.0.1:11434/api/tags'
+  try { $tags = Invoke-RestMethod -Uri $tagsUrl -TimeoutSec 2 }
+  catch {
+    $ollama = Get-Command ollama -ErrorAction SilentlyContinue
+    if (-not $ollama) { throw 'Ollama is not installed. Install it, then run Check EduQuest AI.bat.' }
+    Say 'Starting local Ollama service'
+    $ollamaProcess = Start-Process -FilePath $ollama.Source -ArgumentList @('serve') -WindowStyle Hidden -PassThru
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+      if ($ollamaProcess.HasExited) { throw 'Ollama stopped while starting. Open Ollama and run the launcher again.' }
+      try { $tags = Invoke-RestMethod -Uri $tagsUrl -TimeoutSec 2; break }
+      catch { Start-Sleep -Seconds 1 }
+    }
+  }
+  if (-not $tags) { throw 'Ollama did not become ready. Open Ollama and run Check EduQuest AI.bat.' }
+  $installed = @($tags.models | ForEach-Object { $_.name })
+  if ($installed -notcontains $model) {
+    throw "Ollama model $model is not installed. Run Check EduQuest AI.bat."
+  }
+  Say "Local AI model ready: $model"
 }
 
 function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidden) {
@@ -91,7 +135,7 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
     RedirectStandardError = $standardError
   }
   if ($Hidden) { $startArguments.WindowStyle = 'Hidden' }
-  Start-Process @startArguments
+  return Start-Process @startArguments -PassThru
 }
 
   Step 'Install dependencies if needed' { if (-not (Test-Path 'node_modules')) { npm install } }
@@ -101,10 +145,12 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
     foreach ($port in @(4000, 5173, 8000)) { Stop-ProjectProcess $port }
   }
 
+  Step 'Check local AI provider' { Ensure-LocalAiProvider }
+
   Step 'Start database' { npm run db:start }
   Step 'Run migrations' { npm run db:migrate }
   Step 'Seed demo data' { npm run seed }
-  Step 'Start session reminders' { Start-ProjectScript 'Session reminders' 'scripts\run-session-reminders.ps1' -Hidden }
+  $reminderProcess = Step 'Start session reminders' { Start-ProjectScript 'Session reminders' 'scripts\run-session-reminders.ps1' -Hidden }
 
   $tokenLine = Get-Content .env | Where-Object { $_ -match '^AI_SERVICE_TOKEN=' } | Select-Object -First 1
   if (-not $tokenLine) { throw 'AI_SERVICE_TOKEN is missing: run npm run setup:token' }
@@ -112,14 +158,17 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
   if ([string]::IsNullOrWhiteSpace($token)) { throw 'AI_SERVICE_TOKEN is empty: run npm run setup:token' }
   $env:AI_SERVICE_TOKEN = $token
 
-  Step 'Start backend' { Start-ProjectScript 'Backend' 'scripts\run-backend.ps1' -Hidden }
-  Step 'Start AI service' { Start-ProjectScript 'AI service' 'scripts\run-ai-service.ps1' -Hidden }
-  Step 'Start AI worker' { Start-ProjectScript 'AI worker' 'scripts\run-worker.ps1' -Hidden }
-  Step 'Start frontend' { Start-ProjectScript 'Frontend' 'scripts\run-frontend.ps1' -Hidden }
+  $backendProcess = Step 'Start backend' { Start-ProjectScript 'Backend' 'scripts\run-backend.ps1' -Hidden }
+  $aiProcess = Step 'Start AI service' { Start-ProjectScript 'AI service' 'scripts\run-ai-service.ps1' -Hidden }
+  $workerProcess = Step 'Start AI worker' { Start-ProjectScript 'AI worker' 'scripts\run-worker.ps1' -Hidden }
+  $frontendProcess = Step 'Start frontend' { Start-ProjectScript 'Frontend' 'scripts\run-frontend.ps1' -Hidden }
 
-  Step 'Check backend health' { Wait-Health 'http://127.0.0.1:4000/health' }
-  Step 'Check AI service health' { Wait-Health 'http://127.0.0.1:8000/health' @{ 'x-ai-service-token' = $token } }
-  Step 'Check frontend health' { Wait-Health 'http://127.0.0.1:5173/health' }
+  Step 'Check backend health' { Wait-Health 'http://127.0.0.1:4000/health' @{} $backendProcess 'Backend' }
+  Step 'Check AI service health' { Wait-Health 'http://127.0.0.1:8000/health' @{ 'x-ai-service-token' = $token } $aiProcess 'AI service' }
+  Step 'Check frontend health' { Wait-Health 'http://127.0.0.1:5173/health' @{} $frontendProcess 'Frontend' }
+  foreach ($service in @(@('AI worker', $workerProcess), @('Session reminder worker', $reminderProcess))) {
+    if ($service[1].HasExited) { throw "$($service[0]) exited during startup. Check docs\runtime-logs." }
+  }
 
   Say 'EduQuest is running:'
   Say 'Frontend: http://127.0.0.1:5173'

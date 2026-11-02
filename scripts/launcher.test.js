@@ -87,4 +87,13 @@ describe('EduQuest launcher', () => {
       "Write-Host 'Command: npx vite --config frontend/vite.config.js'",
     );
   });
+
+  it('rejects false-positive health checks from stale processes and prepares Ollama', () => {
+    const source = readFileSync(script, 'utf8');
+    expect(source).toContain('$process.HasExited');
+    expect(source).toContain('$consecutiveSuccesses -ge 3');
+    expect(source).toContain("Step 'Check local AI provider'");
+    expect(source).toContain("$tagsUrl = 'http://127.0.0.1:11434/api/tags'");
+    expect(source).toContain('Start-Process @startArguments -PassThru');
+  });
 });
