@@ -23,8 +23,9 @@ describe('EduQuest launcher', () => {
     if (existsSync(desktopBat)) {
       const bat = readFileSync(desktopBat, 'utf8');
       expect(bat).toContain(`-File "%ROOT%\\Start-EduQuest.ps1"`);
-      expect(bat).toContain('set "RUNLOG=');
-      expect(bat).toContain('> "%RUNLOG%" 2>&1');
+      expect(bat).toContain('-NoPause');
+      expect(bat).not.toContain('RUNLOG');
+      expect(bat).not.toContain('2>&1');
     }
   });
 

@@ -50,7 +50,9 @@ describe('shared design token contrast', () => {
       fileURLToPath(new URL('./styles.css', import.meta.url)),
       'utf8',
     );
-    const animation = stylesheet.match(/@keyframes arrive\s*\{([\s\S]*?)\n\}/)?.[1];
+    const animation = stylesheet.match(
+      /@keyframes arrive\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
     expect(animation).toBeTruthy();
     expect(animation).not.toMatch(/opacity\s*:/);
   });

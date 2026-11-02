@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { pool } from '../db.js';
 import { containsProfanity } from '../src/profanity/index.js';
 
+/**
+ * Persistent AI job worker.
+ * Claims queued jobs, calls the local-only AI service with its shared secret,
+ * validates again in the backend, and persists each complete quiz atomically.
+ */
+
 const aiUrl = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 const aiServiceToken = process.env.AI_SERVICE_TOKEN || '';
 const maxAttempts = 3;

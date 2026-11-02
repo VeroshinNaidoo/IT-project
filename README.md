@@ -1,5 +1,9 @@
 # EduQuest
 
+New contributors should start with [`docs/CODE_MAP.md`](docs/CODE_MAP.md). It
+maps every major feature to its frontend, backend, database, worker, and test
+files; the largest source files also contain matching section banners.
+
 ## Local development
 
 Requirements: Node.js 22+ and Python 3.11+. PostgreSQL-compatible PGlite runs locally through the normal `pg` driver; no system database installation is required.

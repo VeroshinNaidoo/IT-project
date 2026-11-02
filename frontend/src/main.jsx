@@ -9,6 +9,15 @@ import {
   SessionDirectory,
 } from './study-sessions.jsx';
 import { GroupChat } from './group-chat.jsx';
+import { AdminPage } from './admin.jsx';
+
+/**
+ * EduQuest single-page interface.
+ *
+ * Exported components correspond to navigation destinations or complete
+ * learning activities. Authorization, scoring, and correctness always remain
+ * backend responsibilities even when the interface mirrors validation rules.
+ */
 
 const api = async (path, options = {}) => {
   const response = await fetch(`/api/v1${path}`, {
@@ -22,6 +31,7 @@ const api = async (path, options = {}) => {
   return body;
 };
 
+// ── Registration and login ─────────────────────────────────────────────────
 function Auth({ onLogin }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({
@@ -53,6 +63,7 @@ function Auth({ onLogin }) {
   };
   return (
     <main className="auth-page">
+      {/* Decorative welcome panel; the form remains the semantic focus. */}
       <section className="auth-intro" aria-label="Welcome to EduQuest">
         <span className="intro-label">
           A LITTLE CURIOSITY. A LOT OF POSSIBILITY.
@@ -76,6 +87,7 @@ function Auth({ onLogin }) {
           <span>EQ</span>
         </div>
       </section>
+      {/* One form switches between login and student-only registration. */}
       <form className="card auth-card" onSubmit={submit}>
         <span className="eyebrow">EDUQUEST</span>
         <h1>
@@ -206,6 +218,7 @@ function Auth({ onLogin }) {
   );
 }
 
+// ── Application shell, role-based navigation, and screen routing ───────────
 export function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -223,6 +236,9 @@ export function App() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => {
+    if (user?.role === 'admin' && screen === 'Dashboard') setScreen('Admin');
+  }, [user, screen]);
   if (loading)
     return <main className="center-state">Loading your workspace…</main>;
   if (!user) return <Auth onLogin={setUser} />;
@@ -247,13 +263,20 @@ export function App() {
     'Analytics',
     'Profile',
   ];
-  const screens = user.role === 'student' ? studentScreens : lecturerScreens;
+  const adminScreens = ['Admin', 'Profile'];
+  const screens =
+    user.role === 'student'
+      ? studentScreens
+      : user.role === 'admin'
+        ? adminScreens
+        : lecturerScreens;
   const logout = async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
   };
   return (
     <div className="shell">
+      {/* Role-aware navigation; backend middleware still enforces every role. */}
       <aside>
         <div className="brand">EduQuest</div>
         <p className="sidebar-user">
@@ -277,11 +300,16 @@ export function App() {
         </button>
       </aside>
       <main>
+        {/* Page heading, notifications, signed-in identity, and profile shortcut. */}
         <header>
           <Notifications onOpen={openStudySession} />
           <div>
             <span className="eyebrow">
-              {user.role === 'student' ? 'LEARNING HUB' : 'LECTURER HUB'}
+              {user.role === 'student'
+                ? 'LEARNING HUB'
+                : user.role === 'admin'
+                  ? 'ADMINISTRATION'
+                  : 'LECTURER HUB'}
             </span>
             <h1>{screen}</h1>
             <p className="page-description">
@@ -318,6 +346,7 @@ export function App() {
             <Dashboard user={user} />
           </>
         )}
+        {screen === 'Admin' && user.role === 'admin' && <AdminPage />}
         {screen === 'Study sessions' && studySession && (
           <StudySessions
             {...studySession}
@@ -434,6 +463,7 @@ export function App() {
   );
 }
 
+// ── Shared request-state helpers ───────────────────────────────────────────
 function useData(path) {
   const [state, setState] = useState({ loading: true, error: '', data: [] });
   useEffect(() => {
@@ -498,6 +528,7 @@ const labSrcDoc = (
   try { ${js} } catch (error) { console.error(error?.message || 'Your script could not run.'); }
 })();</script></body></html>`;
 
+// ── Practice Lab student players ───────────────────────────────────────────
 export function CodeLabPlayer({ lab, onBack }) {
   const [tab, setTab] = useState('html');
   const [code, setCode] = useState({
@@ -623,6 +654,7 @@ export function CodeLabPlayer({ lab, onBack }) {
           Your code ran too long and was stopped.
         </p>
       )}
+      {/* Editor and sandbox preview stack on mobile and align on wide screens. */}
       <div className="lab-workbench">
         <article className="card code-editor">
           <div className="lab-tabs" role="tablist">
@@ -1086,6 +1118,7 @@ export function ScenarioLabPlayer({ lab, onBack }) {
   );
 }
 
+// ── Lecturer Practice Lab authoring and catalogue ──────────────────────────
 function LabAuthoringPanel({ modules, onCreated }) {
   const [kind, setKind] = useState('spreadsheet');
   const [moduleId, setModuleId] = useState(modules[0]?.module_id || '');
@@ -1256,6 +1289,7 @@ export function PracticeLabs({ user }) {
     </section>
   );
 }
+// ── Student and lecturer dashboard ─────────────────────────────────────────
 function Dashboard({ user }) {
   const state = useData('/modules');
   const labs = useData('/labs?page=1&pageSize=3');
@@ -1312,6 +1346,7 @@ function Dashboard({ user }) {
     </section>
   );
 }
+// ── Modules: enrolments, search, and programme look-ahead ──────────────────
 export function Modules({ user }) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('code');
@@ -1500,6 +1535,7 @@ export function Modules({ user }) {
     </section>
   );
 }
+// ── Resources: secure files and lecturer AI-generation controls ────────────
 export function Resources({ user }) {
   const modules = useData('/me/modules?page=1&pageSize=50&sort=code');
   const tiles = useData('/resources/modules?page=1&pageSize=50&sort=code');
@@ -1536,6 +1572,7 @@ export function Resources({ user }) {
   };
   return (
     <section className="resources-page">
+      {/* Module tiles are the first level of secure resource navigation. */}
       <article className="card">
         <span className="eyebrow">RESOURCES</span>
         <h2>Choose a module</h2>
@@ -1629,6 +1666,7 @@ export function Resources({ user }) {
         )}
       </article>
       {user.role === 'lecturer' && (
+        /* Lecturer upload form; students receive authorized download links only. */
         <form className="card" onSubmit={upload}>
           <h2>Upload resource</h2>
           <label>
@@ -2037,6 +2075,7 @@ export function ResourceRow({ resource, lecturer }) {
     </div>
   );
 }
+// ── Study groups, recommendations, sessions, chat, and shared files ────────
 export function Groups({ user, onSession }) {
   const modules = useData('/me/modules?page=1&pageSize=50&sort=code');
   const [search, setSearch] = useState('');
@@ -2099,6 +2138,7 @@ export function Groups({ user, onSession }) {
   };
   return (
     <section className="groups-page">
+      {/* Filters and recommendations never expose private profile fields. */}
       <div className="card">
         <span className="eyebrow">COLLABORATE</span>
         <h2>Study groups</h2>
@@ -2150,6 +2190,7 @@ export function Groups({ user, onSession }) {
         </div>
       </div>
       {user.role === 'student' && (
+        /* Student group creation; server validation remains authoritative. */
         <form className="card group-create-form" onSubmit={submit}>
           <h3>Create a study group</h3>
           <select
@@ -2222,6 +2263,7 @@ export function Groups({ user, onSession }) {
       {!groups.loading && !groups.data.length && (
         <p className="empty-state">No study groups match these filters.</p>
       )}
+      {/* Cards combine membership, focus, languages, updates, and next session. */}
       <div className="group-grid">
         {groups.data.map((group) => (
           <article className="card group-card" key={group.group_id}>
@@ -2315,6 +2357,7 @@ export function Groups({ user, onSession }) {
     </section>
   );
 }
+// ── Competition leaderboard and lecturer analytics ─────────────────────────
 function Leaderboard({ user }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
@@ -2390,6 +2433,7 @@ function Analytics({ user }) {
     </section>
   );
 }
+// ── Quiz creation entry point and whole-quiz editor ────────────────────────
 export function QuizAuthoring({ onDone }) {
   const modules = useData('/modules');
   const [moduleId, setModuleId] = useState('');
@@ -2557,6 +2601,7 @@ export function QuizAuthoring({ onDone }) {
       {(type === 'multiple_choice' ||
         type === 'true_false' ||
         type === 'short_answer') && (
+        /* Answer controls change with the selected manual question type. */
         <div className="author-options">
           <label>Answer options / accepted answer</label>
           {options.map((value, index) => (
@@ -3246,6 +3291,7 @@ export function QuizEditor({ quizId, onDone }) {
   );
 }
 
+// ── Quiz catalogue and student/lecturer quiz actions ───────────────────────
 export function Quizzes({
   user,
   onTake,
@@ -3381,6 +3427,7 @@ const gameIcons = {
   timer_trivia: '◷',
 };
 
+// ── Data-driven game chooser and per-quiz availability ─────────────────────
 function GameIcon({ gameKey, label }) {
   return (
     <svg
@@ -3417,6 +3464,7 @@ export function GamesPage({ user, onStartGame }) {
     );
   return (
     <section className="games-page" aria-labelledby="games-heading">
+      {/* Enabled catalogue entries come from the API; unavailable games explain why. */}
       <div className="section-heading">
         <div>
           <span className="eyebrow">PRACTICE ARCADE</span>
@@ -3591,47 +3639,35 @@ export function QuizGames({
   onPlayTimerTrivia,
 }) {
   const games = useData(quizId ? `/quizzes/${quizId}/games` : '');
+  const actions = {
+    infected: onPlayInfected,
+    island_escape: onPlayIslandEscape,
+    memory_match: onPlayMemoryMatch,
+    boss_battle: onPlayBossBattle,
+    pixel_racer: onPlayPixelRacer,
+    timer_trivia: onPlayTimerTrivia,
+  };
   if (games.loading) return <p className="muted">Loading games…</p>;
   if (games.error) return <p className="field-error">{games.error}</p>;
   if (!games.data.length)
     return <p className="empty-state compact">Games coming soon.</p>;
   return (
     <section className="games-area" aria-label="Games">
-      <h3>Games</h3>
+      <div>
+        <h3>Choose a game to play</h3>
+        <p className="muted">
+          Games are practice only and never change the leaderboard.
+        </p>
+      </div>
       {games.data.map((game) => (
-        <div className="game-entry" key={game.game_id}>
+        <div className="game-entry" key={game.game_type_id || game.key}>
           <div>
             <b>{game.display_name}</b>
             {!game.available && <small>{game.reason}</small>}
           </div>
-          {game.key === 'infected' && game.available && (
-            <button className="primary" onClick={onPlayInfected}>
-              Play Infected
-            </button>
-          )}
-          {game.key === 'island_escape' && game.available && (
-            <button className="primary" onClick={onPlayIslandEscape}>
-              Play Island Escape
-            </button>
-          )}
-          {game.key === 'memory_match' && game.available && (
-            <button className="primary" onClick={onPlayMemoryMatch}>
-              Play Memory Match
-            </button>
-          )}
-          {game.key === 'boss_battle' && game.available && (
-            <button className="primary" onClick={onPlayBossBattle}>
-              Play Boss Battle
-            </button>
-          )}
-          {game.key === 'pixel_racer' && game.available && (
-            <button className="primary" onClick={onPlayPixelRacer}>
-              Play Pixel Car Racer
-            </button>
-          )}
-          {game.key === 'timer_trivia' && game.available && (
-            <button className="primary" onClick={onPlayTimerTrivia}>
-              Play Timer Trivia
+          {game.available && actions[game.key] && (
+            <button className="primary" onClick={actions[game.key]}>
+              Play {game.display_name}
             </button>
           )}
         </div>
@@ -3640,6 +3676,7 @@ export function QuizGames({
   );
 }
 
+// ── Boss Battle ─────────────────────────────────────────────────────────────
 function BossCharacter({ hp }) {
   const damageState = hp > 75 ? 0 : hp > 50 ? 1 : hp > 25 ? 2 : 3;
   const labels = ['Unhurt', 'Bruised', 'Cracked', 'Critical'];
@@ -3890,6 +3927,7 @@ export function BossBattleGame({ quizId, onBack }) {
   );
 }
 
+// ── Pixel Car Racer ─────────────────────────────────────────────────────────
 function PixelCar({ label, distance, player = false }) {
   const lanePosition = Math.min(92, Math.max(4, (distance / 500) * 88));
   return (
@@ -4094,6 +4132,7 @@ export function PixelRacerGame({ quizId, onBack }) {
   );
 }
 
+// ── Timer Trivia ────────────────────────────────────────────────────────────
 export function TimerTriviaGame({ quizId, onBack }) {
   const [play, setPlay] = useState(null);
   const [selected, setSelected] = useState('');
@@ -4348,6 +4387,7 @@ export function TimerTriviaGame({ quizId, onBack }) {
   );
 }
 
+// ── Memory Match ────────────────────────────────────────────────────────────
 export function MemoryMatchGame({ quizId, onBack }) {
   const [play, setPlay] = useState(null);
   const [hiddenMismatch, setHiddenMismatch] = useState(() => new Set());
@@ -4556,6 +4596,7 @@ const difficultyMeta = {
   hard: { icon: '▲', label: 'Hard' },
 };
 
+// ── Infected ────────────────────────────────────────────────────────────────
 function InfectedCharacter({ cure }) {
   const band = Math.min(4, Math.floor(cure / 20));
   const colours = ['#B3261E', '#C77700', '#F2A93B', '#688A62', '#2F8F5B'];
@@ -4837,6 +4878,7 @@ const islandSetbacks = {
   },
 };
 
+// ── Island Escape ───────────────────────────────────────────────────────────
 function IslandScene({ play }) {
   const progress =
     play.phase === 1
@@ -5089,6 +5131,7 @@ export function IslandEscapeGame({ quizId, onBack }) {
     </section>
   );
 }
+// ── Profile, preferences, password/email changes, and MFA controls ─────────
 export function ProfilePage({ user, onUserChange }) {
   const [data, setData] = useState(null);
   const [form, setForm] = useState(null);
@@ -5218,6 +5261,7 @@ export function ProfilePage({ user, onUserChange }) {
   };
   return (
     <section className="profile-grid">
+      {/* Identity and preferences reuse the registration validation rules. */}
       <form className="card" onSubmit={submitProfile}>
         <span className="eyebrow">ACCOUNT</span>
         <h2>Edit profile</h2>
@@ -5290,6 +5334,7 @@ export function ProfilePage({ user, onUserChange }) {
           Save profile
         </button>
       </form>
+      {/* Email and password changes are isolated security-sensitive forms. */}
       <div className="profile-stack">
         <form className="card" onSubmit={submitEmail}>
           <h2>Change email</h2>
@@ -5418,6 +5463,7 @@ export function ProfilePage({ user, onUserChange }) {
   );
 }
 
+// ── Student quiz-taking and post-submission results ─────────────────────────
 export function QuizTaking({ quizId }) {
   const [state, setState] = useState({
     loading: true,

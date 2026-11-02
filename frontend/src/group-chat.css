@@ -1,3 +1,4 @@
+/* Group conversation shell and polling status. */
 .group-chat {
   margin-top: 1rem;
 }
@@ -7,6 +8,7 @@
   justify-content: space-between;
   gap: 1rem;
 }
+/* Scrollable, text-only message history. */
 .group-chat-list {
   display: grid;
   gap: 0.75rem;
@@ -37,6 +39,7 @@
 .chat-message a {
   overflow-wrap: anywhere;
 }
+/* Member composer; permissions are enforced again by the API. */
 .group-chat-composer {
   display: grid;
   gap: 0.5rem;

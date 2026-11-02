@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+/* Global design tokens and document defaults. */
 :root {
   font-family: 'DM Sans', sans-serif;
   color: #14213d;
@@ -11,6 +12,7 @@
 body {
   margin: 0;
 }
+/* Persistent 220px application sidebar and flexible content column. */
 .shell {
   min-height: 100vh;
   display: flex;
@@ -75,6 +77,7 @@ aside {
   margin-right: 10px;
   color: #f2a93b;
 }
+/* Main page canvas shared by every signed-in screen. */
 main {
   flex: 1;
   padding: 42px clamp(24px, 6vw, 80px);
@@ -107,14 +110,74 @@ h1 {
   padding: 12px;
   font-weight: 700;
 }
+/* Reusable card grids; responsive overrides appear near the end of this file. */
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
+/* Games catalogue, administration dashboard, and their reusable controls. */
 .games-page {
   display: grid;
   gap: 24px;
+}
+.admin-page,
+.admin-list {
+  display: grid;
+  gap: 18px;
+}
+.admin-tabs,
+.admin-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-tabs button,
+.admin-actions button {
+  min-height: 44px;
+}
+.admin-tabs .active {
+  background: #14213d;
+  color: #fff;
+}
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.admin-metric span,
+.admin-table small {
+  display: block;
+  color: #4b5572;
+}
+.admin-metric strong {
+  display: block;
+  margin-top: 10px;
+  font: 700 30px 'Space Grotesk';
+}
+.admin-table-wrap {
+  overflow-x: auto;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.admin-table caption {
+  text-align: left;
+  font: 700 22px 'Space Grotesk';
+  margin-bottom: 16px;
+}
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e3dfd5;
+  text-align: left;
+  vertical-align: top;
+}
+@media (max-width: 760px) {
+  .admin-metrics {
+    grid-template-columns: 1fr;
+  }
 }
 .games-page .card {
   animation: none;
@@ -299,6 +362,7 @@ button:disabled {
 .muted {
   color: #14213d;
 }
+/* Lecturer AI-generation panel and draft progress states. */
 .resource-generation {
   margin-top: 12px;
 }
@@ -333,6 +397,7 @@ button:disabled {
   color: #b3261e !important;
 }
 .center-state,
+/* Public authentication layout: welcome artwork plus the account form. */
 .auth-page {
   min-height: 100vh;
   display: grid;
@@ -547,6 +612,7 @@ button:disabled {
 .practice-lab-page .self-checked {
   color: #14213d !important;
 }
+/* Practice Lab catalogue, editors, sandbox preview, and result panels. */
 .lab-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1475,6 +1541,7 @@ input[type='radio'] {
   }
 }
 
+/* Quiz catalogue, per-quiz games area, authoring, and taking screens. */
 .quiz-entry {
   border-bottom: 1px solid var(--line);
   padding-bottom: 18px;
@@ -2374,6 +2441,7 @@ input[type='radio'] {
   color: #e4e7fb;
   justify-self: start;
 }
+/* Shared game HUD: score/state text accompanies every visual indicator. */
 .game-stats {
   display: flex;
   flex-direction: column;
@@ -2518,6 +2586,7 @@ input[type='radio'] {
   flex-wrap: wrap;
   gap: 12px;
 }
+/* Profile identity, preferences, email, password, and MFA columns. */
 .profile-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);

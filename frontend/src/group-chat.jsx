@@ -148,6 +148,7 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
   };
   return (
     <section className="group-chat card" aria-labelledby={`chat-${groupId}`}>
+      {/* Group-scoped heading and polling status. */}
       <div className="group-chat-heading">
         <div>
           <span className="eyebrow">GROUP CHAT</span>
@@ -161,6 +162,7 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {/* Messages render as text; user HTML and Markdown are never executed. */}
       <div className="group-chat-list" aria-live="polite">
         {loading && <p>Loading messages…</p>}
         {!loading && !messages.length && (
@@ -190,6 +192,7 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
         ))}
       </div>
       {!readOnly && (
+        /* Members compose messages; leaders may additionally announce. */
         <form className="group-chat-composer" onSubmit={post}>
           <label htmlFor={`message-${groupId}`}>Write a message</label>
           {canModerate && (
@@ -221,6 +224,7 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
         </p>
       )}
       {canModerate && (
+        /* Moderators receive actionable content without exposing reporters. */
         <aside className="chat-reports" aria-label="Open message reports">
           <h5>Open reports</h5>
           {!reports.length && <p>No open reports.</p>}

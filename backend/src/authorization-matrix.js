@@ -2,6 +2,16 @@
 // Every API route must have an explicit entry. This is intentionally data-only so
 // authorization policy can be reviewed without reading handler implementation.
 const routePolicies = {
+  'GET /api/v1/admin/dashboard': { auth: 'admin' },
+  'GET /api/v1/admin/users': { auth: 'admin' },
+  'POST /api/v1/admin/lecturers': { auth: 'admin' },
+  'PATCH /api/v1/admin/users/:userId': { auth: 'admin' },
+  'GET /api/v1/admin/modules': { auth: 'admin' },
+  'PATCH /api/v1/admin/modules/:moduleId/lecturer': { auth: 'admin' },
+  'GET /api/v1/admin/reports': { auth: 'admin' },
+  'PATCH /api/v1/admin/reports/:reportId': { auth: 'admin' },
+  'GET /api/v1/admin/system': { auth: 'admin' },
+  'GET /api/v1/admin/audit': { auth: 'admin' },
   'GET /api/v1/me/sessions': { auth: 'student|lecturer' },
   'GET /api/v1/groups/:groupId/sessions': { auth: 'student|lecturer' },
   'POST /api/v1/groups/:groupId/sessions': { auth: 'student' },

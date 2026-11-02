@@ -1,4 +1,4 @@
-param([switch]$DryRun)
+param([switch]$DryRun, [switch]$NoPause)
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
@@ -180,5 +180,5 @@ function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidd
   Write-Host 'Fix the reported step, then double-click Run EduQuest.bat again.'
   exit 1
 } finally {
-  Read-Host 'Press Enter to close'
+  if (-not $NoPause) { Read-Host 'Press Enter to close' }
 }

@@ -1,3 +1,10 @@
+"""EduQuest AI provider service.
+
+Every provider returns the same strict Pydantic quiz shape. Uploaded document
+text is untrusted, and invalid output is rejected before the backend worker can
+persist a quiz.
+"""
+
 import asyncio
 import hmac
 import difflib
@@ -54,6 +61,7 @@ async def protect_service(request: Request, call_next):
         return JSONResponse(status_code=504, content={"detail": "AI request timed out"})
 
 
+# Provider interface and implementations -------------------------------------
 class LLMProvider(Protocol):
     def generate_quiz(self, request: "QuizRequest") -> "QuizResponse": ...
 
@@ -328,6 +336,7 @@ def provider() -> LLMProvider:
     return MockProvider()
 
 
+# Strict cross-provider request and response contracts -----------------------
 class Option(BaseModel):
     option_text: str = Field(min_length=1)
     is_correct: bool

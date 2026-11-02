@@ -724,6 +724,56 @@ describe('Boss Battle frontend', () => {
   });
 });
 
+describe('Quiz game chooser', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('shows and starts every enabled game returned for a quiz', async () => {
+    const games = [
+      ['infected-id', 'infected', 'Infected'],
+      ['island-id', 'island_escape', 'Island Escape'],
+      ['memory-id', 'memory_match', 'Memory Match'],
+      ['boss-id', 'boss_battle', 'Boss Battle'],
+      ['pixel-id', 'pixel_racer', 'Pixel Car Racer'],
+      ['trivia-id', 'timer_trivia', 'Timer Trivia'],
+    ];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        response({
+          data: games.map(([game_type_id, key, display_name]) => ({
+            game_type_id,
+            key,
+            display_name,
+            available: true,
+          })),
+        }),
+      ),
+    );
+    const handlers = Object.fromEntries(games.map(([, key]) => [key, vi.fn()]));
+
+    render(
+      <QuizGames
+        quizId="quiz-with-games"
+        onPlayInfected={handlers.infected}
+        onPlayIslandEscape={handlers.island_escape}
+        onPlayMemoryMatch={handlers.memory_match}
+        onPlayBossBattle={handlers.boss_battle}
+        onPlayPixelRacer={handlers.pixel_racer}
+        onPlayTimerTrivia={handlers.timer_trivia}
+      />,
+    );
+
+    expect(await screen.findByText('Choose a game to play')).toBeTruthy();
+    for (const [, key, name] of games) {
+      fireEvent.click(screen.getByRole('button', { name: `Play ${name}` }));
+      expect(handlers[key]).toHaveBeenCalledOnce();
+    }
+  });
+});
+
 describe('Quiz list pagination', () => {
   afterEach(() => {
     cleanup();

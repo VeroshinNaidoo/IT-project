@@ -302,6 +302,7 @@ export function StudySessions({ groupId, sessionId, onBack }) {
   }
   return (
     <section className="card sessions">
+      {/* List, month, and week controls share the same session records. */}
       <button onClick={onBack}>Back to study groups</button>
       <h2>Study sessions</h2>
       {error && (
@@ -331,6 +332,7 @@ export function StudySessions({ groupId, sessionId, onBack }) {
         )}
       </div>
       {form && (
+        /* Leader-only form; recurrence produces individually editable sessions. */
         <form
           onSubmit={async (e) => {
             e.preventDefault();

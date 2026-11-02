@@ -45,6 +45,11 @@ const users = {
     password: 'MatrixStudentPassword1!',
     fullName: 'Matrix Outsider',
   },
+  admin: {
+    email: 'matrix-admin@example.com',
+    password: 'MatrixAdminPassword1!',
+    fullName: 'Matrix Administrator',
+  },
 };
 let fixture;
 const verificationToken = 'matrix-verification-token-1234567890';
@@ -69,6 +74,8 @@ const pathFor = (template, values = fixture) =>
     .replace(':jobId', values.jobId)
     .replace(':attemptId', values.attemptId)
     .replace(':studentId', values.studentId)
+    .replace(':userId', values.adminTargetId || values.studentId)
+    .replace(':reportId', values.reportId || uuid())
     .replace(':updateId', values.updateId)
     .replace(
       ':id',
@@ -325,6 +332,22 @@ const bodies = {
 const specs = {
   ...sessionRouteSpecs,
   ...messagingRouteSpecs,
+  'GET /api/v1/admin/dashboard': ['/api/v1/admin/dashboard', 'admin'],
+  'GET /api/v1/admin/users': ['/api/v1/admin/users', 'admin'],
+  'POST /api/v1/admin/lecturers': ['/api/v1/admin/lecturers', 'admin'],
+  'PATCH /api/v1/admin/users/:userId': ['/api/v1/admin/users/:userId', 'admin'],
+  'GET /api/v1/admin/modules': ['/api/v1/admin/modules', 'admin'],
+  'PATCH /api/v1/admin/modules/:moduleId/lecturer': [
+    '/api/v1/admin/modules/:moduleId/lecturer',
+    'admin',
+  ],
+  'GET /api/v1/admin/reports': ['/api/v1/admin/reports', 'admin'],
+  'PATCH /api/v1/admin/reports/:reportId': [
+    '/api/v1/admin/reports/:reportId',
+    'admin',
+  ],
+  'GET /api/v1/admin/system': ['/api/v1/admin/system', 'admin'],
+  'GET /api/v1/admin/audit': ['/api/v1/admin/audit', 'admin'],
   'GET /health': ['/health', null],
   'POST /api/v1/auth/register': ['/api/v1/auth/register', null],
   'POST /api/v1/auth/login': ['/api/v1/auth/login', null],
@@ -600,6 +623,7 @@ const specs = {
 async function createFixture() {
   const lecturerHash = await bcrypt.hash(users.lecturer.password, 4);
   const studentHash = await bcrypt.hash(users.student.password, 4);
+  const adminHash = await bcrypt.hash(users.admin.password, 4);
   for (const [role, user] of Object.entries(users)) {
     const existing = await pool.query(
       'SELECT user_id FROM users WHERE email=$1',
@@ -607,8 +631,12 @@ async function createFixture() {
     );
     const values = [
       user.email,
-      role === 'lecturer' ? lecturerHash : studentHash,
-      role === 'lecturer' ? role : 'student',
+      role === 'admin'
+        ? adminHash
+        : role === 'lecturer'
+          ? lecturerHash
+          : studentHash,
+      ['lecturer', 'admin'].includes(role) ? role : 'student',
       user.fullName,
     ];
     if (existing.rowCount)
@@ -624,11 +652,25 @@ async function createFixture() {
   }
   await pool.query(
     'UPDATE users SET email_verified_at=now() WHERE email=ANY($1)',
-    [[users.lecturer.email, users.student.email, users.outsider.email]],
+    [
+      [
+        users.lecturer.email,
+        users.student.email,
+        users.outsider.email,
+        users.admin.email,
+      ],
+    ],
   );
   const result = await pool.query(
     'SELECT email,user_id FROM users WHERE email=ANY($1)',
-    [[users.lecturer.email, users.student.email, users.outsider.email]],
+    [
+      [
+        users.lecturer.email,
+        users.student.email,
+        users.outsider.email,
+        users.admin.email,
+      ],
+    ],
   );
   const ids = Object.fromEntries(
     result.rows.map((row) => [row.email, row.user_id]),
@@ -972,6 +1014,9 @@ async function createFixture() {
   ).rows[0];
   fixture = {
     studentId: ids[users.outsider.email],
+    adminTargetId: ids[users.outsider.email],
+    adminId: ids[users.admin.email],
+    lecturerId: ids[users.lecturer.email],
     updateId: groupUpdate.update_id,
     moduleId: moduleRow.module_id,
     labId: labRow.lab_id,
@@ -1029,7 +1074,72 @@ async function assertNoSensitive(result, route) {
   }
 }
 
+async function assertAdminRoute(route, [template]) {
+  const [method] = route.split(' ');
+  let path = pathFor(template);
+  let body = {};
+  if (route === 'POST /api/v1/admin/lecturers')
+    body = {
+      email: `matrix-lecturer-${Date.now()}@example.com`,
+      temporaryPassword: 'TemporaryPassword1!',
+      firstName: 'Matrix',
+      lastName: 'Lecturer',
+      reason: 'New lecturer appointment',
+    };
+  if (route === 'PATCH /api/v1/admin/users/:userId')
+    body = { action: 'require_password_reset', reason: 'Account support' };
+  if (route === 'PATCH /api/v1/admin/modules/:moduleId/lecturer')
+    body = {
+      lecturerId: fixture.lecturerId,
+      reason: 'Module staffing update',
+    };
+  if (route === 'PATCH /api/v1/admin/reports/:reportId') {
+    const message = await pool.query(
+      `INSERT INTO group_messages(group_id,author_id,body) VALUES($1,$2,'Matrix reported message') RETURNING message_id`,
+      [fixture.groupId, fixture.adminTargetId],
+    );
+    const report = await pool.query(
+      `INSERT INTO message_reports(message_id,reporter_id,reason) VALUES($1,$2,'Matrix report reason') RETURNING report_id`,
+      [message.rows[0].message_id, fixture.lecturerId],
+    );
+    path = `/api/v1/admin/reports/${report.rows[0].report_id}`;
+    body = { status: 'dismissed', reason: 'Reviewed and dismissed' };
+  }
+  expect((await send(request(app), method, path, body)).status).toBe(401);
+  const revoked = await revokedCookie();
+  expect((await sendWithCookie(method, path, revoked, body)).status).toBe(401);
+  expect((await send(await login('lecturer'), method, path, body)).status).toBe(
+    403,
+  );
+  if (template.includes(':')) {
+    const wrongPath = template
+      .replace(':userId', uuid())
+      .replace(':moduleId', uuid())
+      .replace(':reportId', uuid());
+    expect(
+      (await send(await login('admin'), method, wrongPath, body)).status,
+    ).toBe(404);
+  }
+  const invalid =
+    method === 'GET'
+      ? await (await login('admin')).get(path).query({ unknownField: 'true' })
+      : await send(await login('admin'), method, path, { unknownField: true });
+  expect(invalid.status).toBe(422);
+  const success = await send(await login('admin'), method, path, body);
+  expect(success.status).toBeGreaterThanOrEqual(200);
+  expect(success.status).toBeLessThan(300);
+  expect(JSON.stringify(success.body)).not.toMatch(
+    /password_hash|token_hash|encrypted_secret|temporaryPassword/i,
+  );
+}
+
 async function assertRoute(route, [template, successRole]) {
+  if (
+    route.startsWith('GET /api/v1/admin/') ||
+    route.startsWith('POST /api/v1/admin/') ||
+    route.startsWith('PATCH /api/v1/admin/')
+  )
+    return assertAdminRoute(route, [template, successRole]);
   if (sessionRouteSpecs[route]) return assertSessionRoute(route, app, pool);
   if (messagingRouteSpecs[route]) return assertMessagingRoute(route, app, pool);
   const [method] = route.split(' ');
@@ -1194,7 +1304,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(121);
+    expect(routeInventory.length).toBe(131);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

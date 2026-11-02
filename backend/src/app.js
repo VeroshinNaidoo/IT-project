@@ -1,4 +1,11 @@
 // @ts-nocheck
+/**
+ * EduQuest HTTP application.
+ *
+ * Route groups follow the product journey from identity to learning content,
+ * assessment, games, and reporting. The server remains authoritative for
+ * roles, ownership, scores, attempts, game state, and answer correctness.
+ */
 import 'dotenv/config';
 import crypto from 'node:crypto';
 import path from 'node:path';
@@ -49,6 +56,7 @@ import { registerTimerTriviaRoutes } from './games/timer_trivia/routes.js';
 import { recommendationReason, scoreGroup } from './groups/recommendations.js';
 import { registerSessionRoutes } from './groups/sessions.js';
 import { registerMessagingRoutes } from './groups/messaging.js';
+import { registerAdminRoutes } from './admin/routes.js';
 import {
   codesMatch,
   decryptSecret,
@@ -358,7 +366,7 @@ const requireAuth = async (req, res, next) => {
         requestId(req),
       );
     const result = await pool.query(
-      `SELECT u.user_id, u.role, u.full_name, u.first_name, u.last_name, u.student_type, u.student_year, u.email, u.email_verified_at FROM sessions s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now()`,
+      `SELECT u.user_id, u.role, u.full_name, u.first_name, u.last_name, u.student_type, u.student_year, u.email, u.email_verified_at FROM sessions s JOIN users u ON u.user_id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.account_status='active'`,
       [sessionHash(token)],
     );
     if (!result.rowCount)
@@ -532,6 +540,7 @@ const titleSchema = z
   .max(200)
   .refine(noProfanity(), { message: profanityMessage });
 
+// ── Service health and account registration ────────────────────────────────
 app.get('/health', async (_req, res) => {
   const result = await pool.query('SELECT 1 AS ok');
   res.json({ ok: result.rows[0].ok === 1 });
@@ -702,6 +711,7 @@ const generateRecoveryCodes = async (userId) => {
   return codes;
 };
 
+// ── Multi-factor authentication enrolment and recovery ─────────────────────
 app.post('/api/v1/mfa/enrol', requireAuth, async (req, res, next) => {
   try {
     if (!req.user.emailVerifiedAt)
@@ -847,6 +857,7 @@ const groupResponse = (row, student) => {
   return group;
 };
 
+// ── Study groups, leaders, recommendations, and updates ────────────────────
 app.get('/api/v1/groups', requireAuth, async (req, res, next) => {
   try {
     const query = parse(groupQuerySchema, req.query, req, res, 422);
@@ -1345,6 +1356,7 @@ app.post(
     }
   },
 );
+// ── Login, MFA challenge completion, sessions, and logout ─────────────────
 app.post('/api/v1/auth/login', async (req, res, next) => {
   try {
     const data = parse(
@@ -1366,6 +1378,14 @@ app.post('/api/v1/auth/login', async (req, res, next) => {
         401,
         'INVALID_LOGIN',
         'Email or password is incorrect.',
+        requestId(req),
+      );
+    if (result.rows[0].account_status !== 'active')
+      return error(
+        res,
+        403,
+        'ACCOUNT_SUSPENDED',
+        'This account is unavailable. Please contact an administrator.',
         requestId(req),
       );
     if (
@@ -1561,6 +1581,7 @@ const profileUser = async (userId) => {
   return result.rows[0];
 };
 
+// ── Current-user profile, password, and pending email changes ──────────────
 app.get('/api/v1/me/profile', requireAuth, async (req, res, next) => {
   try {
     const [profile, languages] = await Promise.all([
@@ -1791,6 +1812,7 @@ const paged = (page, pageSize, total) => ({
   pageCount: Math.max(1, Math.ceil(total / pageSize)),
 });
 
+// ── Student module catalogue and first-year look-ahead ─────────────────────
 app.get('/api/v1/me/modules', requireAuth, async (req, res, next) => {
   try {
     const query = parse(catalogueQuerySchema, req.query, req, res, 422);
@@ -1877,6 +1899,7 @@ app.get('/api/v1/me/modules/lookahead', requireAuth, async (req, res, next) => {
   }
 });
 
+// ── Module/resource summaries and secure resource access ──────────────────
 app.get('/api/v1/resources/modules', requireAuth, async (req, res, next) => {
   try {
     const query = parse(catalogueQuerySchema, req.query, req, res, 422);
@@ -1912,6 +1935,7 @@ app.get('/api/v1/resources/modules', requireAuth, async (req, res, next) => {
   }
 });
 
+// ── Lecturer modules, enrolment, and module-scoped groups ─────────────────
 app.get('/api/v1/modules', requireAuth, async (req, res, next) => {
   try {
     const result =
@@ -2272,6 +2296,7 @@ app.post(
   },
 );
 
+// ── Quiz listings and shared authoring workflow (manual and AI drafts) ─────
 app.post(
   '/api/v1/quizzes',
   requireAuth,
@@ -3156,6 +3181,7 @@ const generationJobView = (row) => {
   };
 };
 
+// ── Persistent AI-generation jobs; the worker owns provider interaction ───
 app.post(
   '/api/v1/resources/:resourceId/generation-jobs',
   requireAuth,
@@ -3457,6 +3483,7 @@ app.post(
   },
 );
 
+// ── Student attempts and authoritative transactional scoring ──────────────
 app.post(
   '/api/v1/quizzes/:quizId/attempts',
   requireAuth,
@@ -3742,6 +3769,7 @@ app.post(
   },
 );
 
+// ── Leaderboards and lecturer/student analytics ───────────────────────────
 app.get(
   '/api/v1/modules/:moduleId/leaderboard',
   requireAuth,
@@ -3859,6 +3887,7 @@ app.get(
   },
 );
 
+// ── Practice-game catalogue, availability, resume, and aggregate activity ─
 app.get('/api/v1/games/catalogue', requireAuth, async (req, res, next) => {
   try {
     const valid = parse(z.object({}).strict(), req.query, req, res);
@@ -4243,6 +4272,7 @@ const labClientView = (lab, user) => {
   return { ...lab, config };
 };
 
+// ── Practice Labs: catalogue, authoring, attempts, and aggregate progress ──
 app.get('/api/v1/labs', requireAuth, async (req, res, next) => {
   try {
     const query = z
@@ -4619,6 +4649,7 @@ registerPixelRacerRoutes({ app, pool, requireAuth, error, requestId });
 registerTimerTriviaRoutes({ app, pool, requireAuth, error, requestId });
 registerSessionRoutes({ app, pool, requireAuth, error, requestId });
 registerMessagingRoutes({ app, pool, requireAuth, error, requestId });
+registerAdminRoutes({ app, pool, requireAuth, error, requestId });
 
 app.use((err, req, res, _next) => {
   console.error(

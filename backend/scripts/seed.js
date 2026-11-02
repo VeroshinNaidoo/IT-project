@@ -5,6 +5,12 @@ import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
 
+/**
+ * Idempotent local demonstration seed.
+ * Stable keys create missing examples without duplicating or deleting
+ * user-created records, attempts, or game progress on repeated launcher runs.
+ */
+
 const demoPassword = process.env.SEED_DEMO_PASSWORD || 'EduQuestDemo123!';
 const hash = await bcrypt.hash(demoPassword, 10);
 const client = await pool.connect();
@@ -34,6 +40,7 @@ try {
     'lecturer',
     'Demo Lecturer',
   );
+  await upsertUser('demo-admin@example.com', 'admin', 'Demo Administrator');
   const students = [];
   for (let index = 1; index <= 5; index += 1) {
     const student = await upsertUser(
@@ -771,6 +778,7 @@ try {
   }
   await client.query('COMMIT');
   console.log('Seeded EduQuest demo data.');
+  console.log(`Administrator: demo-admin@example.com / ${demoPassword}`);
   console.log(`Lecturer: demo-lecturer@example.com / ${demoPassword}`);
   for (let index = 1; index <= 5; index += 1)
     console.log(
