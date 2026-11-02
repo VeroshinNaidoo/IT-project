@@ -31,6 +31,7 @@ export default defineConfig({
       PGLITE_E2E_PORT: '55436',
       PGLITE_E2E_DIR: '.pgdata/e2e-suite-55436',
       PG_POOL_MAX: '1',
+      E2E_TEST_MODE: '1',
       PORT: '4391',
       BACKEND_PORT: '4391',
       AI_PORT: '8391',

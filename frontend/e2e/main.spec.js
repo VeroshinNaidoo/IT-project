@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test.beforeEach(async ({ page }) => {
+  const response = await page.request.post('/api/v1/__test/reset-auth-state');
+  expect(response.status()).toBe(204);
+});
+
 test('Lecturer can open the manual quiz authoring form without exposing it to students', async ({
   page,
 }) => {

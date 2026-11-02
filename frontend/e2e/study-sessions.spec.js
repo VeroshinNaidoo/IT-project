@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test.beforeEach(async ({ page }) => {
+  const response = await page.request.post('/api/v1/__test/reset-auth-state');
+  expect(response.status()).toBe(204);
+});
+
 test('study sessions: leader schedules, member RSVPs, calendars, notifications and cancellation are accessible', async ({
   page,
 }) => {

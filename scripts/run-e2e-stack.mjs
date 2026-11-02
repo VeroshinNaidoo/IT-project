@@ -20,6 +20,7 @@ const env = {
   // The socket adapter is single-connection. Serialising backend queries avoids
   // protocol-level errors when one browser page loads several summaries.
   PG_POOL_MAX: '1',
+  E2E_TEST_MODE: '1',
 };
 
 const dbUrl = env.DATABASE_URL;

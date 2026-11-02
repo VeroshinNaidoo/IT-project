@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test.beforeEach(async ({ page }) => {
+  const response = await page.request.post('/api/v1/__test/reset-auth-state');
+  expect(response.status()).toBe(204);
+});
+
 test('browser suite uses an isolated database, never the dev database', () => {
   expect(process.env.DATABASE_URL).not.toContain(':5432/eduquest');
   expect(process.env.DATABASE_URL).toContain(':55436/eduquest_e2e');

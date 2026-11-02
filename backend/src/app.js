@@ -94,20 +94,28 @@ app.use(
 );
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
-app.use(
-  ['/api/v1/auth/login', '/api/v1/auth/register'],
-  rateLimit({
-    windowMs: 10 * 60 * 1000,
-    limit: Number(process.env.AUTH_RATE_LIMIT || 30),
-    standardHeaders: true,
-    message: {
-      error: {
-        code: 'RATE_LIMITED',
-        message: 'Too many sign-in attempts. Please wait and try again.',
-      },
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: Number(process.env.AUTH_RATE_LIMIT || 30),
+  standardHeaders: true,
+  message: {
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many sign-in attempts. Please wait and try again.',
     },
-  }),
-);
+  },
+});
+app.use(['/api/v1/auth/login', '/api/v1/auth/register'], authLimiter);
+
+// This endpoint exists only for the isolated browser-test process. It resets
+// the in-memory limiter between independent browser tests; production never
+// mounts it and therefore keeps the normal brute-force protection intact.
+if (process.env.E2E_TEST_MODE === '1')
+  app.post('/api/v1/__test/reset-auth-state', async (req, res) => {
+    await authLimiter.resetKey(req.ip);
+    mfaFailures.clear();
+    res.status(204).end();
+  });
 
 const sessionHash = (token) =>
   crypto.createHash('sha256').update(token).digest('hex');
