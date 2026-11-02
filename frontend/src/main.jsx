@@ -1598,13 +1598,14 @@ export function Resources({ user }) {
           state={moduleId ? state : { loading: false, error: '', data: [] }}
           empty="No resources are visible for this module."
         />
-        {state.data.map((resource) => (
-          <ResourceRow
-            key={resource.resource_id}
-            resource={resource}
-            lecturer={user.role === 'lecturer'}
-          />
-        ))}
+        {moduleId &&
+          state.data.map((resource) => (
+            <ResourceRow
+              key={resource.resource_id}
+              resource={resource}
+              lecturer={user.role === 'lecturer'}
+            />
+          ))}
         {moduleId && state.pagination?.pageCount > 1 && (
           <div className="pagination-controls">
             <button

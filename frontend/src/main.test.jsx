@@ -37,6 +37,7 @@ describe('manual quiz authoring', () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('shows lecturer-only starting points, mode explanations and question types', async () => {
@@ -367,6 +368,7 @@ describe('Student module and resource catalogues', () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('renders enrolled module cards and the first-year read-only look-ahead', async () => {
@@ -421,6 +423,9 @@ describe('Student module and resource catalogues', () => {
   });
 
   it('renders resource module tiles and searches within the selected module', async () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
     const fetchMock = vi.fn((url) => {
       if (url.includes('/resources/modules'))
         return Promise.resolve(
@@ -467,6 +472,11 @@ describe('Student module and resource catalogues', () => {
     expect(
       await screen.findByRole('button', { name: /Foundations/ }),
     ).toBeTruthy();
+    expect(
+      consoleError.mock.calls.some(([message]) =>
+        String(message).includes('unique "key" prop'),
+      ),
+    ).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: /Foundations/ }));
     expect(await screen.findByText('Revision notes')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Search resource titles'), {
