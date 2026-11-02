@@ -479,6 +479,12 @@ describe('Student module and resource catalogues', () => {
     ).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: /Foundations/ }));
     expect(await screen.findByText('Revision notes')).toBeTruthy();
+    const openResource = screen.getByRole('link', { name: 'Open resource' });
+    expect(openResource.getAttribute('href')).toBe(
+      '/api/v1/resources/resource-1/file',
+    );
+    expect(openResource.getAttribute('target')).toBe('_blank');
+    expect(openResource.getAttribute('rel')).toContain('noopener');
     fireEvent.change(screen.getByLabelText('Search resource titles'), {
       target: { value: 'Revision' },
     });

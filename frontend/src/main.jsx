@@ -1779,6 +1779,14 @@ export function ResourceRow({ resource, lecturer }) {
       <div className="list-row">
         <span>{resource.title}</span>
         <small>{resource.resource_type}</small>
+        <a
+          className="secondary resource-open-link"
+          href={`/api/v1/resources/${resource.resource_id}/file`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open resource
+        </a>
       </div>
     );
   return (
@@ -1788,6 +1796,14 @@ export function ResourceRow({ resource, lecturer }) {
           <b>{resource.title}</b>
           <small>{resource.resource_type}</small>
         </span>
+        <a
+          className="secondary resource-open-link"
+          href={`/api/v1/resources/${resource.resource_id}/file`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Open resource
+        </a>
       </div>
       <div className="generation-controls">
         <label>

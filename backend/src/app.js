@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -1800,6 +1800,10 @@ app.get('/api/v1/me/modules', requireAuth, async (req, res, next) => {
       req.user.role === 'lecturer'
         ? 'm.lecturer_id=$1'
         : 'EXISTS (SELECT 1 FROM enrollments me WHERE me.module_id=m.module_id AND me.student_id=$1)';
+    const visibleResource =
+      req.user.role === 'lecturer'
+        ? ''
+        : ' AND (r.group_id IS NULL OR EXISTS (SELECT 1 FROM group_members rgm WHERE rgm.group_id=r.group_id AND rgm.student_id=$1))';
     const filter = query.search
       ? ` AND (m.module_code ILIKE $2 OR m.module_name ILIKE $2)`
       : '';
@@ -1821,7 +1825,7 @@ app.get('/api/v1/me/modules', requireAuth, async (req, res, next) => {
       `SELECT m.module_id,m.module_code,m.module_name,m.description,m.year,m.programme,m.offering,
               u.full_name AS lecturer_name,
               (SELECT count(*)::int FROM quizzes q WHERE q.module_id=m.module_id AND q.status='published') AS quizzes_available,
-              (SELECT count(*)::int FROM resources r WHERE r.module_id=m.module_id AND r.created_date >= now()-interval '14 days') AS new_resources_count,
+              (SELECT count(*)::int FROM resources r WHERE r.module_id=m.module_id AND r.created_date >= now()-interval '14 days'${visibleResource}) AS new_resources_count,
               false AS has_in_progress_game
          FROM modules m JOIN users u ON u.user_id=m.lecturer_id
         WHERE ${ownership}${filter}
@@ -1882,10 +1886,14 @@ app.get('/api/v1/resources/modules', requireAuth, async (req, res, next) => {
       req.user.role === 'lecturer'
         ? 'm.lecturer_id=$1'
         : 'EXISTS (SELECT 1 FROM enrollments e WHERE e.module_id=m.module_id AND e.student_id=$1)';
+    const visibleResource =
+      req.user.role === 'lecturer'
+        ? ''
+        : ' AND (r.group_id IS NULL OR EXISTS (SELECT 1 FROM group_members rgm WHERE rgm.group_id=r.group_id AND rgm.student_id=$1))';
     const result = await pool.query(
       `SELECT m.module_id,m.module_code,m.module_name,count(r.resource_id)::int AS resource_count,
               max(r.created_date) AS last_updated
-         FROM modules m LEFT JOIN resources r ON r.module_id=m.module_id
+         FROM modules m LEFT JOIN resources r ON r.module_id=m.module_id${visibleResource}
         WHERE ${ownership}
         GROUP BY m.module_id ORDER BY m.module_code
         LIMIT $2 OFFSET $3`,
@@ -2100,7 +2108,8 @@ app.get(
         baseValues,
       );
       const result = await pool.query(
-        `SELECT DISTINCT r.* FROM resources r LEFT JOIN group_members gm ON gm.group_id=r.group_id AND gm.student_id=$2
+        `SELECT DISTINCT r.resource_id,r.uploaded_by,r.module_id,r.group_id,r.title,r.resource_type,r.file_size_bytes,r.created_date
+           FROM resources r LEFT JOIN group_members gm ON gm.group_id=r.group_id AND gm.student_id=$2
           WHERE r.module_id=$1
             AND (r.group_id IS NULL OR gm.student_id IS NOT NULL OR EXISTS (SELECT 1 FROM modules m WHERE m.module_id=r.module_id AND m.lecturer_id=$2))${search}
           ORDER BY r.created_date DESC LIMIT $${baseValues.length + 1} OFFSET $${baseValues.length + 2}`,
@@ -2109,6 +2118,87 @@ app.get(
       res.json({
         data: result.rows,
         pagination: paged(query.page, query.pageSize, count.rows[0].total),
+      });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+app.get(
+  '/api/v1/resources/:resourceId/file',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const params = parse(
+        z.object({ resourceId: z.string().uuid() }).strict(),
+        req.params,
+        req,
+        res,
+        422,
+      );
+      if (!params) return;
+      const result = await pool.query(
+        `SELECT r.resource_id,r.title,r.resource_type,r.file_location
+           FROM resources r
+           JOIN modules m ON m.module_id=r.module_id
+          WHERE r.resource_id=$1
+            AND (
+              (m.lecturer_id=$2 AND $3='lecturer')
+              OR (
+                $3='student'
+                AND EXISTS (SELECT 1 FROM enrollments e WHERE e.module_id=r.module_id AND e.student_id=$2)
+                AND (r.group_id IS NULL OR EXISTS (
+                  SELECT 1 FROM group_members gm WHERE gm.group_id=r.group_id AND gm.student_id=$2
+                ))
+              )
+            )`,
+        [params.resourceId, req.user.userId, req.user.role],
+      );
+      if (!result.rowCount)
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Resource not found.',
+          requestId(req),
+        );
+      const resource = result.rows[0];
+      const file = path.resolve(resource.file_location);
+      try {
+        await access(file);
+      } catch {
+        return error(
+          res,
+          404,
+          'NOT_FOUND',
+          'Resource file is unavailable.',
+          requestId(req),
+        );
+      }
+      const contentTypes = {
+        pdf: 'application/pdf',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        txt: 'text/plain; charset=utf-8',
+        md: 'text/markdown; charset=utf-8',
+      };
+      const extension = String(resource.resource_type || 'bin').toLowerCase();
+      const unicodeName = `${resource.title}.${extension}`;
+      const asciiName = `${
+        resource.title
+          .replace(/[^A-Za-z0-9 ._-]/g, '')
+          .trim()
+          .slice(0, 100) || 'resource'
+      }.${extension}`;
+      res.set({
+        'Content-Type': contentTypes[extension] || 'application/octet-stream',
+        'Content-Disposition': `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(unicodeName)}`,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.sendFile(file, (sendError) => {
+        if (sendError && !res.headersSent) next(sendError);
       });
     } catch (e) {
       next(e);

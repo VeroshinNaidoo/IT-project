@@ -506,6 +506,13 @@ test('module and resource catalogues show enrolled data and first-year preview',
   await page.getByRole('button', { name: 'Resources' }).click();
   await page.getByRole('button', { name: /CAT101/ }).click();
   await expect(page.getByText('Revision notes')).toBeVisible();
+  const openResource = page.getByRole('link', { name: 'Open resource' });
+  await expect(openResource).toBeVisible();
+  await expect(openResource).toHaveAttribute(
+    'href',
+    '/api/v1/resources/r-1/file',
+  );
+  await expect(openResource).toHaveAttribute('target', '_blank');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 

@@ -65,6 +65,7 @@ const routePolicies = {
   'POST /api/v1/groups/:groupId/leave': { auth: 'student' },
   'POST /api/v1/groups/:groupId/join': { auth: 'student' },
   'GET /api/v1/modules/:moduleId/resources': { auth: 'student|lecturer' },
+  'GET /api/v1/resources/:resourceId/file': { auth: 'student|lecturer' },
   'POST /api/v1/modules/:moduleId/resources': { auth: 'lecturer' },
   'POST /api/v1/quizzes': { auth: 'lecturer' },
   'POST /api/v1/quizzes/manual': { auth: 'lecturer' },

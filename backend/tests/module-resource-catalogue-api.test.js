@@ -1,6 +1,9 @@
 // @ts-nocheck
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
+import path from 'node:path';
+import os from 'node:os';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -18,10 +21,20 @@ describe('student module and resource catalogue API', () => {
   let ownModule;
   let otherModule;
   let lecturerAgent;
+  let otherLecturerAgent;
   let firstYearAgent;
   let secondYearAgent;
+  let tempDirectory;
+  let resourceId;
+  let groupResourceId;
 
   beforeAll(async () => {
+    tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'eduquest-resource-'));
+    const pdfPath = path.join(tempDirectory, 'student-notes.pdf');
+    await writeFile(
+      pdfPath,
+      Buffer.from('%PDF-1.4\nEduQuest student notes\n%%EOF'),
+    );
     const hash = await bcrypt.hash('CataloguePassword9!', 12);
     const users = await Promise.all([
       pool.query(
@@ -71,20 +84,41 @@ describe('student module and resource catalogue API', () => {
       `INSERT INTO topics(module_id,name) VALUES($1,'Networking')`,
       [otherModule.module_id],
     );
-    await pool.query(
-      `INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes)
-       VALUES($1,$2,'First resource','txt','/tmp/catalogue.txt',10)`,
-      [lecturer, ownModule.module_id],
-    );
+    resourceId = (
+      await pool.query(
+        `INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes)
+       VALUES($1,$2,'First resource','pdf',$3,36) RETURNING resource_id`,
+        [lecturer, ownModule.module_id, pdfPath],
+      )
+    ).rows[0].resource_id;
+    const group = (
+      await pool.query(
+        `INSERT INTO study_groups(module_id,created_by,group_name)
+         VALUES($1,$2,'Restricted Catalogue Group') RETURNING group_id`,
+        [ownModule.module_id, lecturer],
+      )
+    ).rows[0];
+    groupResourceId = (
+      await pool.query(
+        `INSERT INTO resources(uploaded_by,module_id,group_id,title,resource_type,file_location,file_size_bytes)
+         VALUES($1,$2,$3,'Group-only resource','pdf',$4,36) RETURNING resource_id`,
+        [lecturer, ownModule.module_id, group.group_id, pdfPath],
+      )
+    ).rows[0].resource_id;
     await pool.query(
       `INSERT INTO quizzes(module_id,created_by,title,status) VALUES($1,$2,'Published CAT Quiz','published')`,
       [ownModule.module_id, lecturer],
     );
     lecturerAgent = request.agent(app);
+    otherLecturerAgent = request.agent(app);
     firstYearAgent = request.agent(app);
     secondYearAgent = request.agent(app);
     await lecturerAgent.post('/api/v1/auth/login').send({
       email: 'catalogue-lecturer@example.com',
+      password: 'CataloguePassword9!',
+    });
+    await otherLecturerAgent.post('/api/v1/auth/login').send({
+      email: 'catalogue-other-lecturer@example.com',
       password: 'CataloguePassword9!',
     });
     await firstYearAgent.post('/api/v1/auth/login').send({
@@ -109,6 +143,10 @@ describe('student module and resource catalogue API', () => {
       [ownModule.module_id, otherModule.module_id],
     ]);
     await pool.query(
+      'DELETE FROM study_groups WHERE module_id = ANY($1::uuid[])',
+      [[ownModule.module_id, otherModule.module_id]],
+    );
+    await pool.query(
       'DELETE FROM enrollments WHERE module_id = ANY($1::uuid[])',
       [[ownModule.module_id, otherModule.module_id]],
     );
@@ -118,6 +156,7 @@ describe('student module and resource catalogue API', () => {
     await pool.query(
       `DELETE FROM users WHERE email LIKE 'catalogue-%@example.com'`,
     );
+    await rm(tempDirectory, { recursive: true, force: true });
   });
 
   it('returns all enrolled module cards with counts and lecturer details immediately', async () => {
@@ -171,6 +210,54 @@ describe('student module and resource catalogue API', () => {
         )
       ).status,
     ).toBe(403);
+  });
+
+  it('serves an enrolled student PDF inline without exposing its storage path', async () => {
+    const listing = await firstYearAgent.get(
+      `/api/v1/modules/${ownModule.module_id}/resources`,
+    );
+    expect(listing.status).toBe(200);
+    expect(JSON.stringify(listing.body)).not.toContain(tempDirectory);
+    expect(listing.body.data[0]).not.toHaveProperty('file_location');
+
+    const opened = await firstYearAgent.get(
+      `/api/v1/resources/${resourceId}/file`,
+    );
+    expect(opened.status).toBe(200);
+    expect(opened.headers['content-type']).toContain('application/pdf');
+    expect(opened.headers['content-disposition']).toContain('inline');
+    expect(opened.headers['cache-control']).toBe('private, no-store');
+    expect(Buffer.from(opened.body).toString()).toContain('%PDF-1.4');
+  });
+
+  it('refuses unenrolled, wrong-owner and group-ineligible resource access', async () => {
+    expect(
+      (await secondYearAgent.get(`/api/v1/resources/${resourceId}/file`))
+        .status,
+    ).toBe(404);
+    expect(
+      (await otherLecturerAgent.get(`/api/v1/resources/${resourceId}/file`))
+        .status,
+    ).toBe(404);
+    expect(
+      (await firstYearAgent.get(`/api/v1/resources/${groupResourceId}/file`))
+        .status,
+    ).toBe(404);
+    expect(
+      (await lecturerAgent.get(`/api/v1/resources/${groupResourceId}/file`))
+        .status,
+    ).toBe(200);
+  });
+
+  it('validates resource file identifiers and requires a session', async () => {
+    expect(
+      (await request(app).get(`/api/v1/resources/${resourceId}/file`)).status,
+    ).toBe(401);
+    const invalid = await firstYearAgent.get(
+      '/api/v1/resources/not-a-uuid/file',
+    );
+    expect(invalid.status).toBe(422);
+    expect(invalid.body.error).toMatchObject({ code: 'VALIDATION_ERROR' });
   });
 
   it('rejects unauthenticated and invalid catalogue requests with the standard shape', async () => {

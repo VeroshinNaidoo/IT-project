@@ -1,6 +1,7 @@
 // @ts-nocheck - this suite drives runtime Express routes and dynamic fixtures.
 import 'dotenv/config';
 import crypto from 'node:crypto';
+import path from 'node:path';
 import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -390,6 +391,10 @@ const specs = {
     '/api/v1/modules/:moduleId/resources',
     'lecturer',
   ],
+  'GET /api/v1/resources/:resourceId/file': [
+    '/api/v1/resources/:resourceId/file',
+    'lecturer',
+  ],
   'POST /api/v1/modules/:moduleId/resources': [
     '/api/v1/modules/:moduleId/resources',
     'lecturer',
@@ -705,8 +710,12 @@ async function createFixture() {
   );
   const resource = (
     await pool.query(
-      "INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,'Matrix Resource','txt','matrix.txt',1) RETURNING *",
-      [ids[users.lecturer.email], moduleRow.module_id],
+      "INSERT INTO resources(uploaded_by,module_id,title,resource_type,file_location,file_size_bytes) VALUES($1,$2,'Matrix Resource','txt',$3,1) RETURNING *",
+      [
+        ids[users.lecturer.email],
+        moduleRow.module_id,
+        path.resolve('ai-service/tests/fixtures/clean-databases.txt'),
+      ],
     )
   ).rows[0];
   const quiz = (
@@ -1185,7 +1194,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(120);
+    expect(routeInventory.length).toBe(121);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();
