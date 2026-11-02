@@ -112,3 +112,40 @@ it('lets a leader choose announcements and see the moderation list', async () =>
     ),
   );
 });
+
+it('stops polling after unmount and while the tab is hidden', async () => {
+  vi.useFakeTimers();
+  let hidden = false;
+  vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+  const view = render(<GroupChat groupId="group" />);
+  await vi.advanceTimersByTimeAsync(0);
+  const initialCalls = fetch.mock.calls.length;
+  hidden = true;
+  await vi.advanceTimersByTimeAsync(12000);
+  expect(fetch).toHaveBeenCalledTimes(initialCalls);
+  hidden = false;
+  document.dispatchEvent(new Event('visibilitychange'));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(fetch.mock.calls.length).toBeGreaterThan(initialCalls);
+  view.unmount();
+  await vi.advanceTimersByTimeAsync(12000);
+  const callsAfterUnmount = fetch.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(12000);
+  expect(fetch).toHaveBeenCalledTimes(callsAfterUnmount);
+  vi.useRealTimers();
+});
+
+it('backs off repeated polling errors instead of creating a tight loop', async () => {
+  vi.useFakeTimers();
+  fetch.mockRejectedValue(new Error('offline'));
+  render(<GroupChat groupId="group" />);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(4000);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(4000);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(16000);
+  expect(fetch).toHaveBeenCalledTimes(3);
+  vi.useRealTimers();
+});

@@ -15,6 +15,13 @@
 - Added a responsive chat tab with escaped rendering, safe HTTPS links, ETag/cursor polling, visibility pause, and lecturer read-only mode.
 - Focused evidence: 9/9 messaging API tests, 4/4 chat component tests, and 122/122 authorization-matrix cases. Final gates: unit/frontend 207/207, DB/API 306/306, Python 43/43, all zero skipped. The focused browser flow passed 5/6 projects; Firefox desktop exposed the existing e2e Vite child exit (Windows code 3221226505), so the complete browser matrix remains not green.
 
+## Browser stability hardening — 2026-11-02
+
+- E2E now builds the frontend once and serves the production bundle with `vite preview` on the isolated loopback port; the Vite development server and HMR/file watcher are not used by browser tests.
+- Group-chat polling now guards in-flight updates after unmount, pauses while hidden, cleans up its timer/listener, and backs off after repeated errors. Component coverage includes unmount, hidden-tab pause and error backoff.
+- Diagnosis: the original failure was the Vite dev child exiting on Windows with `3221226505` under the long matrix; after the static-preview change, the focused six-project flow passed 6/6 including Firefox desktop. A later full-matrix run had separate intermittent pre-existing login/axe failures after long sequential execution; those tests were not weakened or excluded.
+- Deterministic gates after the fix: unit/frontend 210/210, DB/API 306/306, Python 43/43, all with zero skips; production build, lint, format and type-check passed.
+
 ## FR-28 — Island Escape solo — 2026-10-27
 
 - Built the pure deterministic three-phase engine, centralized configuration, strict versioned state schema, difficulty-ramped question selection, setback/recycling rules, personal-best tracking, and replayable append-only moves.

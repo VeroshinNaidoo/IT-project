@@ -47,6 +47,7 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
   const [after, setAfter] = useState(null);
   const etag = useRef('');
   const failureCount = useRef(0);
+  const mounted = useRef(false);
 
   const load = async (append = false) => {
     try {
@@ -62,6 +63,7 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error?.message || 'Unable to load group chat.');
+      if (!mounted.current) return;
       etag.current = response.headers.get('etag') || etag.current;
       setMessages((current) =>
         append ? [...current, ...(data.data || [])] : data.data || [],
@@ -70,26 +72,36 @@ export function GroupChat({ groupId, readOnly = false, canModerate = false }) {
       failureCount.current = 0;
       setError('');
     } catch (reason) {
+      if (!mounted.current) return;
       failureCount.current += 1;
       setError(reason.message);
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   };
   useEffect(() => {
     let active = true;
-    const tick = () => {
-      if (active && !document.hidden) load(true);
+    let timer;
+    mounted.current = true;
+    const schedule = (delay) => {
+      timer = setTimeout(async () => {
+        if (!active) return;
+        if (!document.hidden) await load(true);
+        const backoff = Math.min(32000, 4000 * 2 ** failureCount.current);
+        schedule(document.hidden ? 1000 : backoff);
+      }, delay);
     };
-    load();
-    const timer = setInterval(tick, 4000);
+    load().then(() => {
+      if (active) schedule(4000);
+    });
     const onVisibility = () => {
-      if (!document.hidden) load(true);
+      if (!document.hidden && active) load(true);
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       active = false;
-      clearInterval(timer);
+      mounted.current = false;
+      clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
     // The group ID is the lifecycle boundary; the cursor is intentionally held in a ref/state.

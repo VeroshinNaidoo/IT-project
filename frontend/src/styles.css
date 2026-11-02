@@ -1334,6 +1334,8 @@ input[type='radio'] {
   width: min(100%, 440px);
   box-shadow: none;
   padding: 36px;
+  /* Keep auth text at full contrast while the form is measured by accessibility tools. */
+  animation: none;
 }
 .auth-card h1 {
   font-size: 32px;

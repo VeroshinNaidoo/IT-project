@@ -25,6 +25,7 @@ export default defineConfig({
   },
   preview: {
     host: '127.0.0.1',
-    port: 4173,
+    port: Number(process.env.VITE_PORT || 5173),
+    proxy: { '/api': `http://127.0.0.1:${process.env.BACKEND_PORT || 4000}` },
   },
 });

@@ -1,6 +1,6 @@
 // @ts-nocheck
 import 'dotenv/config';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFile, rm, unlink } from 'node:fs/promises';
 import pg from 'pg';
 
@@ -84,6 +84,18 @@ const runSetup = (script) =>
 await waitForDatabase();
 await runSetup('backend/scripts/reset-test-db.js');
 await runSetup('backend/scripts/seed.js');
+const build = spawnSync(
+  process.execPath,
+  [
+    'node_modules/vite/bin/vite.js',
+    'build',
+    '--config',
+    'frontend/vite.config.js',
+  ],
+  { cwd: process.cwd(), env, stdio: 'inherit', windowsHide: true },
+);
+if (build.status !== 0)
+  throw new Error(`frontend production build failed with ${build.status}`);
 
 const commands = [
   [process.execPath, ['backend/scripts/session-reminders.js']],
@@ -92,7 +104,16 @@ const commands = [
   [process.execPath, ['backend/scripts/ai-worker.js']],
   [
     process.execPath,
-    ['node_modules/vite/bin/vite.js', '--config', 'frontend/vite.config.js'],
+    [
+      'node_modules/vite/bin/vite.js',
+      'preview',
+      '--config',
+      'frontend/vite.config.js',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      '5391',
+    ],
   ],
 ];
 const children = commands.map(([command, args]) =>
