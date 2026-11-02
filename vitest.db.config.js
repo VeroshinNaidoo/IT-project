@@ -4,7 +4,7 @@ const suitePort = Number(process.env.PGLITE_SUITE_PORT ?? 55433);
 const suiteUrl = `postgres://postgres:postgres@127.0.0.1:${suitePort}/eduquest_test?sslmode=disable`;
 process.env.TEST_DATABASE_URL = suiteUrl;
 process.env.DATABASE_URL = suiteUrl;
-process.env.PG_POOL_MAX = '4';
+process.env.PG_POOL_MAX = '1';
 
 export default defineConfig({
   test: {

@@ -88,7 +88,7 @@ async function printServerLog() {
 export default async function setup() {
   process.env.TEST_DATABASE_URL = testUrl;
   process.env.DATABASE_URL = testUrl;
-  process.env.PG_POOL_MAX = '4';
+  process.env.PG_POOL_MAX = '1';
 
   await unlink(pidPath).catch(() => {});
   await rm(suiteDir, { recursive: true, force: true });
