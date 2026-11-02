@@ -51,6 +51,22 @@ function Wait-Health($url, $headers = @{}) {
   throw "Health check failed: $url"
 }
 
+function Start-ProjectScript([string]$name, [string]$relativePath, [switch]$Hidden) {
+  $scriptPath = Join-Path $ProjectRoot $relativePath
+  if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+    throw "$name script does not exist: $scriptPath"
+  }
+  $quotedScriptPath = '"' + $scriptPath + '"'
+  Say "Command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File $quotedScriptPath"
+  $startArguments = @{
+    FilePath = 'powershell.exe'
+    ArgumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $quotedScriptPath)
+    WorkingDirectory = $ProjectRoot
+  }
+  if ($Hidden) { $startArguments.WindowStyle = 'Hidden' }
+  Start-Process @startArguments
+}
+
   Step 'Install dependencies if needed' { if (-not (Test-Path 'node_modules')) { npm install } }
   Step 'Set up service token' { npm run setup:token }
   Step 'Stop old project processes' { foreach ($port in @(4000, 5173, 8000)) { Stop-ProjectProcess $port } }
@@ -58,7 +74,7 @@ function Wait-Health($url, $headers = @{}) {
   Step 'Start database' { npm run db:start }
   Step 'Run migrations' { npm run db:migrate }
   Step 'Seed demo data' { npm run seed }
-  Step 'Start session reminders' { Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$ProjectRoot\scripts\run-session-reminders.ps1`"" -WorkingDirectory $ProjectRoot }
+  Step 'Start session reminders' { Start-ProjectScript 'Session reminders' 'scripts\run-session-reminders.ps1' -Hidden }
 
   $tokenLine = Get-Content .env | Where-Object { $_ -match '^AI_SERVICE_TOKEN=' } | Select-Object -First 1
   if (-not $tokenLine) { throw 'AI_SERVICE_TOKEN is missing: run npm run setup:token' }
@@ -66,10 +82,10 @@ function Wait-Health($url, $headers = @{}) {
   if ([string]::IsNullOrWhiteSpace($token)) { throw 'AI_SERVICE_TOKEN is empty: run npm run setup:token' }
   $env:AI_SERVICE_TOKEN = $token
 
-  Step 'Start backend' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-backend.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-backend.ps1" -WorkingDirectory $ProjectRoot }
-  Step 'Start AI service' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-ai-service.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-ai-service.ps1" -WorkingDirectory $ProjectRoot }
-  Step 'Start AI worker' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-worker.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-worker.ps1" -WorkingDirectory $ProjectRoot }
-  Step 'Start frontend' { Say "Command: powershell -NoProfile -ExecutionPolicy Bypass -File `"$ProjectRoot\scripts\run-frontend.ps1`""; Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',"$ProjectRoot\scripts\run-frontend.ps1" -WorkingDirectory $ProjectRoot }
+  Step 'Start backend' { Start-ProjectScript 'Backend' 'scripts\run-backend.ps1' }
+  Step 'Start AI service' { Start-ProjectScript 'AI service' 'scripts\run-ai-service.ps1' }
+  Step 'Start AI worker' { Start-ProjectScript 'AI worker' 'scripts\run-worker.ps1' }
+  Step 'Start frontend' { Start-ProjectScript 'Frontend' 'scripts\run-frontend.ps1' }
 
   Step 'Check backend health' { Wait-Health 'http://127.0.0.1:4000/health' }
   Step 'Check AI service health' { Wait-Health 'http://127.0.0.1:8000/health' @{ 'x-ai-service-token' = $token } }

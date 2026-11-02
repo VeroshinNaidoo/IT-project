@@ -44,4 +44,15 @@ describe('EduQuest launcher', () => {
     ])
       expect(output).toContain(step);
   });
+
+  it('quotes every child PowerShell script path so folders with spaces work', () => {
+    const source = readFileSync(script, 'utf8');
+    expect(source).toContain("$quotedScriptPath = '\"' + $scriptPath + '\"'");
+    expect(source).toContain(
+      "ArgumentList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $quotedScriptPath)",
+    );
+    expect(source).not.toMatch(
+      /-File',\s*"\$ProjectRoot\\scripts\\run-(?:backend|ai-service|worker|frontend)\.ps1"/,
+    );
+  });
 });
