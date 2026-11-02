@@ -73,4 +73,18 @@ describe('EduQuest launcher', () => {
       );
     }
   });
+
+  it('serves the production frontend instead of the unstable Windows dev server', () => {
+    const source = readFileSync(
+      path.join(root, 'scripts', 'run-frontend.ps1'),
+      'utf8',
+    );
+    expect(source).toContain("Write-Host 'Command: npm run build'");
+    expect(source).toContain(
+      "Write-Host 'Command: npx vite preview --config frontend/vite.config.js'",
+    );
+    expect(source).not.toContain(
+      "Write-Host 'Command: npx vite --config frontend/vite.config.js'",
+    );
+  });
 });

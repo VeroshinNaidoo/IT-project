@@ -8,6 +8,13 @@ export default defineConfig({
     react(),
     {
       name: 'eduquest-health',
+      configurePreviewServer(server) {
+        server.middlewares.use('/health', (_request, response) => {
+          response.statusCode = 200;
+          response.setHeader('Content-Type', 'text/plain');
+          response.end('ok');
+        });
+      },
       configureServer(server) {
         server.middlewares.use('/health', (_request, response) => {
           response.statusCode = 200;
@@ -26,6 +33,7 @@ export default defineConfig({
   preview: {
     host: '127.0.0.1',
     port: Number(process.env.VITE_PORT || 5173),
+    allowedHosts: ['localhost', '127.0.0.1'],
     proxy: { '/api': `http://127.0.0.1:${process.env.BACKEND_PORT || 4000}` },
   },
 });

@@ -8,7 +8,7 @@
     "seed": "node backend/scripts/seed.js",
     "seed:reset": "node backend/scripts/seed-reset.js",
     "setup:token": "node scripts/setup-token.mjs",
-    "dev": "npm run setup:token && concurrently \"node backend/src/index.js\" \"python ai-service/run.py\" \"node backend/scripts/ai-worker.js\" \"node backend/scripts/session-reminders.js\" \"vite --config frontend/vite.config.js\"",
+    "dev": "npm run setup:token && npm run build && concurrently \"node backend/src/index.js\" \"python ai-service/run.py\" \"node backend/scripts/ai-worker.js\" \"node backend/scripts/session-reminders.js\" \"vite preview --config frontend/vite.config.js\"",
     "build": "npm --prefix frontend run build",
     "db:migrate": "node backend/scripts/migrate.js",
     "db:test:reset": "node backend/scripts/reset-test-db.js",
