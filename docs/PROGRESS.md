@@ -8,6 +8,13 @@
 - Stabilised the isolated PGlite browser stack with an e2e-only data directory, distinct ports, readiness checks, and a one-connection pool limit; browser tests cannot use the development database.
 - Gate: unit/backend/frontend 204/204, DB/API 286/286, Python 43/43, and full Chromium/Firefox browser and axe matrix 132/132. Zero skipped checks and zero axe violations. Lint, formatting, type-check, and production build passed.
 
+## Study group messaging — 2026-11-02
+
+- Added migration 026 for messages, attachments, reads, mutes, reports, and message notifications while preserving session notifications.
+- Added scoped message/reply/report/mute/read/attachment routes with strict schemas, profanity checks, rate limits, membership authorization, leader moderation, and no reporter identity disclosure.
+- Added a responsive chat tab with escaped rendering, safe HTTPS links, ETag/cursor polling, visibility pause, and lecturer read-only mode.
+- Focused evidence: 9/9 messaging API tests, 4/4 chat component tests, and 122/122 authorization-matrix cases. Final gates: unit/frontend 207/207, DB/API 306/306, Python 43/43, all zero skipped. The focused browser flow passed 5/6 projects; Firefox desktop exposed the existing e2e Vite child exit (Windows code 3221226505), so the complete browser matrix remains not green.
+
 ## FR-28 — Island Escape solo — 2026-10-27
 
 - Built the pure deterministic three-phase engine, centralized configuration, strict versioned state schema, difficulty-ramped question selection, setback/recycling rules, personal-best tracking, and replayable append-only moves.

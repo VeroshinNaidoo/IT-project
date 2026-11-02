@@ -150,3 +150,15 @@ The Games chooser invariants are exercised by `backend/tests/game-availability.t
 - INV-79: Session event notifications and RSVP reminder notifications are idempotent across worker restarts through a per-user deduplication key.
 
 Evidence: `backend/tests/group-sessions-api.test.js`, `backend/src/groups/sessions.test.js`, `backend/tests/authorization-matrix.test.js`, and `frontend/src/study-sessions.test.jsx`.
+
+## Group messaging invariants
+
+- INV-80: Only group members can read messages or attachments; module lecturers are read-only unless they are members, and departed members lose access immediately.
+- INV-81: Message and announcement text is bounded, profanity-checked, control-character cleaned, and rendered as escaped text. Only HTTPS text becomes a link.
+- INV-82: Only leaders can post announcements, pinning is limited to three active announcements, and only leaders can mute members or remove another member’s message.
+- INV-83: Members may edit only their own messages for ten minutes; deleted content is represented by a neutral removal label and reporter identity is never exposed to the author.
+- INV-84: Posting is rate limited per account and repeated body; mute state blocks posting while retaining read access.
+- INV-85: Attachments are limited to existing accessible resources or validated small uploads and are served through membership-authorized routes, never by guessed public paths.
+- INV-86: Message notifications are generated for announcements/replies and explicit @name mentions only; notification insertion is idempotent by user/message key.
+
+Evidence: `db/migrations/026_group_messaging.sql`, `backend/src/groups/messaging.js`, `backend/tests/group-messaging-api.test.js`, `backend/tests/authorization-matrix.test.js`, and `frontend/src/group-chat.test.jsx`.

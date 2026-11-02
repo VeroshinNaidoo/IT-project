@@ -121,3 +121,26 @@ erDiagram
   SESSION_RSVPS { uuid session_id PK_FK uuid student_id PK_FK text response }
   NOTIFICATIONS { uuid notification_id PK uuid user_id FK uuid session_id FK text kind jsonb payload timestamptz read_at text dedup_key }
 ```
+
+### Study group messaging additions
+
+```mermaid
+erDiagram
+  STUDY_GROUPS ||--o{ GROUP_MESSAGES : contains
+  USERS ||--o{ GROUP_MESSAGES : writes
+  GROUP_MESSAGES ||--o{ GROUP_MESSAGES : replies_to
+  GROUP_MESSAGES ||--o{ GROUP_MESSAGE_ATTACHMENTS : has
+  RESOURCES ||--o{ GROUP_MESSAGE_ATTACHMENTS : shared
+  STUDY_GROUPS ||--o{ GROUP_MESSAGE_READS : tracks
+  USERS ||--o{ GROUP_MESSAGE_READS : reads
+  STUDY_GROUPS ||--o{ GROUP_MUTES : moderates
+  USERS ||--o{ GROUP_MUTES : muted
+  GROUP_MESSAGES ||--o{ MESSAGE_REPORTS : reported
+  USERS ||--o{ MESSAGE_REPORTS : reports
+  GROUP_MESSAGES ||--o{ NOTIFICATIONS : notifies
+  GROUP_MESSAGES { uuid message_id PK uuid group_id FK uuid author_id FK text kind text body uuid reply_to_id FK boolean pinned timestamptz created_at timestamptz edited_at timestamptz deleted_at }
+  GROUP_MESSAGE_ATTACHMENTS { uuid attachment_id PK uuid message_id FK uuid resource_id FK text original_name text mime_type integer size_bytes }
+  GROUP_MESSAGE_READS { uuid group_id PK_FK uuid user_id PK_FK uuid last_read_message_id FK }
+  GROUP_MUTES { uuid group_id PK_FK uuid user_id PK_FK timestamptz muted_until uuid muted_by FK text reason }
+  MESSAGE_REPORTS { uuid report_id PK uuid message_id FK uuid reporter_id FK text reason text status timestamptz created_at }
+```

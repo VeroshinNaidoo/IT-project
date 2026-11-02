@@ -151,3 +151,12 @@ Run the local stack with `npm run dev`, then verify at 320px, 768px, and 1280px 
 4. Switch between list, month and week views with keyboard Tab/Enter. Open a session, RSVP **Going**, **Maybe**, and **Not going**, and confirm only leaders see RSVP names.
 5. Cancel a session with a reason. Confirm it remains displayed as cancelled and members receive an in-app notification. Check the bell’s unread count and mark one notification read.
 6. Download the group and session `.ics` files. Leave the group as a member and confirm the calendar, details, resource download and RSVP are no longer accessible.
+
+## Study group messaging
+
+1. Open a group as a member and choose **Group chat**. Post a normal message, reply to a message, edit it within ten minutes, and remove it. Confirm the edited label and neutral removal text.
+2. As a leader, post an announcement and confirm it is pinned. Create three pinned announcements, then confirm a fourth is refused with a clear limit message.
+3. Open the same group in a second browser as another member. Leave the chat tab open, post an announcement as the leader, and confirm it appears without refreshing. Hide the tab and confirm polling pauses.
+4. Send an HTML/script string and a `javascript:` URL. Confirm the text is visible as text and not executable or linked; an `https:` URL is linked with a new-tab safety label.
+5. Mute a member for one hour. Confirm they can read but cannot post. Report a message and confirm leaders can see the moderation report without seeing the reporter identity.
+6. Attach an existing accessible resource and upload an allowed small file. Confirm another group member can download it, while a non-member and a departed member receive an authorization error.

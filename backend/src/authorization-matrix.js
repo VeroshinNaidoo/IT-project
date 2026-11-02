@@ -161,6 +161,23 @@ const routePolicies = {
   'POST /api/v1/games/timer-trivia/plays/:id/answer': {
     auth: 'student|lecturer',
   },
+  'GET /api/v1/groups/:groupId/messages': { auth: 'student|lecturer' },
+  'POST /api/v1/groups/:groupId/messages': { auth: 'student|lecturer' },
+  'PATCH /api/v1/groups/:groupId/messages/:messageId': { auth: 'student' },
+  'DELETE /api/v1/groups/:groupId/messages/:messageId': { auth: 'student' },
+  'POST /api/v1/groups/:groupId/messages/:messageId/report': {
+    auth: 'student',
+  },
+  'GET /api/v1/groups/:groupId/reports': { auth: 'student' },
+  'PATCH /api/v1/groups/:groupId/reports/:reportId': { auth: 'student' },
+  'POST /api/v1/groups/:groupId/mutes/:studentId': { auth: 'student' },
+  'POST /api/v1/groups/:groupId/read': { auth: 'student|lecturer' },
+  'POST /api/v1/groups/:groupId/messages/:messageId/attachments': {
+    auth: 'student',
+  },
+  'GET /api/v1/groups/:groupId/attachments/:attachmentId': {
+    auth: 'student|lecturer',
+  },
 };
 
 const caseNames = [

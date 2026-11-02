@@ -8,6 +8,7 @@ import {
   Notifications,
   SessionDirectory,
 } from './study-sessions.jsx';
+import { GroupChat } from './group-chat.jsx';
 
 const api = async (path, options = {}) => {
   const response = await fetch(`/api/v1${path}`, {
@@ -2038,6 +2039,7 @@ export function Groups({ user, onSession }) {
     languages: [],
   });
   const [message, setMessage] = useState('');
+  const [chatGroup, setChatGroup] = useState(null);
   const languages = [
     'JavaScript',
     'TypeScript',
@@ -2212,10 +2214,28 @@ export function Groups({ user, onSession }) {
             <h3>{group.group_name}</h3>
             {(group.is_member || user.role === 'lecturer') && (
               <>
+                <button
+                  onClick={() =>
+                    setChatGroup(
+                      chatGroup === group.group_id ? null : group.group_id,
+                    )
+                  }
+                >
+                  {chatGroup === group.group_id
+                    ? 'Close group chat'
+                    : 'Group chat'}
+                </button>
                 <button onClick={() => onSession?.(group.group_id)}>
                   Study sessions
                 </button>
                 <UpcomingSessions groupId={group.group_id} onOpen={onSession} />
+                {chatGroup === group.group_id && (
+                  <GroupChat
+                    groupId={group.group_id}
+                    readOnly={user.role === 'lecturer' && !group.is_member}
+                    canModerate={Boolean(group.is_leader)}
+                  />
+                )}
               </>
             )}
             <p>{group.description || 'A focused study group.'}</p>

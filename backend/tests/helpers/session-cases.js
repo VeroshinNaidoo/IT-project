@@ -22,6 +22,86 @@ export const sessionRouteSpecs = Object.fromEntries(
     'POST /api/v1/me/notifications/:notificationId/read',
   ].map((r) => [r, [r.slice(r.indexOf(' ') + 1), 'student']]),
 );
+export const messagingRouteSpecs = Object.fromEntries(
+  [
+    'GET /api/v1/groups/:groupId/messages',
+    'POST /api/v1/groups/:groupId/messages',
+    'PATCH /api/v1/groups/:groupId/messages/:messageId',
+    'DELETE /api/v1/groups/:groupId/messages/:messageId',
+    'POST /api/v1/groups/:groupId/messages/:messageId/report',
+    'GET /api/v1/groups/:groupId/reports',
+    'PATCH /api/v1/groups/:groupId/reports/:reportId',
+    'POST /api/v1/groups/:groupId/mutes/:studentId',
+    'POST /api/v1/groups/:groupId/read',
+    'POST /api/v1/groups/:groupId/messages/:messageId/attachments',
+    'GET /api/v1/groups/:groupId/attachments/:attachmentId',
+  ].map((r) => [r, [r.slice(r.indexOf(' ') + 1), 'student']]),
+);
+
+export async function assertMessagingRoute(route, app, pool) {
+  const f = await sessionFixture(pool);
+  const send = (role, method, url, body) => {
+    let r = request(app)[method](url);
+    if (role) r = r.set('Cookie', f[role]?.cookie || role);
+    return method === 'get' ? r.query(body || {}) : r.send(body || {});
+  };
+  const base = `/api/v1/groups/${f.groupId}`;
+  const created = await send('leader', 'post', `${base}/messages`, {
+    body: 'Matrix message',
+  });
+  expect(created.status).toBe(201);
+  const messageId = created.body.message_id;
+  if (route.includes('/reports/:reportId')) {
+    await send('member', 'post', `${base}/messages/${messageId}/report`, {
+      reason: 'Matrix report',
+    });
+  }
+  const [method, template] = route.split(' ');
+  const verb = method.toLowerCase();
+  const url = template
+    .replace(':groupId', f.groupId)
+    .replace(':messageId', messageId)
+    .replace(':studentId', f.member.id)
+    .replace(':attachmentId', '00000000-0000-0000-0000-000000000000');
+  const reportId = route.includes('/reports/:reportId')
+    ? (
+        await pool.query(
+          'SELECT report_id FROM message_reports WHERE message_id=$1 ORDER BY created_at DESC LIMIT 1',
+          [messageId],
+        )
+      ).rows[0]?.report_id || '00000000-0000-0000-0000-000000000000'
+    : null;
+  const resolvedUrl = reportId ? url.replace(':reportId', reportId) : url;
+  let body = {};
+  if (
+    route === 'POST /api/v1/groups/:groupId/messages' ||
+    route.startsWith('PATCH /api/v1/groups/:groupId/messages/')
+  )
+    body = { body: 'Matrix body' };
+  if (route.endsWith('/report')) body = { reason: 'Matrix reason' };
+  if (route.includes('/reports/:reportId')) body = { status: 'dismissed' };
+  if (route.includes('/mutes/'))
+    body = { duration: '1h', reason: 'Matrix reason' };
+  if (route.endsWith('/read')) body = { messageId };
+  if (route.startsWith('POST ') && route.includes('/attachments'))
+    body = { resourceId: f.resourceId };
+  expect((await send(null, verb, resolvedUrl, body)).status).toBe(401);
+  expect(
+    (await send('eduquest_session=revoked', verb, resolvedUrl, body)).status,
+  ).toBe(401);
+  expect((await send('outsider', verb, resolvedUrl, body)).status).toBe(403);
+  expect(
+    (await send('leader', verb, resolvedUrl, { ...body, unknownField: true }))
+      .status,
+  ).toBe(422);
+  const success = await send('leader', verb, resolvedUrl, body);
+  if (route.includes('/attachments/:attachmentId'))
+    expect([403, 404]).toContain(success.status);
+  else expect([200, 201]).toContain(success.status);
+  expect(JSON.stringify(success.body)).not.toMatch(
+    /password_hash|token_hash|reporter_id|secret/i,
+  );
+}
 export const validSession = () => ({
   title: 'Database revision',
   topic: 'Normalisation',

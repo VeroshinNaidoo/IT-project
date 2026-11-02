@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     include: [
       'backend/tests/group-sessions-api.test.js',
+      'backend/tests/group-messaging-api.test.js',
       'backend/tests/study-groups-api.test.js',
       'backend/tests/ai-worker.test.js',
       'backend/tests/identity-api.test.js',

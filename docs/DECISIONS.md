@@ -143,3 +143,11 @@
 - Module lecturers can read calendars for their own modules, but are read-only unless they also belong to that study group. This preserves the student-led group boundary.
 - The reminder worker runs once per minute. For a session that enters both reminder windows after downtime, it may produce both the 24-hour and one-hour reminders; unique `(user, dedup_key)` prevents repeats after a restart.
 - Calendar downloads use a minimal escaped RFC 5545 representation. They contain no remote resources, invitation addresses or user data beyond the session’s own public-to-group fields.
+
+## Group messaging and resource sharing
+
+- Group messages are plain text. React renders message bodies as text nodes; the only automatic links are `https:` URLs with `noopener noreferrer` and `_blank`. HTML and Markdown are never interpreted.
+- The module lecturer may read a group chat for their module but may not post unless they are also a member. This is the same read-only boundary used for session calendars.
+- Announcements are pinned automatically for leaders, with a maximum of three active pinned announcements. A leader may remove any message; ordinary members may remove only their own.
+- Message notifications are generated for announcements, replies, and explicit `@Full Name` mentions. Ordinary messages without a mention do not notify every group member.
+- Existing resources are attached by reference after a server scope check. Small uploads reuse the upload directory outside the web root, use randomized stored names, and are served only through the membership-authorized attachment route.

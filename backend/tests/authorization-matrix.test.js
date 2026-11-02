@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
+  messagingRouteSpecs,
+  assertMessagingRoute,
   sessionRouteSpecs,
   assertSessionRoute,
 } from './helpers/session-cases.js';
@@ -321,6 +323,7 @@ const bodies = {
 
 const specs = {
   ...sessionRouteSpecs,
+  ...messagingRouteSpecs,
   'GET /health': ['/health', null],
   'POST /api/v1/auth/register': ['/api/v1/auth/register', null],
   'POST /api/v1/auth/login': ['/api/v1/auth/login', null],
@@ -1019,6 +1022,7 @@ async function assertNoSensitive(result, route) {
 
 async function assertRoute(route, [template, successRole]) {
   if (sessionRouteSpecs[route]) return assertSessionRoute(route, app, pool);
+  if (messagingRouteSpecs[route]) return assertMessagingRoute(route, app, pool);
   const [method] = route.split(' ');
   const verb = method.toLowerCase();
   const path = pathFor(template);
@@ -1181,7 +1185,7 @@ async function assertRoute(route, [template, successRole]) {
 describe('executable route authorization matrix', () => {
   beforeAll(createFixture);
   it('derives every route and requires a concrete assertion body', () => {
-    expect(routeInventory.length).toBe(109);
+    expect(routeInventory.length).toBe(120);
     expect(Object.keys(specs).sort()).toEqual([...routeInventory].sort());
     for (const route of routeInventory) {
       expect(specs[route]).toBeTruthy();

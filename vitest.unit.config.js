@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 const databaseTests = [
   'backend/tests/group-sessions-api.test.js',
+  'backend/tests/group-messaging-api.test.js',
   'backend/tests/ai-worker.test.js',
   'backend/tests/identity-api.test.js',
   'backend/tests/mfa-api.test.js',

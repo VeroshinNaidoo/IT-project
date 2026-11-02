@@ -269,3 +269,14 @@ The identity slice is covered by 7 identity API tests, 44 frontend authenticatio
 | In-app notifications, mark-read and idempotent 24h/1h reminders          | automated           | `backend/src/groups/sessions.js`, worker, API tests                           |
 | Escaped group/session iCalendar downloads                                | automated           | `backend/src/groups/sessions.test.js`, API tests                              |
 | Responsive, keyboard-operable month/week calendar and accessible details | automated           | `frontend/src/study-sessions.test.jsx`, `frontend/e2e/study-sessions.spec.js` |
+
+## Study group messaging, announcements and resource sharing
+
+| Requirement                                                             | Status    | Evidence                                                                                             |
+| ----------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| Member-only chat, lecturer read-only access, replies, edit/delete rules | automated | `backend/src/groups/messaging.js`, `backend/tests/group-messaging-api.test.js`                       |
+| Leader announcements, pin limit, moderation reports and mutes           | automated | `backend/tests/group-messaging-api.test.js`, `backend/tests/authorization-matrix.test.js`            |
+| Cursor polling, ETag support, escaped XSS text and HTTPS-only links     | automated | `backend/src/groups/messaging.js`, `frontend/src/group-chat.jsx`, `frontend/src/group-chat.test.jsx` |
+| Authorized resource/file attachments                                    | automated | `db/migrations/026_group_messaging.sql`, `backend/src/groups/messaging.js`, API tests                |
+| Mention, announcement and reply notifications                           | automated | `db/migrations/026_group_messaging.sql`, messaging API tests                                         |
+| Responsive chat tab and real two-user announcement flow                 | automated | `frontend/src/group-chat.test.jsx`, `frontend/e2e/study-sessions.spec.js`                            |

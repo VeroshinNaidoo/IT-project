@@ -48,6 +48,7 @@ import { registerPixelRacerRoutes } from './games/pixel_racer/routes.js';
 import { registerTimerTriviaRoutes } from './games/timer_trivia/routes.js';
 import { recommendationReason, scoreGroup } from './groups/recommendations.js';
 import { registerSessionRoutes } from './groups/sessions.js';
+import { registerMessagingRoutes } from './groups/messaging.js';
 import {
   codesMatch,
   decryptSecret,
@@ -881,6 +882,7 @@ app.get('/api/v1/groups', requireAuth, async (req, res, next) => {
         m.module_code,m.module_name,m.year,m.programme,
         (SELECT count(*)::int FROM group_members gm_count WHERE gm_count.group_id=g.group_id) AS member_count,
         EXISTS(SELECT 1 FROM group_members gm_me WHERE gm_me.group_id=g.group_id AND gm_me.student_id=$1) AS is_member,
+        EXISTS(SELECT 1 FROM group_leaders gl_me WHERE gl_me.group_id=g.group_id AND gl_me.student_id=$1) AS is_leader,
         (SELECT COALESCE(json_agg(json_build_object('student_id',gl.student_id,'name',u.full_name,'role',gl.role) ORDER BY gl.role,u.full_name),'[]'::json) FROM group_leaders gl JOIN users u ON u.user_id=gl.student_id WHERE gl.group_id=g.group_id) AS leaders,
         (SELECT COALESCE(json_agg(pl.name ORDER BY pl.name),'[]'::json) FROM group_languages gl JOIN programming_languages pl ON pl.language_id=gl.language_id WHERE gl.group_id=g.group_id) AS languages,
         (SELECT json_build_object('update_id',gu.update_id,'text',gu.text,'planned_for',gu.planned_for,'created_at',gu.created_at,'topic',t.name) FROM group_updates gu LEFT JOIN topics t ON t.topic_id=gu.topic_id WHERE gu.group_id=g.group_id AND gu.kind='doing_now' ORDER BY gu.created_at DESC LIMIT 1) AS latest_doing_now,
@@ -4518,6 +4520,7 @@ registerBossBattleRoutes({ app, pool, requireAuth, error, requestId });
 registerPixelRacerRoutes({ app, pool, requireAuth, error, requestId });
 registerTimerTriviaRoutes({ app, pool, requireAuth, error, requestId });
 registerSessionRoutes({ app, pool, requireAuth, error, requestId });
+registerMessagingRoutes({ app, pool, requireAuth, error, requestId });
 
 app.use((err, req, res, _next) => {
   console.error(

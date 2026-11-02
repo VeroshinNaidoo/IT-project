@@ -58,6 +58,12 @@ test('study sessions: leader schedules, member RSVPs, calendars, notifications a
   await expect(
     page.getByRole('button', { name: /Query revision/ }),
   ).toHaveCount(2);
+  const announcement = `Bring notes ${Date.now()}`;
+  const announcementResponse = await page.request.post(
+    `/api/v1/groups/${group.group_id}/messages`,
+    { data: { body: announcement, kind: 'announcement' } },
+  );
+  expect(announcementResponse.status()).toBe(201);
   await page.getByRole('button', { name: 'Month view' }).click();
   await expect(page.locator('.session-calendar')).toBeVisible();
   await axe();
@@ -99,13 +105,16 @@ test('study sessions: leader schedules, member RSVPs, calendars, notifications a
   await axe();
   await page.getByRole('button', { name: 'Log out' }).click();
   await login('demo-student-2@example.com');
-  expect(
-    (
-      await page.request.post(`/api/v1/groups/${group.group_id}/join`, {
-        data: {},
-      })
-    ).status(),
-  ).toBe(201);
+  await page.getByRole('button', { name: 'Study groups', exact: true }).click();
+  const memberCard = page.locator('.group-card').filter({ hasText: groupName });
+  await memberCard.getByRole('button', { name: 'Join', exact: true }).click();
+  await memberCard
+    .getByRole('button', { name: 'Group chat', exact: true })
+    .click();
+  await expect(page.getByText(announcement, { exact: true })).toBeVisible({
+    timeout: 10000,
+  });
+  await axe();
   expect(
     (
       await page.request.post(`/api/v1/groups/${group.group_id}/sessions`, {

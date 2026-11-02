@@ -178,3 +178,9 @@ Manual-quiz completion update: the lecturer now has a quiz-level editor with set
 - Implemented: leader/co-leader lifecycle controls, individual weekly occurrences, clash warnings, member RSVP, read-only lecturer access, escaped `.ics` downloads and an idempotent reminder worker.
 - Implemented: dashboard next-three card, group-card next session, list/month/week calendar, resource links, notification bell and mark-read actions.
 - Tested: session unit checks 2/2; dedicated DB/API checks 11/11; behavioural authorization matrix 111/111; frontend component checks 5/5. The full isolated browser/axe matrix passed 132/132 in Chromium and Firefox at 390, 768 and 1280 pixels, with zero axe violations and zero skipped checks.
+
+## 2026-11-02 — Study group messaging and resource sharing
+
+- Implemented: member-only group chat with escaped messages, replies, ten-minute self-edit, deletion labels, leader announcements, pin limit, reports and mutes.
+- Implemented: cursor/ETag polling, visibility pause, HTTPS-only auto-links, mention/announcement/reply notifications, authorized resource references and bounded file uploads.
+- Tested: 9 messaging API tests, 11 route-inventory entries, and 4 frontend component tests. The full DB/API suite passed 306/306, the unit/frontend suite passed 207/207, and Python passed 43/43, all with zero skips. The focused messaging browser flow passed 5/6 viewport projects; the final Firefox desktop run was interrupted by the existing Vite child process exiting with Windows code 3221226505, so the complete browser matrix is not yet green.
